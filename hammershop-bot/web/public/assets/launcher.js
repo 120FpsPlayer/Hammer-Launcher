@@ -1,5 +1,6 @@
 /* The launcher page: the download button (after a Discord sign-in), the news the admin panel published, Hammer+ bought
-   by card and „Zaproś znajomego” – the referral card. */
+   by card and „Zaproś znajomego” – the referral card. At the end: the look (the menu on small screens, the section in
+   view, scroll reveal, the feature tabs and the theme picker). */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -49,23 +50,33 @@
   // ── The download button and the news ──
   // Downloading from the website needs a Discord sign-in (where the site has it set up) – the button says so; the
   // server sends a signed-out click through Discord and back here with ?download=1, and the page starts the download.
+  // The other download buttons further down the page ([data-download]) say the same as the one at the top.
+  var mirrors = Array.prototype.slice.call(document.querySelectorAll('[data-download]'));
   function showRelease() {
     var button = $('download');
     var meta = $('download-meta');
     if (release === undefined) return;
     if (!release) {
-      button.textContent = 'Już wkrótce';
-      button.setAttribute('aria-disabled', 'true');
+      [button].concat(mirrors).forEach(function (b) { b.textContent = 'Już wkrótce'; b.setAttribute('aria-disabled', 'true'); });
       meta.textContent = 'Launcher jest w przygotowaniu – wersja beta pojawi się tutaj. Zajrzyj na naszego Discorda, damy znać.';
       return;
     }
-    button.removeAttribute('aria-disabled');
-    button.textContent = signedKnown && !session.user && plus.authReady ? 'Zaloguj przez Discord i pobierz' : 'Pobierz na Windows';
+    var label = signedKnown && !session.user && plus.authReady ? 'Zaloguj przez Discord i pobierz' : 'Pobierz na Windows';
+    [button].concat(mirrors).forEach(function (b) { b.removeAttribute('aria-disabled'); b.textContent = label; });
     meta.textContent = 'Wersja ' + release.version + ' (beta) · ' + megabytes(release.size) + ' · ' + new Date(release.date).toLocaleDateString('pl-PL');
+    // The version in the hero's badge and in the facts strip – both stay hidden while there is no release.
+    $('hero-version').textContent = 'wersja ' + release.version;
+    $('hero-version').hidden = false;
+    $('fact-version-v').textContent = release.version;
+    $('fact-version').hidden = false;
   }
+  var downloadsNow = function () { return Boolean(release && signedKnown && (session.user || !plus.authReady)); };
   // Signed in (or no sign-in on this site): the click downloads right away – the page says it started.
   $('download').addEventListener('click', function () {
-    if (release && signedKnown && (session.user || !plus.authReady)) $('download-started').hidden = false;
+    if (downloadsNow()) $('download-started').hidden = false;
+  });
+  mirrors.forEach(function (b) {
+    b.addEventListener('click', function () { if (downloadsNow()) toast('Pobieranie się zaczęło… Nic się nie dzieje? Kliknij jeszcze raz.'); });
   });
   /** Back from the Discord sign-in the download button asked for: the download starts by itself. */
   var downloadHandled = false;
@@ -286,7 +297,9 @@
   api('/api/launcher/news').then(function (feed) { release = feed.release || null; showRelease(); downloadAfterSignIn(); showNews(feed.news); }).catch(function () { release = null; showRelease(); });
   api('/api/shop/store').then(function (store) {
     var invite = httpsOnly(store.discordUrl);
-    if (invite) { $('nav-discord').href = invite; $('nav-discord').hidden = false; }
+    if (invite) {
+      [$('nav-discord')].concat(Array.prototype.slice.call(document.querySelectorAll('[data-discord]'))).forEach(function (a) { a.href = invite; a.hidden = false; });
+    }
   }).catch(function () {});
   Promise.all([api('/api/shop/session').catch(function () { return { user: null }; }), api('/api/shop/plus').catch(function () { return plus; })]).then(function (r) {
     session = r[0];
@@ -304,5 +317,113 @@
     try { wanted = sessionStorage.getItem('hs_plan'); sessionStorage.removeItem('hs_plan'); } catch (e) { /* private mode */ }
     var plan = wanted && session.user && plus.plans.filter(function (p) { return p.id === wanted; })[0];
     if (plan && params.get('connected')) { location.hash = '#plus'; choose(plan); }
+  });
+
+  // ── The look: the header, the menu on small screens, the section in view, scroll reveal, tabs, themes ──
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var bar = $('top');
+  var onScroll = function () { bar.classList.toggle('scrolled', window.scrollY > 8); };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  var nav = $('nav');
+  var toggle = $('nav-toggle');
+  function menu(open) {
+    bar.classList.toggle('menu-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.querySelector('.sr-only').textContent = open ? 'Zamknij menu' : 'Menu';
+  }
+  toggle.addEventListener('click', function () { menu(!bar.classList.contains('menu-open')); });
+  nav.addEventListener('click', function (event) { if (event.target.closest('a')) menu(false); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && bar.classList.contains('menu-open')) { menu(false); toggle.focus(); }
+  });
+  document.addEventListener('click', function (event) { if (bar.classList.contains('menu-open') && !bar.contains(event.target)) menu(false); });
+
+  if ('IntersectionObserver' in window) {
+    // The link of the section in the middle of the screen is lit.
+    var links = {};
+    Array.prototype.forEach.call(nav.querySelectorAll('a[href^="#"]'), function (a) { if (a.getAttribute('href').length > 1) links[a.getAttribute('href').slice(1)] = a; });
+    var inView = {};
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { inView[entry.target.id] = entry.isIntersecting; });
+      Object.keys(links).forEach(function (id) { links[id].classList.toggle('is-active', Boolean(inView[id])); });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    Object.keys(links).forEach(function (id) { if ($(id)) spy.observe($(id)); });
+    // Sections ease in as they come into view.
+    if (!calm) {
+      document.documentElement.classList.add('reveal-on');
+      var shown = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('in');
+          shown.unobserve(entry.target);
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+      Array.prototype.forEach.call(document.querySelectorAll('.reveal'), function (node) { shown.observe(node); });
+    }
+  }
+
+  // Tabs (the features): arrows, Home and End move between them, as in any tab list.
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tabs]'), function (box) {
+    var tabs = Array.prototype.slice.call(box.querySelectorAll('[role="tab"]'));
+    function select(tab, focus) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        $(t.getAttribute('aria-controls')).classList.toggle('is-active', on);
+      });
+      if (focus) tab.focus();
+    }
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function () { select(tab, false); });
+      tab.addEventListener('keydown', function (event) {
+        var next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        select(tabs[(next + tabs.length) % tabs.length], true);
+      });
+    });
+    box.classList.add('tabs-ready');
+  });
+
+  // „Wygląd po Twojemu”: the launcher's themes, one screenshot each.
+  var THEMES = {
+    domyslny: ['Domyślny', 'Ciepły pomarańcz Hammera – za darmo dla każdego.'],
+    nether: ['Nether', 'Lawa, żar i popiół w ruchomym tle.'],
+    end: ['End', 'Fiolet pustki, gwiazdy i blask prętów Endu.'],
+    ocean: ['Ocean', 'Pryzmaryn, bąbelki i światło z góry.'],
+    wisnia: ['Wiśniowy gaj', 'Różowe barwy i spadające płatki wiśni.'],
+    mrok: ['Głęboki mrok', 'Pulsujący sculk prosto z głębin.'],
+  };
+  var picks = Array.prototype.slice.call(document.querySelectorAll('.theme-pick'));
+  var themeImg = $('theme-img');
+  function showTheme(pick) {
+    var id = pick.getAttribute('data-theme');
+    var info = THEMES[id];
+    if (!info) return;
+    picks.forEach(function (p) { p.setAttribute('aria-pressed', String(p === pick)); });
+    var frame = themeImg.parentNode;
+    frame.classList.add('swapping');
+    var next = new Image();
+    var done = function () {
+      themeImg.src = next.src;
+      themeImg.alt = 'Hammer Launcher w motywie ' + info[0];
+      $('theme-stage').setAttribute('data-theme', id);
+      var caption = $('theme-caption');
+      caption.textContent = '';
+      caption.appendChild(el('b', { text: info[0] }));
+      caption.appendChild(document.createTextNode(' ' + info[1]));
+      frame.classList.remove('swapping');
+    };
+    next.onload = done;
+    next.onerror = function () { frame.classList.remove('swapping'); };
+    next.src = '/assets/launcher/motyw-' + id + '.webp';
+  }
+  picks.forEach(function (pick) {
+    pick.addEventListener('click', function () { showTheme(pick); });
+    // A light warm-up: the picture is fetched when the pointer comes near.
+    pick.addEventListener('pointerenter', function () { new Image().src = '/assets/launcher/motyw-' + pick.getAttribute('data-theme') + '.webp'; }, { once: true });
   });
 })();

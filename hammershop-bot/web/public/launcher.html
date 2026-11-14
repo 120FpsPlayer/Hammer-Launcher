@@ -4,189 +4,448 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><!--shop-->Hammer Launcher – launcher Minecrafta od HammerShop<!--/shop--><!--launcher-->Hammer Launcher – nasz własny launcher Minecrafta<!--/launcher--></title>
-<meta name="description" content="Hammer Launcher (beta) – nasz własny launcher Minecrafta: instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i własny klient w grze. Pobierz za darmo.">
-<meta name="theme-color" content="#0e0b09">
+<meta name="description" content="Hammer Launcher (beta) – nasz własny launcher Minecrafta: instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i własny klient w grze. Pobierz za darmo na Windows.">
+<meta name="theme-color" content="#0b0806">
 <meta name="color-scheme" content="dark">
 <meta property="og:type" content="website">
 <!--shop--><meta property="og:site_name" content="HammerShop"><!--/shop--><!--launcher--><meta property="og:site_name" content="Hammer Launcher"><!--/launcher-->
 <meta property="og:locale" content="pl_PL">
 <meta property="og:title" content="Hammer Launcher – nasz własny launcher Minecrafta">
-<meta property="og:description" content="Wszystko w jednym miejscu: instancje, mody, FPS boost jednym kliknięciem i własny klient w grze. Wersja beta – za darmo.">
-<meta property="og:image" content="/assets/launcher/graj.jpg">
-<!--shop--><link rel="icon" href="/assets/hammershop-icon.png"><!--/shop--><!--launcher--><link rel="icon" href="/assets/launcher-icon.png"><!--/launcher-->
+<meta property="og:description" content="Instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i własny klient w grze. Wersja beta – za darmo na Windows.">
+<meta property="og:image" content="/assets/launcher/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Hammer Launcher – graj więcej, kombinuj mniej">
+<meta name="twitter:card" content="summary_large_image">
+<!--shop--><link rel="icon" href="/assets/hammershop-icon.png"><!--/shop--><!--launcher--><link rel="icon" href="/assets/launcher-icon.png"><link rel="apple-touch-icon" href="/assets/launcher-icon.png"><!--/launcher-->
+<link rel="preload" href="/assets/fonts/montserrat-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/montserrat-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/launcher.css">
 </head>
 <body>
-<header class="top">
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 12.5 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 7.5 12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5 4.5 14h7l-1 7.5 9-11.5h-7l1-7.5z"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.6 17.5a9 9 0 1 1 16.8 0"/><path d="m12 13.5 4.5-4.5"/><circle cx="12" cy="14" r="1.6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5 13.9 8l4.6 1.9-4.6 1.9L12 16.4l-1.9-4.6L5.5 9.9 10.1 8 12 3.5z"/><path d="M18.5 15.5 19.3 17.7 21.5 18.5 19.3 19.3 18.5 21.5 17.7 19.3 15.5 18.5 17.7 17.7z"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6h1.9c2.8 0 4.8-2.1 4.8-4.8C21.1 6.5 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10" cy="7.3" r="1.1"/><circle cx="14.8" cy="7.3" r="1.1"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 19h10.5a4.5 4.5 0 0 0 .4-9 6.5 6.5 0 0 0-12.6 1.6A3.8 3.8 0 0 0 7 19z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 4.6-3.4 8.3-8 9-4.6-.7-8-4.4-8-9V6l8-3z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M15.5 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M13 15h4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.6"/><path d="M20 3.5v5.1h-5.1"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11.5m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M4.5 19.5h15"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5.5-5.5L19 12l-5.5 5.5"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4.5" rx="1.2"/><path d="M5 12.5V20h14v-7.5M12 8v12M12 8C11 5 7.3 3.8 6.6 6.1 6 8 9.4 8 12 8zm0 0c1-3 4.7-4.2 5.4-1.9C18 8 14.6 8 12 8z"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="m3 8 4.5 4L12 5l4.5 7L21 8l-1.8 10.5H4.8L3 8z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="9.5" r="1.8"/><path d="m21 15.5-5-5-9.5 9.5"/></symbol>
+  <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4M11 8.5v5M8.5 11h5"/></symbol>
+  <symbol id="i-hud" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M6.5 8h4M6.5 11h2.5M14.5 16h3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4h8.5l9 9-8.5 8.5-9-9z"/><circle cx="8" cy="8.5" r="1.4"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.6 3.7 5.6 3.7 9s-1.3 6.4-3.7 9c-2.4-2.6-3.7-5.6-3.7-9S9.6 5.6 12 3z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.2 4v4.6h4.6M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M8.2 3.5 3 6.5l2 4 2-1V20h10V9.5l2 1 2-4-5.2-3c-.4 1.6-2 2.7-3.8 2.7S8.6 5.1 8.2 3.5z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M8 5.5v13l10.5-6.5L8 5.5z"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18.5 14v5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-discord" viewBox="0 0 576 512"><path fill="currentColor" stroke="none" d="M492.5 69.8c-.2-.3-.4-.6-.8-.7-38.1-17.5-78.4-30-119.7-37.1-.4-.1-.8 0-1.1 .1s-.6 .4-.8 .8c-5.5 9.9-10.5 20.2-14.9 30.6-44.6-6.8-89.9-6.8-134.4 0-4.5-10.5-9.5-20.7-15.1-30.6-.2-.3-.5-.6-.8-.8s-.7-.2-1.1-.2c-41.3 7.1-81.6 19.6-119.7 37.1-.3 .1-.6 .4-.8 .7-76.2 113.8-97.1 224.9-86.9 334.5 0 .3 .1 .5 .2 .8s.3 .4 .5 .6c44.4 32.9 94 58 146.8 74.2 .4 .1 .8 .1 1.1 0s.7-.4 .9-.7c11.3-15.4 21.4-31.8 30-48.8 .1-.2 .2-.5 .2-.8s0-.5-.1-.8-.2-.5-.4-.6-.4-.3-.7-.4c-15.8-6.1-31.2-13.4-45.9-21.9-.3-.2-.5-.4-.7-.6s-.3-.6-.3-.9 0-.6 .2-.9 .3-.5 .6-.7c3.1-2.3 6.2-4.7 9.1-7.1 .3-.2 .6-.4 .9-.4s.7 0 1 .1c96.2 43.9 200.4 43.9 295.5 0 .3-.1 .7-.2 1-.2s.7 .2 .9 .4c2.9 2.4 6 4.9 9.1 7.2 .2 .2 .4 .4 .6 .7s.2 .6 .2 .9-.1 .6-.3 .9-.4 .5-.6 .6c-14.7 8.6-30 15.9-45.9 21.8-.2 .1-.5 .2-.7 .4s-.3 .4-.4 .7-.1 .5-.1 .8 .1 .5 .2 .8c8.8 17 18.8 33.3 30 48.8 .2 .3 .6 .6 .9 .7s.8 .1 1.1 0c52.9-16.2 102.6-41.3 147.1-74.2 .2-.2 .4-.4 .5-.6s.2-.5 .2-.8c12.3-126.8-20.5-236.9-86.9-334.5zm-302 267.7c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.4 59.2-52.8 59.2zm195.4 0c-29 0-52.8-26.6-52.8-59.2s23.4-59.2 52.8-59.2c29.7 0 53.3 26.8 52.8 59.2 0 32.7-23.2 59.2-52.8 59.2z"/></symbol>
+  <symbol id="i-windows" viewBox="0 0 448 512"><path fill="currentColor" stroke="none" d="M0 93.7l183.6-25.3 0 177.4-183.6 0 0-152.1zM0 418.3l183.6 25.3 0-175.2-183.6 0 0 149.9zm203.8 28l244.2 33.7 0-211.6-244.2 0 0 177.9zm0-380.6l0 180.1 244.2 0 0-213.8-244.2 33.7z"/></symbol>
+</svg>
+<a class="skip" href="#tresc">Przejdź do treści</a>
+
+<header class="top" id="top">
   <div class="wrap">
-    <!--shop--><a class="logo" href="/" aria-label="HammerShop – strona główna"><i aria-hidden="true"></i>Hammer<b>Shop</b></a><!--/shop--><!--launcher--><a class="logo h" href="/" aria-label="Hammer Launcher – strona główna"><i aria-hidden="true"></i>Hammer<b>Launcher</b></a><a class="collab" href="#hammershop" aria-label="Współpraca: Hammer Launcher × HammerShop"><span aria-hidden="true">×</span><img src="/assets/launcher-icon.png" width="20" height="20" alt=""><em>Hammer<b>Shop</b></em></a><!--/launcher-->
-    <nav class="nav" aria-label="Główna nawigacja">
+    <!--shop--><a class="logo" href="/" aria-label="HammerShop – strona główna"><i aria-hidden="true"></i>Hammer<b>Shop</b></a><!--/shop--><!--launcher--><a class="logo h" href="/" aria-label="Hammer Launcher – strona główna"><i aria-hidden="true"></i>Hammer<b>Launcher</b></a><a class="collab" href="#hammershop" aria-label="Współpraca: Hammer Launcher × HammerShop"><span aria-hidden="true">×</span><img src="/assets/launcher/icon-96.png" width="20" height="20" alt=""><em>Hammer<b>Shop</b></em></a><!--/launcher-->
+    <nav class="nav" id="nav" aria-label="Główna nawigacja">
       <!--shop--><a href="/">Sklep</a>
-      <a href="/launcher" aria-current="page">Launcher</a><!--/shop--><!--launcher--><a href="/" aria-current="page">Launcher</a>
+      <a href="/launcher" aria-current="page">Launcher</a><!--/shop-->
       <a href="#funkcje">Funkcje</a>
-      <a href="#hammershop">HammerShop</a><!--/launcher-->
+      <a href="#klient">Hammer Client</a>
+      <a href="#wyglad">Wygląd</a>
       <a href="#plus">Hammer+</a>
       <a href="#polecaj">Polecaj</a>
-      <a id="nav-discord" href="#" target="_blank" rel="noopener" hidden>Discord</a>
+      <a id="nav-discord" class="nav-discord" href="#" target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Discord</a>
     </nav>
     <div class="right who" id="who">
       <a class="btn small" id="login" href="/api/shop/auth/start?next=launcher" hidden>Zaloguj przez Discord</a>
     </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav"><span class="sr-only">Menu</span><i aria-hidden="true"></i></button>
   </div>
 </header>
 
-<main>
-  <section class="hero wrap">
-    <div class="hero-copy">
-      <p class="eyebrow"><!--shop-->Nowość od HammerShop<!--/shop--><!--launcher-->Launcher Minecrafta<!--/launcher--> <span class="pill beta">Beta</span></p>
-      <h1>Hammer <span>Launcher</span></h1>
-      <p class="lead">Nasz własny, autorski launcher Minecrafta. Instancje, ponad tysiąc modów, FPS boost jednym kliknięciem i własny klient w grze – wszystko w jednym miejscu.</p>
-      <p class="invite-note" id="invited" hidden>🎁 Znajomy zaprasza Cię do Hammer Launchera! Zaloguj się przez Discord i pobierz go za darmo.</p>
+<main id="tresc">
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="hero-bg" aria-hidden="true">
+      <div class="hero-glow"></div>
+      <div class="hero-grid"></div>
+      <div class="embers"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="wrap hero-copy">
+      <p class="hero-badge"><img src="/assets/launcher/h-96.png" width="22" height="22" alt=""><span><!--shop-->Nowość od HammerShop<!--/shop--><!--launcher-->Hammer Launcher<!--/launcher--></span><span class="pill beta">Beta</span><span class="hero-ver" id="hero-version" hidden></span></p>
+      <h1 id="hero-h">Graj więcej. <span class="fire">Kombinuj mniej.</span></h1>
+      <p class="lead">Nasz własny launcher Minecrafta: instancje, ponad tysiąc modów z&nbsp;Modrinth, FPS boost jednym kliknięciem i&nbsp;Hammer Client w&nbsp;grze. Za darmo.</p>
+      <p class="invite-note" id="invited" hidden><svg class="ico" aria-hidden="true"><use href="#i-gift"/></svg><span>Znajomy zaprasza Cię do Hammer Launchera! Zaloguj się przez Discord i&nbsp;pobierz go za darmo.</span></p>
       <div class="cta">
-        <a class="btn primary big" id="download" href="/download" aria-disabled="true">Pobierz na Windows</a>
-        <a class="btn big" href="#funkcje">Zobacz, co potrafi</a>
+        <a class="btn primary big dl" id="download" href="/download" aria-disabled="true">Pobierz na Windows</a>
+        <a class="btn big ghost" href="#funkcje">Zobacz, co potrafi</a>
       </div>
       <p class="meta" id="download-meta" role="status">Sprawdzam najnowszą wersję…</p>
       <p class="notice ok small" id="download-started" role="status" hidden>Pobieranie się zaczęło… Nic się nie dzieje? <a href="/download">Kliknij tutaj</a>.</p>
       <ul class="ticks">
-        <li>Za darmo</li>
-        <li>Windows 10 i 11 (64-bit)</li>
-        <li>Aktualizuje się sam</li>
+        <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Za darmo</li>
+        <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Windows 10 i&nbsp;11 (64-bit)</li>
+        <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Aktualizuje się sam</li>
       </ul>
-      <!--launcher--><a class="partner-chip" href="#hammershop"><img src="/assets/launcher-icon.png" width="22" height="22" alt="">We współpracy z <b>HammerShop</b></a><!--/launcher-->
+      <!--launcher--><a class="partner-chip" href="#hammershop"><img src="/assets/launcher/icon-96.png" width="22" height="22" alt="">We współpracy z <b>HammerShop</b></a><!--/launcher-->
     </div>
-    <figure class="hero-shot"><img src="/assets/launcher/graj.jpg" width="1400" height="881" alt="Ekran główny Hammer Launchera: przycisk Graj, wybór instancji i aktualności"></figure>
-  </section>
-
-  <section class="wrap" id="funkcje" aria-labelledby="funkcje-h">
-    <h2 class="section-title" id="funkcje-h">Wszystko, czego potrzebujesz do grania</h2>
-    <div class="features">
-      <article class="card"><span class="ico" aria-hidden="true">🧩</span><h3>Wszystko w jednym miejscu</h3><p>Instancje z różnymi wersjami gry, światy, serwery, skórki i zrzuty ekranu – bez szukania po folderach.</p></article>
-      <article class="card"><span class="ico" aria-hidden="true">⚡</span><h3>FPS boost jednym kliknięciem</h3><p>Launcher sam dobiera pamięć, ustawienia Javy i mody wydajnościowe pod Twój komputer i wersję gry.</p></article>
-      <article class="card"><span class="ico" aria-hidden="true">📦</span><h3>Ponad tysiąc modów</h3><p>Mody, paczki modów, tekstury i shadery z Modrinth – zależności instalują się same, aktualizacje da się cofnąć.</p></article>
-      <article class="card"><span class="ico" aria-hidden="true">🔨</span><h3>Własny klient w grze</h3><p>Hammer Client: własne menu, edytor HUD, waypointy, zoom i ponad 50 modułów – od Minecrafta 1.21 do najnowszej wersji. Na liście graczy widać, kto też gra na Hammerze.</p></article>
-      <article class="card"><span class="ico" aria-hidden="true">🔐</span><h3>Twoje konto Microsoft</h3><p>Logujesz się oficjalnie przez Microsoft. Potrzebujesz oryginalnego Minecrafta: Java Edition.</p></article>
-      <article class="card"><span class="ico" aria-hidden="true">🤝</span><h3>Graj ze znajomymi</h3><p>Zaproszenia jednym linkiem, polecane serwery i udostępnianie całej instancji jednym kodem.</p></article>
+    <div class="wrap stage">
+      <div class="stage-glow" aria-hidden="true"></div>
+      <figure class="shot stage-shot">
+        <picture>
+          <source type="image/webp" srcset="/assets/launcher/hero-820.webp 820w, /assets/launcher/hero-1400.webp 1400w" sizes="(min-width: 1240px) 1120px, 94vw">
+          <img src="/assets/launcher/graj.jpg" width="1400" height="881" fetchpriority="high" alt="Ekran główny Hammer Launchera: przycisk Graj, wybór instancji i aktualności">
+        </picture>
+      </figure>
+      <div class="float f1" aria-hidden="true"><span class="fi"><svg class="ico"><use href="#i-bolt"/></svg></span><span><b>FPS boost</b><small>jednym kliknięciem</small></span></div>
+      <div class="float f2" aria-hidden="true"><span class="fi"><svg class="ico"><use href="#i-box"/></svg></span><span><b>1000+ modów</b><small>prosto z&nbsp;Modrinth</small></span></div>
+      <div class="float f3" aria-hidden="true"><span class="fi"><svg class="ico"><use href="#i-spark"/></svg></span><span><b>Hammer Client</b><small>menu, HUD i&nbsp;zoom w&nbsp;grze</small></span></div>
     </div>
   </section>
 
-  <section class="wrap shots" aria-label="Zrzuty ekranu">
-    <figure><img loading="lazy" src="/assets/launcher/mody.jpg" width="1100" height="692" alt="Przeglądarka modów w Hammer Launcherze"><figcaption>Mody z Modrinth</figcaption></figure>
-    <figure><img loading="lazy" src="/assets/launcher/optymalizacja.jpg" width="1100" height="692" alt="Zakładka Optymalizacja z przyciskiem Zoptymalizuj wszystko"><figcaption>Optymalizacja</figcaption></figure>
-    <figure><img loading="lazy" src="/assets/launcher/klient.jpg" width="1100" height="619" alt="Menu główne Hammer Client w grze"><figcaption>Hammer Client w grze</figcaption></figure>
+  <section class="wrap facts" aria-label="Hammer Launcher w liczbach">
+    <ul>
+      <li id="fact-version" hidden><b id="fact-version-v">–</b><span>aktualna wersja (beta)</span></li>
+      <li><b>1000+</b><span>modów z&nbsp;Modrinth</span></li>
+      <li><b>50+</b><span>modułów w&nbsp;Hammer Client</span></li>
+      <li><b>1 klik</b><span>do FPS boosta</span></li>
+      <li><b>0 zł</b><span>launcher jest za darmo</span></li>
+    </ul>
   </section>
 
-  <section class="wrap" id="aktualnosci" aria-labelledby="news-h" hidden>
-    <h2 class="section-title" id="news-h">Aktualności</h2>
-    <div class="news" id="news"></div>
-  </section>
-
-  <section class="wrap" id="plus" aria-labelledby="plus-h">
-    <div class="plus-box">
-      <div class="plus-copy">
-        <p class="eyebrow gold">Hammer+</p>
-        <h2 id="plus-h">Launcher po Twojemu</h2>
-        <p class="soft">Hammer+ to dodatek dla tych, którzy chcą więcej wyglądu i wygody. Nie daje żadnej przewagi w grze – a wszystko, co w launcherze jest za darmo, zostaje za darmo.</p>
-        <ul class="perks">
-          <li>Motywy launchera z ruchomym tłem (np. Nether i End), własne kolory i tła</li>
-          <li>Własne tło menu w grze</li>
-          <li>Ruchome peleryny (np. płomień, iskry, fale) widoczne dla graczy z Hammer Client</li>
-          <li>Dodatki na postać: skrzydła, aureola i czapki</li>
-          <li>Znaczek H+ przed nickiem na liście graczy (Tab)</li>
-          <li>Ranga 💎 Hammer+ na naszym Discordzie</li>
-          <li>Kopie światów: launcher robi je sam, a wczorajszą wersję przywracasz jednym kliknięciem</li>
-          <li>Chmura: ustawienia launchera na każdym komputerze</li>
-          <li>Biblioteka na 200 skórek i zestawy skórek</li>
-        </ul>
-        <p class="small soft gap-top">🎁 Chcesz Hammer+ za darmo? <a href="#polecaj">Zaproś znajomego</a> – dostajesz 7 dni za każdego, kto kupi Hammer+.</p>
+  <section class="section" id="funkcje" aria-labelledby="funkcje-h">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Funkcje</p>
+        <h2 id="funkcje-h">Wszystko do grania w&nbsp;jednym oknie</h2>
+        <p class="sub">Bez szukania modów po stronach, bez kombinowania z&nbsp;Javą i&nbsp;grzebania w&nbsp;folderach. Wybierasz, klikasz, grasz.</p>
+      </header>
+      <div class="showcase reveal" data-tabs>
+        <div class="tablist" role="tablist" aria-label="Funkcje launchera">
+          <button class="tab" role="tab" type="button" id="tab-instancje" aria-controls="pane-instancje" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Instancje</button>
+          <button class="tab" role="tab" type="button" id="tab-mody" aria-controls="pane-mody" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-box"/></svg>Mody</button>
+          <button class="tab" role="tab" type="button" id="tab-opt" aria-controls="pane-opt" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>Optymalizacja</button>
+        </div>
+        <div class="tabpanels">
+          <div class="tabpanel is-active" role="tabpanel" id="pane-instancje" aria-labelledby="tab-instancje" tabindex="0">
+            <div class="pane-copy">
+              <h3>Osobny Minecraft na każdą okazję</h3>
+              <p>Każda instancja ma własne mody, światy i&nbsp;ustawienia – survival, PvP i&nbsp;paczka modów nigdy sobie nie przeszkadzają.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Vanilla, Fabric, Quilt, Forge i&nbsp;NeoForge – dowolna wersja gry</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Launcher sam pobiera grę, właściwą Javę i&nbsp;loader</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Całą instancję wyślesz znajomemu jednym kodem</li>
+              </ul>
+            </div>
+            <figure class="shot"><picture><source type="image/webp" srcset="/assets/launcher/instancje.webp"><img loading="lazy" src="/assets/launcher/instancje.jpg" width="1100" height="692" alt="Zakładka Instancje: kilka instancji z różnymi wersjami gry i loaderami"></picture></figure>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="pane-mody" aria-labelledby="tab-mody" tabindex="0">
+            <div class="pane-copy">
+              <h3>Ponad tysiąc modów, zero szukania</h3>
+              <p>Mody, paczki tekstur, shadery i&nbsp;paczki modów z&nbsp;Modrinth – wyszukujesz i&nbsp;instalujesz prosto w&nbsp;launcherze.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Zależności instalują się same</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Aktualizacje sprawdzane w&nbsp;tle – każdą da się cofnąć</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Gotowe zestawy: PvP, Survival+, Budowanie, Shadery</li>
+              </ul>
+            </div>
+            <figure class="shot"><picture><source type="image/webp" srcset="/assets/launcher/mody.webp"><img loading="lazy" src="/assets/launcher/mody.jpg" width="1100" height="692" alt="Przeglądarka modów z Modrinth w Hammer Launcherze"></picture></figure>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="pane-opt" aria-labelledby="tab-opt" tabindex="0">
+            <div class="pane-copy">
+              <h3>FPS boost jednym kliknięciem</h3>
+              <p>Przycisk <b>Zoptymalizuj wszystko</b> dobiera pamięć, ustawienia Javy i&nbsp;mody wydajnościowe pod Twój komputer i&nbsp;wersję gry.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Sodium, Lithium, FerriteCore i&nbsp;inne sprawdzone mody</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Presety grafiki – od słabego komputera po jakość</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Test FPS pokaże, ile naprawdę zyskałeś</li>
+              </ul>
+            </div>
+            <figure class="shot"><picture><source type="image/webp" srcset="/assets/launcher/optymalizacja.webp"><img loading="lazy" src="/assets/launcher/optymalizacja.jpg" width="1100" height="692" alt="Zakładka Optymalizacja z przyciskiem Zoptymalizuj wszystko"></picture></figure>
+          </div>
+        </div>
       </div>
-      <div class="plus-buy">
-        <div id="plus-result" hidden></div>
-        <div class="plans" id="plans"></div>
-        <p class="muted small" id="plus-note">Do zakupu zaloguj się przez Discord – kod Hammer+ trafi do Ciebie w wiadomości prywatnej, a na naszym serwerze dostaniesz rangę 💎 Hammer+. Kod jest przypisany do Twojego konta Minecraft. Płatność obsługuje Stripe (karta, Apple Pay, Google Pay).</p>
-        <div id="my-codes" hidden>
-          <h3>Twoje kody Hammer+</h3>
-          <div class="stack" id="my-codes-list"></div>
+
+      <h3 class="more-title reveal">I to nie wszystko</h3>
+      <div class="bento">
+        <article class="tile reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg></span><h4>Graj ze znajomymi</h4><p>Zaproszenia jednym linkiem, polecane serwery i&nbsp;udostępnianie całej instancji jednym kodem.</p></article>
+        <article class="tile reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg></span><h4>Twoje konto Microsoft</h4><p>Logujesz się oficjalnie przez Microsoft – launcher nie widzi Twojego hasła. Potrzebujesz Minecraft: Java Edition.</p></article>
+        <article class="tile reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-terminal"/></svg></span><h4>Crash? Wyjaśnimy po polsku</h4><p>Gdy gra się wyłączy, launcher powie, co się stało i&nbsp;co zrobić – bez czytania logów.</p></article>
+        <article class="tile reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></span><h4>Światy i&nbsp;serwery z&nbsp;Minecrafta</h4><p>Przeniesiesz je ze zwykłego launchera jednym kliknięciem – bez grzebania w&nbsp;folderach.</p></article>
+        <article class="tile reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-shirt"/></svg></span><h4>Skórki bez minecraft.net</h4><p>Skórkę i&nbsp;pelerynę zmieniasz prosto w&nbsp;launcherze – zmiana trafia od razu na Twoje konto.</p></article>
+        <article class="tile reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-refresh"/></svg></span><h4>Aktualizuje się sam</h4><p>Nowa wersja pobiera się w&nbsp;tle i&nbsp;instaluje przy następnym uruchomieniu. Nic nie pobierasz drugi raz.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section client" id="klient" aria-labelledby="klient-h">
+    <div class="wrap">
+      <div class="client-grid">
+        <div class="client-copy reveal">
+          <p class="eyebrow">Hammer Client w&nbsp;grze</p>
+          <h2 id="klient-h">Twój Minecraft, tylko lepszy</h2>
+          <p class="sub">W instancjach Fabric i&nbsp;Quilt launcher sam dodaje Hammer Client – własne menu, panel modułów i&nbsp;HUD po polsku. Od Minecrafta 1.21 do najnowszej wersji.</p>
+          <figure class="tab-card">
+            <img loading="lazy" src="/assets/launcher/tab-znaczki.webp" width="1010" height="350" alt="Lista graczy w grze ze znaczkami H i H+ przed nickami">
+            <figcaption><b>Znaczek H w&nbsp;Tab</b> Na liście graczy widać, kto też gra na Hammerze – a&nbsp;H+ ma Hammer+.</figcaption>
+          </figure>
+        </div>
+        <div class="client-visual reveal" data-d="1">
+          <figure class="shot client-shot"><picture><source type="image/webp" srcset="/assets/launcher/klient.webp"><img loading="lazy" src="/assets/launcher/klient.jpg" width="1100" height="619" alt="Menu główne Hammer Client w grze: Jeden gracz, Wiele graczy, Hammer Mody i lista zmian"></picture></figure>
+        </div>
+      </div>
+      <ul class="client-list">
+        <li class="reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg></span><div><b>Ponad 50 modułów</b><span>Panel pod prawym Shiftem – każdy moduł z&nbsp;własnymi ustawieniami i&nbsp;profilami.</span></div></li>
+        <li class="reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-hud"/></svg></span><div><b>Edytor HUD</b><span>FPS, CPS, klawisze, koordynaty, kompas, pancerz i&nbsp;efekty – tam, gdzie chcesz.</span></div></li>
+        <li class="reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-zoom"/></svg></span><div><b>Zoom, freelook i&nbsp;fullbright</b><span>Zoom pod C, przełączany sprint, własny celownik, pora dnia i&nbsp;pogoda.</span></div></li>
+        <li class="reveal" data-d="3"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg></span><div><b>Waypointy</b><span>Zaznacz dom, bazę albo miejsce śmierci i&nbsp;zawsze trafisz z&nbsp;powrotem.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section look" id="wyglad" aria-labelledby="wyglad-h">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg>Hammer+</p>
+        <h2 id="wyglad-h">Wygląd po Twojemu</h2>
+        <p class="sub">Motywy z&nbsp;ruchomym tłem, peleryny i&nbsp;dodatki na postać. Sam wygląd – zero przewagi w&nbsp;grze.</p>
+      </header>
+      <div class="themes reveal">
+        <div class="theme-picks" role="group" aria-label="Motyw launchera">
+          <button type="button" class="theme-pick" data-theme="domyslny" aria-pressed="true"><i aria-hidden="true"></i>Domyślny</button>
+          <button type="button" class="theme-pick" data-theme="nether" aria-pressed="false"><i aria-hidden="true"></i>Nether</button>
+          <button type="button" class="theme-pick" data-theme="end" aria-pressed="false"><i aria-hidden="true"></i>End</button>
+          <button type="button" class="theme-pick" data-theme="ocean" aria-pressed="false"><i aria-hidden="true"></i>Ocean</button>
+          <button type="button" class="theme-pick" data-theme="wisnia" aria-pressed="false"><i aria-hidden="true"></i>Wiśniowy gaj</button>
+          <button type="button" class="theme-pick" data-theme="mrok" aria-pressed="false"><i aria-hidden="true"></i>Głęboki mrok</button>
+        </div>
+        <figure class="theme-stage" id="theme-stage" data-theme="domyslny">
+          <div class="theme-glow" aria-hidden="true"></div>
+          <div class="shot theme-shot"><img id="theme-img" loading="lazy" src="/assets/launcher/motyw-domyslny.webp" width="1240" height="372" alt="Hammer Launcher w motywie Domyślny"></div>
+          <figcaption id="theme-caption" aria-live="polite"><b>Domyślny</b> Ciepły pomarańcz Hammera – za darmo dla każdego.</figcaption>
+        </figure>
+      </div>
+
+      <div class="cosm">
+        <div class="cosm-copy reveal">
+          <h3>Peleryny i&nbsp;dodatki, które widać w&nbsp;grze</h3>
+          <p>Skrzydła, aureola, czapki i&nbsp;ruchome peleryny rysuje Hammer Client – widzisz je Ty i&nbsp;gracze, którzy też mają Hammer Client.</p>
+        </div>
+        <div class="cosm-grid">
+          <figure class="cosm-card reveal"><img loading="lazy" src="/assets/launcher/kosm-anielskie.webp" width="340" height="360" alt="Postać w grze z anielskimi skrzydłami, koroną i peleryną Płomień"><figcaption>Anielskie skrzydła · Korona · Płomień</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="1"><img loading="lazy" src="/assets/launcher/kosm-smocze.webp" width="340" height="360" alt="Postać w grze ze smoczymi skrzydłami, aureolą, koroną i peleryną Płomień"><figcaption>Smocze skrzydła · Aureola · Korona</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="2"><img loading="lazy" src="/assets/launcher/kosm-aureola.webp" width="340" height="360" alt="Postać w grze z aureolą, czapką Mikołaja, anielskimi skrzydłami i peleryną Fale"><figcaption>Aureola · Czapka Mikołaja · Fale</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="3"><img loading="lazy" src="/assets/launcher/kosm-cylinder.webp" width="340" height="360" alt="Postać w grze z cylindrem, smoczymi skrzydłami i peleryną Iskry"><figcaption>Cylinder · Smocze skrzydła · Iskry</figcaption></figure>
+        </div>
+        <div class="capes reveal" aria-label="Peleryny Hammer">
+          <div class="cape moving"><i class="cape-art c-flame" aria-hidden="true"></i><b>Płomień</b><span>ruchoma</span></div>
+          <div class="cape moving"><i class="cape-art c-sparks" aria-hidden="true"></i><b>Iskry</b><span>ruchoma</span></div>
+          <div class="cape moving"><i class="cape-art c-waves" aria-hidden="true"></i><b>Fale</b><span>ruchoma</span></div>
+          <div class="cape"><i class="cape-art c-gold" aria-hidden="true"></i><b>Złota</b><span>Hammer+</span></div>
+          <div class="cape"><i class="cape-art c-royal" aria-hidden="true"></i><b>Królewska</b><span>Hammer+</span></div>
+          <div class="cape"><i class="cape-art c-frost" aria-hidden="true"></i><b>Mróz</b><span>Hammer+</span></div>
+          <div class="cape"><i class="cape-art c-crimson" aria-hidden="true"></i><b>Karmazyn</b><span>Hammer+</span></div>
+          <div class="cape free"><i class="cape-art c-hammer" aria-hidden="true"></i><b>Hammer</b><span>za darmo</span></div>
+          <div class="cape free"><i class="cape-art c-ember" aria-hidden="true"></i><b>Żar</b><span>za darmo</span></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="wrap" id="polecaj" aria-labelledby="ref-h">
-    <div class="ref-box">
-      <div class="ref-copy">
-        <p class="eyebrow gold">Zaproś znajomego</p>
-        <h2 id="ref-h">+7 dni Hammer+ za każdego znajomego</h2>
-        <p class="soft">Wyślij znajomemu swój link. Gdy pobierze Hammer Launchera i kupi Hammer+, dostajesz 7 dni Hammer+ za darmo – za każdą taką osobę.</p>
-        <ol class="ref-steps">
-          <li><b>Skopiuj swój link</b><span>Dostaniesz go po zalogowaniu przez Discord.</span></li>
-          <li><b>Wyślij go znajomemu</b><span>Znajomy loguje się przez Discord i pobiera launcher.</span></li>
-          <li><b>Zgarnij +7 dni</b><span>Gdy znajomy kupi Hammer+, dostajesz 7 dni – kod przyjdzie na Discordzie.</span></li>
-        </ol>
-        <p class="muted small">Liczą się osoby, które pierwszy raz logują się na naszej stronie i mają konto Discord starsze niż 7 dni. Siebie nie da się polecić.</p>
-      </div>
-      <div class="ref-panel">
-        <div class="stack" id="ref-out">
-          <h3>Twój link polecający</h3>
-          <p class="soft small" id="ref-out-text">Zaloguj się przez Discord – pokażemy Ci Twój link i to, ile osób już z niego skorzystało.</p>
-          <div><a class="btn primary" id="ref-login" href="/api/shop/auth/start?next=polecaj">Zaloguj się przez Discord</a></div>
+  <section class="section start" id="start" aria-labelledby="start-h">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Jak zacząć</p>
+        <h2 id="start-h">Grasz w&nbsp;3 krokach</h2>
+      </header>
+      <ol class="steps">
+        <li class="step reveal"><span class="step-n" aria-hidden="true">1</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg></span><h3>Pobierz launcher</h3><p>Zaloguj się przez Discord i&nbsp;pobierz instalator. To chwila – a&nbsp;przy okazji wpadasz na nasz serwer, gdzie jest pomoc i&nbsp;nowości.</p></li>
+        <li class="step reveal" data-d="1"><span class="step-n" aria-hidden="true">2</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg></span><h3>Zaloguj się kontem Microsoft</h3><p>Oficjalnym oknem Microsoftu – launcher nie widzi Twojego hasła. Potrzebujesz Minecraft: Java Edition.</p></li>
+        <li class="step reveal" data-d="2"><span class="step-n" aria-hidden="true">3</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg></span><h3>Wybierz instancję i&nbsp;graj</h3><p>Kliknij Graj – launcher sam pobierze grę, Javę i&nbsp;mody. Ty tylko grasz.</p></li>
+      </ol>
+      <div class="start-cta reveal"><a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a></div>
+    </div>
+  </section>
+
+  <section class="section" id="plus" aria-labelledby="plus-h">
+    <div class="wrap">
+      <div class="plus-box reveal">
+        <div class="plus-copy">
+          <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg>Hammer+</p>
+          <h2 id="plus-h">Launcher po Twojemu</h2>
+          <p class="soft">Hammer+ to dodatek dla tych, którzy chcą więcej wyglądu i&nbsp;wygody. Nie daje żadnej przewagi w&nbsp;grze – a&nbsp;wszystko, co w&nbsp;launcherze jest za darmo, zostaje za darmo.</p>
+          <ul class="perks">
+            <li>Motywy launchera z&nbsp;ruchomym tłem (np. Nether i&nbsp;End), własne kolory i&nbsp;tła</li>
+            <li>Własne tło menu w&nbsp;grze</li>
+            <li>Ruchome peleryny (np. płomień, iskry, fale) widoczne dla graczy z&nbsp;Hammer Client</li>
+            <li>Dodatki na postać: skrzydła, aureola i&nbsp;czapki</li>
+            <li>Znaczek H+ przed nickiem na liście graczy (Tab)</li>
+            <li>Ranga 💎 Hammer+ na naszym Discordzie</li>
+            <li>Kopie światów: launcher robi je sam, a&nbsp;wczorajszą wersję przywracasz jednym kliknięciem</li>
+            <li>Chmura: ustawienia launchera na każdym komputerze</li>
+            <li>Biblioteka na 200 skórek i&nbsp;zestawy skórek</li>
+          </ul>
+          <p class="plus-ref"><svg class="ico" aria-hidden="true"><use href="#i-gift"/></svg><span>Chcesz Hammer+ za darmo? <a href="#polecaj">Zaproś znajomego</a> – dostajesz 7 dni za każdego, kto kupi Hammer+.</span></p>
         </div>
-        <div class="stack" id="ref-in" hidden>
-          <div class="stack tight">
+        <div class="plus-buy">
+          <div class="plus-buy-head"><span class="crown" aria-hidden="true"><svg class="ico"><use href="#i-crown"/></svg></span><div><b>Kup Hammer+</b><span>Kod przychodzi od razu – tutaj i&nbsp;na Discordzie</span></div></div>
+          <div id="plus-result" hidden></div>
+          <div class="plans" id="plans"></div>
+          <p class="muted small" id="plus-note">Do zakupu zaloguj się przez Discord – kod Hammer+ trafi do Ciebie w&nbsp;wiadomości prywatnej, a&nbsp;na naszym serwerze dostaniesz rangę 💎 Hammer+. Kod jest przypisany do Twojego konta Minecraft. Płatność obsługuje Stripe (karta, Apple Pay, Google Pay).</p>
+          <div id="my-codes" hidden>
+            <h3>Twoje kody Hammer+</h3>
+            <div class="stack" id="my-codes-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="polecaj" aria-labelledby="ref-h">
+    <div class="wrap">
+      <div class="ref-box reveal">
+        <div class="ref-copy">
+          <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-gift"/></svg>Zaproś znajomego</p>
+          <h2 id="ref-h">+7 dni Hammer+ za każdego znajomego</h2>
+          <p class="soft">Wyślij znajomemu swój link. Gdy pobierze Hammer Launchera i&nbsp;kupi Hammer+, dostajesz 7 dni Hammer+ za darmo – za każdą taką osobę.</p>
+          <ol class="ref-steps">
+            <li><b>Skopiuj swój link</b><span>Dostaniesz go po zalogowaniu przez Discord.</span></li>
+            <li><b>Wyślij go znajomemu</b><span>Znajomy loguje się przez Discord i&nbsp;pobiera launcher.</span></li>
+            <li><b>Zgarnij +7 dni</b><span>Gdy znajomy kupi Hammer+, dostajesz 7 dni – kod przyjdzie na Discordzie.</span></li>
+          </ol>
+          <p class="muted small">Liczą się osoby, które pierwszy raz logują się na naszej stronie i&nbsp;mają konto Discord starsze niż 30 dni. Siebie nie da się polecić.</p>
+        </div>
+        <div class="ref-panel">
+          <div class="stack" id="ref-out">
             <h3>Twój link polecający</h3>
-            <div class="ref-link share"><input type="text" id="ref-link" readonly spellcheck="false" aria-label="Twój link polecający"><button class="btn gold" type="button" id="ref-copy">Kopiuj</button></div>
+            <p class="soft small" id="ref-out-text">Zaloguj się przez Discord – pokażemy Ci Twój link i&nbsp;to, ile osób już z&nbsp;niego skorzystało.</p>
+            <div><a class="btn primary" id="ref-login" href="/api/shop/auth/start?next=polecaj">Zaloguj się przez Discord</a></div>
           </div>
-          <div class="ref-stats">
-            <div><b id="ref-invited">0</b><span id="ref-invited-l">osób z Twojego linku</span></div>
-            <div><b id="ref-downloaded">0</b><span id="ref-downloaded-l">pobrało launcher</span></div>
-            <div><b id="ref-bought">0</b><span id="ref-bought-l">kupiło Hammer+</span></div>
-            <div class="gold"><b id="ref-earned">0</b><span id="ref-earned-l">dni zdobytych</span></div>
+          <div class="stack" id="ref-in" hidden>
+            <div class="stack tight">
+              <h3>Twój link polecający</h3>
+              <div class="ref-link share"><input type="text" id="ref-link" readonly spellcheck="false" aria-label="Twój link polecający"><button class="btn gold" type="button" id="ref-copy">Kopiuj</button></div>
+            </div>
+            <div class="ref-stats">
+              <div><b id="ref-invited">0</b><span id="ref-invited-l">osób z&nbsp;Twojego linku</span></div>
+              <div><b id="ref-downloaded">0</b><span id="ref-downloaded-l">pobrało launcher</span></div>
+              <div><b id="ref-bought">0</b><span id="ref-bought-l">kupiło Hammer+</span></div>
+              <div class="gold"><b id="ref-earned">0</b><span id="ref-earned-l">dni zdobytych</span></div>
+            </div>
+            <form class="stack tight" id="ref-claim" hidden>
+              <p class="notice ok" id="ref-balance"></p>
+              <div class="ref-link"><input type="text" id="ref-nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Twój nick w Minecraft" required pattern="[A-Za-z0-9_]{1,16}" aria-label="Twój nick w Minecraft (Java Edition)"><button class="btn gold" type="submit" id="ref-claim-btn">Odbierz</button></div>
+              <p class="notice bad" id="ref-error" role="alert" hidden></p>
+            </form>
+            <div id="ref-result" hidden></div>
           </div>
-          <form class="stack tight" id="ref-claim" hidden>
-            <p class="notice ok" id="ref-balance"></p>
-            <div class="ref-link"><input type="text" id="ref-nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Twój nick w Minecraft" required pattern="[A-Za-z0-9_]{1,16}" aria-label="Twój nick w Minecraft (Java Edition)"><button class="btn gold" type="submit" id="ref-claim-btn">Odbierz</button></div>
-            <p class="notice bad" id="ref-error" role="alert" hidden></p>
-          </form>
-          <div id="ref-result" hidden></div>
         </div>
       </div>
     </div>
   </section>
 
-  <!--launcher--><section class="wrap" id="hammershop" aria-labelledby="collab-h">
-    <div class="collab-box">
-      <div class="collab-head" aria-hidden="true">
-        <span class="mark"><img src="/assets/launcher-icon.png" width="44" height="44" alt=""><em>Hammer<b>Launcher</b></em></span>
-        <span class="x">×</span>
-        <span class="mark"><img src="/assets/launcher-icon.png" width="44" height="44" alt=""><em>Hammer<b>Shop</b></em></span>
-      </div>
-      <h2 id="collab-h">Hammer Launcher × HammerShop</h2>
-      <p class="soft">Hammer Launcher to nasz własny, niezależny projekt. HammerShop jest naszym partnerem – wspieramy się nawzajem, ale każdy prowadzi swoje.</p>
-      <div class="collab-cards">
-        <article class="card"><span class="pill">Nasz projekt</span><h3>Hammer Launcher</h3><p>Launcher, Hammer Client i Hammer+ tworzymy i rozwijamy sami – od pierwszej linijki kodu.</p></article>
-        <article class="card"><span class="pill gold">Partner</span><h3>HammerShop</h3><p>Sklep z pluginami, skryptami i wiele więcej. W launcherze masz do niego skrót na ekranie Graj.</p><a class="btn small" href="https://hammershop.pl" target="_blank" rel="noopener">Odwiedź HammerShop</a></article>
+  <section class="section" id="aktualnosci" aria-labelledby="news-h" hidden>
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Co nowego</p>
+        <h2 id="news-h">Aktualności</h2>
+      </header>
+      <div class="news" id="news"></div>
+    </div>
+  </section>
+
+  <!--launcher--><section class="section" id="hammershop" aria-labelledby="collab-h">
+    <div class="wrap">
+      <div class="collab-box reveal">
+        <div class="collab-head" aria-hidden="true">
+          <span class="mark"><img src="/assets/launcher/icon-96.png" width="48" height="48" alt=""><em>Hammer<b>Launcher</b></em></span>
+          <span class="x">×</span>
+          <span class="mark"><img src="/assets/launcher/icon-96.png" width="48" height="48" alt=""><em>Hammer<b>Shop</b></em></span>
+        </div>
+        <h2 id="collab-h">Hammer Launcher × HammerShop</h2>
+        <p class="soft">Hammer Launcher to nasz własny, niezależny projekt. HammerShop jest naszym partnerem – wspieramy się nawzajem, ale każdy prowadzi swoje.</p>
+        <div class="collab-cards">
+          <article class="card"><span class="pill">Nasz projekt</span><h3>Hammer Launcher</h3><p>Launcher, Hammer Client i&nbsp;Hammer+ tworzymy i&nbsp;rozwijamy sami – od pierwszej linijki kodu.</p></article>
+          <article class="card"><span class="pill gold">Partner</span><h3>HammerShop</h3><p>Sklep z&nbsp;pluginami, skryptami i&nbsp;wiele więcej. W&nbsp;launcherze masz do niego skrót na ekranie Graj.</p><a class="btn small" href="https://hammershop.pl" target="_blank" rel="noopener">Odwiedź HammerShop<svg class="ico" aria-hidden="true"><use href="#i-external"/></svg></a></article>
+        </div>
       </div>
     </div>
   </section><!--/launcher-->
 
-  <section class="wrap faq" aria-labelledby="faq-h">
-    <h2 class="section-title" id="faq-h">Częste pytania</h2>
-    <details><summary>Dlaczego do pobrania trzeba zalogować się przez Discord?</summary><p>Dzięki temu dostajesz swój link polecający, a my wiemy, że launcher pobierasz od nas. Logowanie trwa chwilę i nie widzimy Twojego hasła. Po zalogowaniu dołączasz też do naszego Discorda – tam jest pomoc i aktualności. W samym launcherze i tak logujesz się kontem Microsoft.</p></details>
-    <details><summary>Windows ostrzega mnie przy instalacji. Czy to bezpieczne?</summary><p>Tak. W wersji beta instalator nie ma jeszcze płatnego certyfikatu wydawcy, dlatego Windows SmartScreen może pokazać okno „System Windows ochronił ten komputer”. Kliknij <b>Więcej informacji</b>, a potem <b>Uruchom mimo to</b>. Pobieraj launcher tylko z tej strony.</p></details>
-    <details><summary>Czy potrzebuję oryginalnego Minecrafta?</summary><p>Tak – Minecraft: Java Edition na koncie Microsoft. Launcher loguje Cię oficjalną stroną Microsoftu i nie obsługuje kont nieoryginalnych.</p></details>
-    <details><summary>Jak działają aktualizacje?</summary><p>Zainstalowany launcher sam sprawdza, czy jest nowa wersja, pobiera ją w tle i instaluje przy następnym uruchomieniu. Nie musisz niczego pobierać ponownie.</p></details>
-    <details><summary>To wersja beta – co to znaczy?</summary><p>Launcher działa, ale wciąż go dopracowujemy. Jeśli coś nie działa albo masz pomysł, napisz do nas na Discordzie – każda uwaga pomaga.</p></details>
-    <details><summary>Jak aktywować Hammer+?</summary><p>Po zakupie od razu zobaczysz swój kod na tej stronie i dostaniesz go w wiadomości prywatnej na Discordzie. W launcherze otwórz <b>Hammer+ → „Mam kod”</b> i wklej go. Kod działa na koncie Minecraft, dla którego został kupiony. Na naszym Discordzie dostajesz też rangę 💎 Hammer+ – jeśli nie ma Cię jeszcze na serwerze, dostaniesz ją zaraz po dołączeniu.</p></details>
-    <details><summary>Jak dostać Hammer+ za darmo?</summary><p>Zaproś znajomych. W sekcji <a href="#polecaj">Zaproś znajomego</a> masz swój link – gdy znajomy pobierze z niego launcher i kupi Hammer+, dostajesz 7 dni Hammer+. Masz już Hammer+? Dni doliczą się same, a nowy kod przyjdzie na Discordzie. Nie masz? Odbierzesz je tutaj, wpisując swój nick z Minecrafta.</p></details>
+  <section class="section faq" id="faq" aria-labelledby="faq-h">
+    <div class="wrap faq-grid">
+      <header class="faq-head reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2 id="faq-h">Częste pytania</h2>
+        <p class="sub">Nie ma tu Twojego pytania? Napisz do nas na Discordzie – pomożemy.</p>
+        <a class="btn ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Napisz na Discordzie</a>
+      </header>
+      <div class="faq-list reveal" data-d="1">
+        <details><summary>Dlaczego do pobrania trzeba zalogować się przez Discord?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Dzięki temu dostajesz swój link polecający, a&nbsp;my wiemy, że launcher pobierasz od nas. Logowanie trwa chwilę i&nbsp;nie widzimy Twojego hasła. Po zalogowaniu dołączasz też do naszego Discorda – tam jest pomoc i&nbsp;aktualności. W&nbsp;samym launcherze i&nbsp;tak logujesz się kontem Microsoft.</p></details>
+        <details><summary>Windows ostrzega mnie przy instalacji. Czy to bezpieczne?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Tak. W&nbsp;wersji beta instalator nie ma jeszcze płatnego certyfikatu wydawcy, dlatego Windows SmartScreen może pokazać okno „System Windows ochronił ten komputer”. Kliknij <b>Więcej informacji</b>, a&nbsp;potem <b>Uruchom mimo to</b>. Pobieraj launcher tylko z&nbsp;tej strony.</p></details>
+        <details><summary>Czy potrzebuję oryginalnego Minecrafta?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Tak – Minecraft: Java Edition na koncie Microsoft. Launcher loguje Cię oficjalną stroną Microsoftu i&nbsp;nie obsługuje kont nieoryginalnych.</p></details>
+        <details><summary>Jak działają aktualizacje?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Zainstalowany launcher sam sprawdza, czy jest nowa wersja, pobiera ją w&nbsp;tle i&nbsp;instaluje przy następnym uruchomieniu. Nie musisz niczego pobierać ponownie.</p></details>
+        <details><summary>To wersja beta – co to znaczy?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Launcher działa, ale wciąż go dopracowujemy. Jeśli coś nie działa albo masz pomysł, napisz do nas na Discordzie – każda uwaga pomaga.</p></details>
+        <details><summary>Jak aktywować Hammer+?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Po zakupie od razu zobaczysz swój kod na tej stronie i&nbsp;dostaniesz go w&nbsp;wiadomości prywatnej na Discordzie. W&nbsp;launcherze otwórz <b>Hammer+ → „Mam kod”</b> i&nbsp;wklej go. Kod działa na koncie Minecraft, dla którego został kupiony. Na naszym Discordzie dostajesz też rangę 💎 Hammer+ – jeśli nie ma Cię jeszcze na serwerze, dostaniesz ją zaraz po dołączeniu.</p></details>
+        <details><summary>Jak dostać Hammer+ za darmo?<svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></summary><p>Zaproś znajomych. W&nbsp;sekcji <a href="#polecaj">Zaproś znajomego</a> masz swój link – gdy znajomy pobierze z&nbsp;niego launcher i&nbsp;kupi Hammer+, dostajesz 7 dni Hammer+. Masz już Hammer+? Dni doliczą się same, a&nbsp;nowy kod przyjdzie na Discordzie. Nie masz? Odbierzesz je tutaj, wpisując swój nick z&nbsp;Minecrafta.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final" aria-labelledby="final-h">
+    <div class="final-bg" aria-hidden="true"></div>
+    <div class="wrap final-in reveal">
+      <img class="final-h" loading="lazy" src="/assets/launcher/h-320.webp" width="160" height="160" alt="">
+      <h2 id="final-h"><span class="fire">Gotowy?</span> <span class="nb">Twój Minecraft czeka.</span></h2>
+      <p>Pobierz Hammer Launchera za darmo i&nbsp;graj w&nbsp;kilka minut.</p>
+      <div class="cta center">
+        <a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a>
+        <a class="btn big ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Dołącz do Discorda</a>
+      </div>
+    </div>
   </section>
 </main>
 
 <footer class="foot">
-  <div class="wrap">
-    <span><!--shop-->© HammerShop · Hammer Launcher<!--/shop--><!--launcher-->© Hammer Launcher · we współpracy z HammerShop<!--/launcher--> <span class="pill beta">Beta</span></span>
-    <span>Nie jesteśmy powiązani z Mojang ani Microsoft.</span>
-    <!--shop--><a class="right" href="/">Sklep HammerShop</a><!--/shop--><!--launcher--><a class="right" href="#plus">Hammer+</a><!--/launcher-->
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <!--shop--><a class="logo" href="/"><i aria-hidden="true"></i>Hammer<b>Shop</b></a><!--/shop--><!--launcher--><a class="logo h" href="/"><i aria-hidden="true"></i>Hammer<b>Launcher</b></a><!--/launcher-->
+      <p>Nasz własny launcher Minecrafta: instancje, mody, FPS boost i&nbsp;Hammer Client w&nbsp;grze. Za darmo na Windows&nbsp;10 i&nbsp;11.</p>
+    </div>
+    <nav class="foot-links" aria-label="Launcher">
+      <h2>Launcher</h2>
+      <a href="#funkcje">Funkcje</a>
+      <a href="#klient">Hammer Client</a>
+      <a href="#wyglad">Wygląd</a>
+      <a href="#start">Jak zacząć</a>
+    </nav>
+    <nav class="foot-links" aria-label="Hammer+ i pomoc">
+      <h2>Hammer+ i&nbsp;pomoc</h2>
+      <a href="#plus">Hammer+</a>
+      <a href="#polecaj">Zaproś znajomego</a>
+      <a href="#faq">Częste pytania</a>
+      <a href="#" data-discord target="_blank" rel="noopener" hidden>Discord</a>
+    </nav>
+    <div class="foot-bottom">
+      <span><!--shop-->© HammerShop · Hammer Launcher<!--/shop--><!--launcher-->© Hammer Launcher · we współpracy z&nbsp;HammerShop<!--/launcher--> <span class="pill beta">Beta</span></span>
+      <span>Nie jesteśmy powiązani z&nbsp;Mojang ani Microsoft.</span>
+      <!--shop--><a class="right" href="/">Sklep HammerShop</a><!--/shop--><!--launcher--><a class="right" href="#hammershop">HammerShop – nasz partner</a><!--/launcher-->
+    </div>
   </div>
 </footer>
 
@@ -195,7 +454,7 @@
     <h2 id="nick-h">Dla którego konta Minecraft?</h2>
     <p class="muted" id="nick-plan"></p>
     <div class="fields gap-top">
-      <label>Twój nick w Minecraft (Java Edition)
+      <label>Twój nick w&nbsp;Minecraft (Java Edition)
         <input type="text" id="nick" name="nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="np. Notch" required pattern="[A-Za-z0-9_]{1,16}">
         <span class="hint">Kod zadziała tylko na tym koncie – sprawdź pisownię.</span>
       </label>
