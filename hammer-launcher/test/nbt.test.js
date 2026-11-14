@@ -150,3 +150,69 @@ test('a NaN keeps its exact bytes, numbers are range-checked, broken files are r
   const deep = Buffer.concat([Buffer.from([10]), str(''), ...Array.from({ length: 600 }, () => Buffer.concat([Buffer.from([10]), str('a')])), Buffer.alloc(601)]);
   assert.throws(() => readNbt(deep), /too deep/);
 });
+
+/* ── a regression: files bigger than the writer's first 4 KB ── */
+
+test('big files (servers with icons, a big level.dat): every byte survives the writer growing its buffer', () => {
+  // The writer starts with 4 KB and grows; a write that made it grow used to land in the OLD buffer
+  // (ERR_OUT_OF_RANGE when saving servers.dat, or the bytes of a string quietly lost).
+  const icon = Buffer.alloc(9000, 7).toString('base64');
+  const servers = Object.assign(tag.list('compound'), {
+    value: Array.from({ length: 30 }, (_, i) => tag.compound({ ip: tag.string(`serwer${i}.pl`), name: tag.string(`§6Złoty ${i} 🔥`), icon: tag.string(icon), acceptTextures: tag.byte(i % 2) })),
+  });
+  const root = Object.assign(tag.compound({ servers }), { name: '' });
+  const back = readNbt(writeNbt(root, { gzip: false }));
+  const list = get(back, 'servers').value;
+  assert.equal(list.length, 30);
+  for (const [i, entry] of list.entries()) {
+    assert.equal(text(get(entry, 'icon')), icon, `icon ${i}`);
+    assert.equal(text(get(entry, 'name')), `§6Złoty ${i} 🔥`);
+    assert.equal(number(get(entry, 'acceptTextures')), i % 2);
+  }
+  // Every primitive at every position: strings, numbers and arrays crossing each 4 KB / 8 KB / … boundary.
+  const mixed = Object.assign(tag.compound({}), { name: 'Data' });
+  for (let i = 0; i < 2000; i++) {
+    mixed.value.set(`s${i}`, tag.string('ąę'.repeat(i % 37)));
+    mixed.value.set(`b${i}`, tag.byte(0 - (i % 128)));
+    mixed.value.set(`h${i}`, tag.short(i - 1000));
+    mixed.value.set(`l${i}`, tag.long(BigInt(i) * 1234567891n));
+    mixed.value.set(`d${i}`, tag.double(i / 3));
+  }
+  const again = readNbt(writeNbt(mixed, { gzip: true }));
+  for (let i = 0; i < 2000; i += 97) {
+    assert.equal(text(get(again, `s${i}`)), 'ąę'.repeat(i % 37));
+    assert.equal(number(get(again, `b${i}`)), 0 - (i % 128));
+    assert.equal(number(get(again, `h${i}`)), i - 1000);
+    assert.equal(get(again, `l${i}`).value, BigInt(i) * 1234567891n);
+    assert.equal(number(get(again, `d${i}`)), i / 3);
+  }
+});
+
+test('servers.dat with icons: adding, removing and moving servers all save (the „ERR_OUT_OF_RANGE” bug)', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const servers = require('../src/main/servers');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-servers-'));
+  try {
+    const icon = Buffer.alloc(9000, 7).toString('base64');
+    const entries = [
+      tag.compound({ ip: tag.string('mc.hypixel.net'), name: tag.string('Hypixel'), icon: tag.string(icon), acceptTextures: tag.byte(1) }),
+      tag.compound({ ip: tag.string('play.example.pl'), name: tag.string('§6Złoty §lSerwer 🔥') }),
+      tag.compound({ ip: tag.string('1.2.3.4'), name: tag.string('Bezpośrednie'), hidden: tag.byte(1) }),
+    ];
+    const root = Object.assign(tag.compound({ servers: Object.assign(tag.list('compound'), { value: entries }) }), { name: '' });
+    fs.writeFileSync(path.join(dir, 'servers.dat'), writeNbt(root, { gzip: false }));
+    const instance = { dir };
+    assert.equal(servers.add(instance, { name: 'Nowy', address: 'nowy.pl' }).length, 3);
+    assert.equal(servers.move(instance, 2, 0)[0].address, 'nowy.pl');
+    const left = servers.remove(instance, 1, 'mc.hypixel.net');
+    assert.deepEqual(left.map((s) => s.address), ['nowy.pl', 'play.example.pl']);
+    // The hidden entry (the game's history) and the icons of the servers that stayed are intact.
+    const saved = get(readNbt(fs.readFileSync(path.join(dir, 'servers.dat'))), 'servers').value;
+    assert.equal(saved.length, 3);
+    assert.equal(text(get(saved[2], 'ip')), '1.2.3.4');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

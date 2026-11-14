@@ -183,7 +183,12 @@ function readNbt(input) {
 function createWriter() {
   let buf = Buffer.allocUnsafe(4096);
   let pos = 0;
-  const room = (n) => {
+  /**
+   * Reserves n bytes and returns where they start. It may replace `buf` with a bigger one – so it must run BEFORE
+   * `buf` is looked at: `buf.writeUInt8(v, at(1))` would write into the old, too small buffer (JavaScript reads
+   * `buf.writeUInt8` before the argument), which threw ERR_OUT_OF_RANGE or quietly lost the bytes of a string.
+   */
+  const at = (n) => {
     if (pos + n > buf.length) {
       const next = Buffer.allocUnsafe(Math.max(buf.length * 2, pos + n));
       buf.copy(next, 0, 0, pos);
@@ -192,20 +197,25 @@ function createWriter() {
     pos += n;
     return pos - n;
   };
+  const put = (n, write) => {
+    const offset = at(n);
+    write(buf, offset);
+  };
   const w = {
-    u8: (v) => buf.writeUInt8(v, room(1)),
-    i8: (v) => buf.writeInt8(v, room(1)),
-    i16: (v) => buf.writeInt16BE(v, room(2)),
-    i32: (v) => buf.writeInt32BE(v, room(4)),
-    i64: (v) => buf.writeBigInt64BE(v, room(8)),
-    f32: (v) => buf.writeFloatBE(v, room(4)),
-    f64: (v) => buf.writeDoubleBE(v, room(8)),
-    bytes: (b) => b.copy(buf, room(b.length)),
+    u8: (v) => put(1, (b, o) => b.writeUInt8(v, o)),
+    i8: (v) => put(1, (b, o) => b.writeInt8(v, o)),
+    i16: (v) => put(2, (b, o) => b.writeInt16BE(v, o)),
+    i32: (v) => put(4, (b, o) => b.writeInt32BE(v, o)),
+    i64: (v) => put(8, (b, o) => b.writeBigInt64BE(v, o)),
+    f32: (v) => put(4, (b, o) => b.writeFloatBE(v, o)),
+    f64: (v) => put(8, (b, o) => b.writeDoubleBE(v, o)),
+    bytes: (src) => put(src.length, (b, o) => src.copy(b, o)),
     string: (s) => {
       const b = encodeString(String(s));
-      buf.writeUInt16BE(b.length, room(2));
+      w.i16u(b.length);
       w.bytes(b);
     },
+    i16u: (v) => put(2, (b, o) => b.writeUInt16BE(v, o)),
     done: () => Buffer.from(buf.subarray(0, pos)),
   };
   return w;
@@ -273,6 +283,14 @@ function writeNbt(root, { gzip = Boolean(root?.gzipped) } = {}) {
   w.string(root.name ?? '');
   writePayload(w, root, 0);
   const out = w.done();
+  // A file the game reads (servers.dat, level.dat) must never be written broken: what was written is read back and
+  // written again – it has to give the very same bytes, otherwise nothing is saved.
+  const again = createWriter();
+  again.u8(ID.compound);
+  const check = readNbt(out);
+  again.string(check.name ?? '');
+  writePayload(again, check, 0);
+  if (!again.done().equals(out)) throw new Error('NBT: the written data did not read back the same – nothing was saved');
   return gzip ? zlib.gzipSync(out) : out;
 }
 

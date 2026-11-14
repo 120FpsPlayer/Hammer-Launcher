@@ -68,7 +68,14 @@ function save(instance, { root, list }, shown) {
     fs.renameSync(tmp, file);
   } catch (err) {
     fs.rmSync(tmp, { force: true });
-    throw new Error(`Nie udało się zapisać listy serwerów (${err.code ?? err.message}). Sprawdź, czy plik servers.dat nie jest otwarty w innym programie.`, { cause: err });
+    // Only a locked or read-only file is about another program – anything else is our fault, so say it plainly.
+    const locked = ['EBUSY', 'EPERM', 'EACCES'].includes(err.code);
+    throw new Error(
+      locked
+        ? `Nie udało się zapisać listy serwerów (${err.code}). Sprawdź, czy plik servers.dat nie jest otwarty w innym programie (np. w grze).`
+        : `Nie udało się zapisać listy serwerów (${err.code ?? err.message}). Spróbuj jeszcze raz – a jeśli to się powtarza, zgłoś błąd na naszym Discordzie.`,
+      { cause: err },
+    );
   }
 }
 
