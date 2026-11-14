@@ -43,6 +43,7 @@ const plus = require('../lib/plus');
 const profile = require('../lib/profile');
 const config = require('../lib/config');
 const store = require('./store');
+const { stampAssets } = require('./stamp');
 const admin = require('./admin');
 const releases = require('./releases');
 
@@ -432,7 +433,7 @@ function joinHtml(url) {
     '<!doctype html>\n<html lang="pl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta name="robots" content="noindex"><meta name="theme-color" content="#0e0b09"><meta name="color-scheme" content="dark">' +
     // The launcher's tab icon: hand-drawn pixel art at 16 and 32 px (sharp in a browser tab), the 256 px icon for the rest.
-    `<title>${esc(title)}</title>${own ? '<link rel="icon" href="/assets/launcher/favicon-32.png" sizes="32x32"><link rel="icon" href="/assets/launcher/favicon-16.png" sizes="16x16"><link rel="icon" href="/assets/launcher-icon.png" sizes="256x256">' : '<link rel="icon" href="/assets/hammershop-icon.png">'}<style>${JOIN_STYLE}</style></head>` +
+    `<title>${esc(title)}</title>${stampAssets(own ? '<link rel="icon" href="/assets/launcher/favicon-32.png" sizes="32x32"><link rel="icon" href="/assets/launcher/favicon-16.png" sizes="16x16"><link rel="icon" href="/assets/launcher-icon.png" sizes="256x256">' : '<link rel="icon" href="/assets/hammershop-icon.png">')}<style>${stampAssets(JOIN_STYLE)}</style></head>` +
     '<body><main class="card">' +
     (own ? '<a class="logo h" href="/" aria-label="Hammer Launcher – strona główna"><i aria-hidden="true"></i>Hammer<b>Launcher</b></a>' : '<a class="logo" href="/" aria-label="HammerShop – strona główna"><i aria-hidden="true"></i>Hammer<b>Shop</b></a>') +
     '<p class="eyebrow">HAMMER LAUNCHER</p>' +

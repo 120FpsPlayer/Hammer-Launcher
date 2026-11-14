@@ -54,6 +54,7 @@ const profile = require('../lib/profile');
 const config = require('../lib/config');
 
 const PUBLIC = path.join(__dirname, '..', '..', 'web', 'public');
+const { stampAssets, ASSET_REF } = require('./stamp');
 const STRIPE_MIN = 50; // Stripe's smallest charge in EUR cents
 const MAX_QTY = 10;
 const web = () => env.web;
@@ -452,25 +453,9 @@ function pageHtml(file) {
     .readFileSync(path.join(PUBLIC, file), 'utf8')
     .replace(new RegExp(`<!--${other}-->[\\s\\S]*?<!--/${other}-->`, 'g'), '')
     .replace(new RegExp(`<!--/?${mine}-->`, 'g'), '')
-    .replace(/((?:href|src)=")(\/assets\/[A-Za-z0-9._/-]+\.(?:css|js))"/g, (all, attr, url) => `${attr}${url}?v=${stampOf(url)}"`);
+    .replace(ASSET_REF, (url) => stampAssets(url));
 }
 
-/**
- * A stamp of a script's or stylesheet's content, put into its address on the pages (admin.js?v=1a2b3c4d). A proxy in
- * front of the site may tell browsers to keep .js and .css for hours whatever this server says (Cloudflare does) –
- * with the stamp a changed file has a new address, so an update of the site is seen at once.
- */
-const stamps = new Map(); // url → { mtime, stamp }
-function stampOf(url) {
-  try {
-    const file = path.join(PUBLIC, url);
-    const mtime = fs.statSync(file).mtimeMs;
-    if (stamps.get(url)?.mtime !== mtime) stamps.set(url, { mtime, stamp: crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex').slice(0, 8) });
-    return stamps.get(url).stamp;
-  } catch {
-    return '0';
-  }
-}
 
 function serveStatic(req, res, pathname) {
   // Hammer Launcher's own site has no shop: its front page – and any address that is no file – is the launcher's page.
@@ -488,6 +473,11 @@ function serveStatic(req, res, pathname) {
   }
   const ext = path.extname(file);
   const cache = ['.html', '.js', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=604800, immutable'; // pages and their code are always fresh, pictures keep
+  if (ext === '.css' || ext === '.html') {
+    // A stylesheet (url(/assets/…)) or a plain page names pictures and fonts – they get their stamps like on the pages.
+    res.writeHead(200, { ...HEADERS, 'content-type': TYPES[ext], 'cache-control': cache });
+    return res.end(req.method === 'HEAD' ? undefined : stampAssets(fs.readFileSync(file, 'utf8')));
+  }
   const head = { ...HEADERS, 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': cache, 'accept-ranges': 'bytes' };
   // The page's short clips (.webm/.mp4): browsers ask for parts of a video (Safari only plays a video it can ask that way).
   const size = fs.statSync(file).size;
