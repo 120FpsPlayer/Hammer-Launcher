@@ -3,236 +3,191 @@
 // 🤖 The AI assistant on the free providers (Groq, any OpenAI-compatible API) and without AI at all. Groq is a fake
 // fetch – nothing leaves the computer. This file runs in its own process, so the profile is set before anything loads.
 process.env.HS_TEST_PROFILE = 'launcher';
-for (const key of ['ANTHROPIC_API_KEY', 'GROQ_API_KEY', 'AI_PROVIDER', 'AI_MODEL', 'AI_BASE_URL', 'AI_API_KEY']) delete process.env[key];
 
-const { db } = require('./helpers/setup');
+const fakes = require('./helpers/aiFakes');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const { FakeGuild } = require('./helpers/fakeDiscord');
+const { db } = require('./helpers/setup');
 const { createInteraction, lastResponse, textOf, customIds } = require('./helpers/fakeInteraction');
-const { buildServer } = require('../src/builder/executor');
-const { env } = require('../src/env');
-const config = require('../src/lib/config');
-const hooks = require('../src/lib/hooks');
-const tickets = require('../src/tickets/tickets');
-const handle = require('../src/handlers/interactions');
-const loadCommands = require('../src/commands');
 const hammerplus = require('../src/features/hammerplus');
 const assistant = require('../src/features/aiassistant');
 const ai = require('../src/features/ai/client');
 const openai = require('../src/features/ai/openai');
-const { SYSTEM_PROMPT } = require('../src/features/ai/prompt');
+const { SYSTEM_PROMPT_FREE, GREETINGS } = require('../src/features/ai/prompt');
 const assistantCommand = require('../src/commands/assistant');
 
-env.plusPrivateKey = crypto.generateKeyPairSync('ed25519').privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
-assistant.timing.debounce = 5;
-assistant.timing.open = 5;
-openai.setRetryDelay(0);
-openai.setShortWait(0); // every 429 starts a break here – the short wait has its own test
-const commands = loadCommands();
-const LIMIT_TEXT = 'Asystent AI ma teraz przerwę – skończył się darmowy limit. Zawołałem zespół, ktoś zaraz odpisze.';
-
-hammerplus.setFetch(async (url) => {
-  const name = decodeURIComponent(String(url).split('/').pop());
-  return { ok: true, status: 200, json: async () => ({ id: crypto.createHash('md5').update(name).digest('hex'), name }) };
-});
-
+const { uid, role, sleep, useEnv, groq, chat, say, callTools, limited, notFound, open, write, aiOf, botMessages, botTexts, panelOf, ticketLog, toolMessages, countTexts, giveaway, click, LIMIT_TEXT } = fakes;
 let guild;
-let n = 932000000000000000n;
-const uid = () => String(++n);
-const role = (key) => db.roleId(guild.id, key);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Which keys .env has in this test – everything else is removed. */
-function useEnv(values = {}) {
-  for (const key of ['ANTHROPIC_API_KEY', 'GROQ_API_KEY', 'AI_PROVIDER', 'AI_MODEL', 'AI_BASE_URL', 'AI_API_KEY']) delete process.env[key];
-  Object.assign(process.env, values);
-}
-
-async function server(values = { GROQ_API_KEY: 'gsk_test_key' }) {
-  if (!guild) {
-    guild = new FakeGuild();
-    await buildServer({ guild, mode: 'add', invokerId: guild.ownerId });
-  }
-  assistant.setClient(null);
-  assistant._reset();
-  db.guild(guild.id).aiAssistant = { enabled: true };
-  useEnv(values);
-  openai.setFetch(async (url) => {
-    throw new Error(`unexpected AI request: ${url}`);
-  });
+async function server(values) {
+  guild = await fakes.server(values);
   return guild;
 }
-
-/** A fake Groq: answers from the script in order (a chat/completions body, or { status, headers, body }). */
-function groq(...script) {
-  const calls = [];
-  openai.setFetch(async (url, init) => {
-    calls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
-    const next = script.shift();
-    if (!next) throw new Error('fake Groq: nothing more in the script');
-    const { status = 200, headers = {}, body } = next;
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
-  });
-  return calls;
+const owner = () => guild.members.cache.get(guild.ownerId);
+async function statusText(channel) {
+  const status = createInteraction({ guild, member: owner(), kind: 'command', commandName: 'assistant', subcommand: 'status', channel });
+  await assistantCommand.execute(status);
+  return textOf(lastResponse(status));
 }
-const chat = (message, finish = 'stop') => ({ body: { id: 'chatcmpl-x', model: 'openai/gpt-oss-120b', choices: [{ index: 0, message: { role: 'assistant', ...message }, finish_reason: finish }], usage: { prompt_tokens: 900, completion_tokens: 40 } } });
-const say = (content) => chat({ content });
-const callTools = (...calls) => chat({ content: null, tool_calls: calls.map(([name, args, id]) => ({ id, type: 'function', function: { name, arguments: typeof args === 'string' ? args : JSON.stringify(args) } })) }, 'tool_calls');
+const CLAUDE_ONLY = ['cache_control', 'betas', 'fallbacks', 'output_config', '"strict"', 'additionalProperties', 'thinking'];
 
-async function open(typeId, answers = [], author = guild.addMember(uid(), [role('member')])) {
-  const channel = await tickets.openTicket(author, config.getType(typeId), answers.map(([label, value]) => ({ label, value })));
-  await assistant.settle();
-  return { author, channel };
-}
-async function write(channel, member, text) {
-  const msg = channel.userMessage(member.id, text);
-  msg.member = member;
-  await hooks.emit('messageCreate', msg);
-  await assistant.settle();
-}
-const aiOf = (channel) => db.getTicket(channel.id).ai;
-const botMessages = (channel) => channel.messageList.filter((m) => m.author.id === guild.client.user.id);
-const botTexts = (channel) => botMessages(channel).map((m) => textOf(m.body));
-const panelOf = (channel) => botMessages(channel).find((m) => /Twoje wygrane|Nagrody odebrane/.test(textOf(m.body)));
-const ticketLog = () => guild.channels.cache.get(db.channelId(guild.id, 'ticketLogs')).messageList.map((m) => textOf(m.body));
-const toolMessages = (call) => call.body.messages.filter((m) => m.role === 'tool');
-
-function giveaway({ prize, winners, entries = winners, plusDays = null, endsAt = Date.now() - 60_000, ended = true, claims }) {
-  const id = crypto.randomBytes(4).toString('hex');
-  const gw = { id, guildId: guild.id, channelId: '1', messageId: null, prize, description: null, winnersCount: winners.length || 1, endsAt, hostId: guild.ownerId, requiredRoleId: null, buyersOnly: false, minInvites: null, plusDays, entries, winners, ended, createdAt: endsAt - 86_400_000, ...(claims && { claims }) };
-  db.guild(guild.id).giveaways[id] = gw;
-  return gw;
-}
-
-/** A click or a form through the bot's real interaction router (errors come back as the user sees them). */
-async function click(member, channel, customId, { kind = 'button', fields, message } = {}) {
-  const interaction = createInteraction({ guild, member, kind, customId, channel, fields, message });
-  await handle(interaction, commands);
-  return interaction;
-}
-
-test('Groq is the default with GROQ_API_KEY: an OpenAI-style request without anything only Claude knows', async () => {
+test('Groq by default: a fixed greeting when the ticket opens (no API call), a small request only when the author writes', async () => {
   await server();
   assert.deepEqual([ai.provider(), ai.model()], ['groq', 'openai/gpt-oss-120b']);
-  const calls = groq(say('Cześć! Jestem asystentem AI. Wyślij proszę log z Konsola → Udostępnij log.'));
-  const { channel } = await open('support', [['Temat', 'Gra się nie uruchamia'], ['Wersja launchera i Minecrafta', '2.6.0, 1.21.4 Fabric'], ['Opisz dokładnie, co się dzieje', 'Czarny ekran']]);
+  const calls = groq(say('Spróbuj Optymalizacja → Zoptymalizuj wszystko. Jeśli nie pomoże, wyślij log.'));
+  const { channel, author } = await open('support', [['Temat', 'Gra się nie uruchamia'], ['Wersja launchera i Minecrafta', '2.6.0, 1.21.4 Fabric'], ['Opisz dokładnie, co się dzieje', 'Czarny ekran']]);
+  assert.equal(calls.length, 0, 'opening a ticket costs nothing');
+  const greeting = botMessages(channel).find((m) => m.content.startsWith(GREETINGS.support));
+  assert.ok(greeting, 'the greeting for a support ticket');
+  assert.deepEqual(customIds(greeting.body), ['ai:human', 'ai:off']);
+  assert.equal(panelOf(channel), undefined, 'no prize list outside reward tickets');
+  assert.equal(aiOf(channel).replies, 0, 'the greeting is not an answer from the model');
 
+  await write(channel, author, 'gra pokazuje czarny ekran po starcie, co robić?');
   assert.equal(calls.length, 1);
   const [req] = calls;
   assert.equal(req.url, 'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(req.headers.authorization, 'Bearer gsk_test_key');
   assert.equal(req.body.model, 'openai/gpt-oss-120b');
-  assert.equal(req.body.tool_choice, 'auto');
   assert.equal(req.body.reasoning_effort, 'low');
-  assert.ok(req.body.max_tokens <= openai.MAX_OUTPUT);
-  assert.deepEqual(req.body.tools.map((t) => [t.type, t.function.name]), [['function', 'info_launchera'], ['function', 'moje_wygrane'], ['function', 'odbierz_nagrode'], ['function', 'wezwij_zespol']]);
-  for (const t of req.body.tools) {
-    assert.ok(t.function.description.length > 20);
-    assert.equal(t.function.parameters.type, 'object');
-  }
+  assert.ok(req.body.max_tokens <= 500, `max_tokens ${req.body.max_tokens}`);
+  assert.equal(req.body.tool_choice, 'auto');
+  assert.deepEqual(req.body.tools.map((t) => [t.type, t.function.name]), [['function', 'wezwij_zespol'], ['function', 'info_launchera']], 'a support ticket: only these two');
+  for (const t of req.body.tools) assert.ok(t.function.description.length <= 140, t.function.name);
   const raw = JSON.stringify(req.body);
-  for (const claudeOnly of ['cache_control', 'betas', 'fallbacks', 'output_config', '"strict"', 'additionalProperties', 'thinking']) assert.equal(raw.includes(claudeOnly), false, claudeOnly);
-  assert.deepEqual(req.body.messages[0], { role: 'system', content: SYSTEM_PROMPT });
-  assert.equal(req.body.messages[1].role, 'user');
+  for (const claudeOnly of CLAUDE_ONLY) assert.equal(raw.includes(claudeOnly), false, claudeOnly);
+  assert.deepEqual(req.body.messages[0], { role: 'system', content: SYSTEM_PROMPT_FREE });
+  assert.ok(SYSTEM_PROMPT_FREE.length <= 3500, `the free prompt has ${SYSTEM_PROMPT_FREE.length} characters`);
   assert.match(req.body.messages[1].content, /Czarny ekran/);
-  const context = req.body.messages.at(-1);
-  assert.equal(context.role, 'system', 'the mid-conversation system message stays a system message');
-  assert.match(context.content, /ticket typu support/);
-  assert.match(botTexts(channel).join('\n'), /Cześć! Jestem asystentem AI/);
-
-  const status = createInteraction({ guild, member: guild.members.cache.get(guild.ownerId), kind: 'command', commandName: 'assistant', subcommand: 'status', channel });
-  await assistantCommand.execute(status);
-  assert.match(textOf(lastResponse(status)), /Groq \(darmowy\)[\s\S]*openai\/gpt-oss-120b/);
+  assert.equal(req.body.messages.at(-1).role, 'system');
+  assert.match(req.body.messages.at(-1).content, /ticket typu support/);
+  assert.doesNotMatch(req.body.messages.at(-1).content, /pierwsza wiadomość/, 'the greeting already introduced it');
+  assert.ok(req.body.messages.some((m) => m.role === 'assistant' && m.content.startsWith('Cześć! 👋')), 'the greeting is in the history');
+  assert.ok(botTexts(channel).some((t) => /Zoptymalizuj wszystko/.test(t)));
+  assert.ok(raw.length < 6000, `the whole request is ${raw.length} characters`);
 });
 
-test('Groq tool calls: moje_wygrane → odbierz_nagrode hands out a Hammer+ code (tool results come back as role "tool")', async () => {
+test('a request carries the last 6 turns, each cut to ~400 characters, and a short form', async () => {
+  await server();
+  const { channel, author } = await open('support', [['Opisz dokładnie, co się dzieje', 'x'.repeat(1000)]]);
+  groq(...Array.from({ length: 5 }, (_, i) => say(`Odpowiedź ${i + 1}`)));
+  for (let i = 1; i <= 4; i += 1) await write(channel, author, `Wiadomość numer ${i}: ${'bla '.repeat(150)}`);
+  const calls = groq(say('Ostatnia odpowiedź'));
+  await write(channel, author, 'ostatnie pytanie');
+  const turns = calls[0].body.messages.slice(1).filter((m) => m.role !== 'system');
+  const [form, ...history] = turns;
+  assert.ok(form.content.length <= 650, `the form block has ${form.content.length} characters`);
+  assert.ok(history.length <= 6, `${history.length} turns`);
+  const all = history.map((m) => m.content).join('\n');
+  assert.doesNotMatch(all, /Wiadomość numer 1:|Wiadomość numer 2:/, 'the oldest turns are left out');
+  assert.match(all, /Wiadomość numer 4:/);
+  for (const m of history) for (const part of m.content.split('\n\n')) assert.ok(part.length <= 420, `a turn of ${part.length} characters`);
+  assert.equal(history.at(-1).content, 'ostatnie pytanie');
+});
+
+test('a reward ticket: the claim buttons right away even with the AI on – the AI gets the prize tools and refreshes the list', async () => {
   await server();
   const author = guild.addMember(uid(), [role('member')]);
   const gw = giveaway({ prize: 'Hammer+ na miesiąc', winners: [author.id], plusDays: 30 });
-  const calls = groq(callTools(['moje_wygrane', {}, 'call_1']), callTools(['odbierz_nagrode', { giveawayId: gw.id, minecraftNick: 'Steve' }, 'call_2']), say('Gotowe! Kod masz wyżej – wpisz go w launcherze: Hammer+ → „Mam kod”.'));
+  const calls = groq(callTools(['moje_wygrane', {}, 'call_1']), callTools(['odbierz_nagrode', { giveawayId: gw.id, minecraftNick: 'Steve' }, 'call_2']), say('Gotowe! Kod masz wyżej.'));
   const { channel } = await open('reward', [['Który giveaway wygrałeś/aś?', 'Hammer+ na miesiąc'], ['Twój nick w Minecraft', 'Steve']], author);
+  assert.equal(calls.length, 0);
+  assert.ok(botTexts(channel).some((t) => t.startsWith(GREETINGS.reward)));
+  assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human']);
 
+  await write(channel, author, 'mogę odebrać nagrodę przez Ciebie?');
   assert.equal(calls.length, 3);
+  assert.deepEqual(calls[0].body.tools.map((t) => t.function.name), ['moje_wygrane', 'odbierz_nagrode', 'wezwij_zespol'], 'a reward ticket: the prize tools');
   const second = calls[1].body.messages;
   const at = second.findIndex((m) => m.role === 'assistant' && m.tool_calls?.[0]?.id === 'call_1');
   assert.ok(at > 0);
-  assert.equal(second[at - 1].role, 'system', 'the context message stays where it was');
-  assert.equal(second[at].content, null);
-  assert.equal(second[at].tool_calls[0].function.arguments, '{}', 'arguments are a JSON string');
+  assert.equal(second[at].tool_calls[0].function.arguments, '{}');
   assert.deepEqual([second[at + 1].role, second[at + 1].tool_call_id, second[at + 1].name], ['tool', 'call_1', 'moje_wygrane']);
-  assert.equal(JSON.parse(second[at + 1].content).wygrane[0].id, gw.id);
   const granted = toolMessages(calls[2]).at(-1);
-  assert.equal(granted.tool_call_id, 'call_2');
   assert.match(granted.content, /Kod Hammer\+ \(30 dni\) dla konta Minecraft Steve/);
   assert.doesNotMatch(granted.content, /HP1\./, 'the code never goes to the model');
-
-  assert.ok(botTexts(channel).some((t) => /Twoja nagroda: Hammer\+ 30 dni/.test(t) && /HP1\./.test(t)));
-  assert.match(textOf(guild.dms.filter((d) => d.to === author.id).at(-1).payload), /HP1\./);
   assert.equal(gw.claims[author.id].status, 'granted');
-  assert.ok(ticketLog().some((t) => /Asystent AI wydał nagrodę/.test(t) && !/HP1\./.test(t)));
+  assert.equal(countTexts(channel, /Twoja nagroda: Hammer\+ 30 dni/), 1);
+  assert.match(textOf(panelOf(channel).body), /Nagrody odebrane/, 'the buttons follow the claim');
+  const again = await click(author, channel, `ai:claim:${gw.id}`);
+  assert.match(textOf(lastResponse(again)), /została już odebrana/);
 });
 
-test('broken tool JSON from a free model: an error tool result and another try – never a crash; Groq\'s tool_use_failed is retried', async () => {
+test('model rotation: a 429 on the first model → the same request goes to the next one, no message and no ping in the ticket', async () => {
   await server();
-  const calls = groq(callTools(['moje_wygrane', '{"giveawayId": "ab', 'c1']), say('Przepraszam – spróbujmy jeszcze raz. Czego dotyczy problem?'));
-  const { channel } = await open('support');
-  assert.equal(calls.length, 2);
-  const [toolMsg] = toolMessages(calls[1]);
-  assert.equal(toolMsg.tool_call_id, 'c1');
-  assert.match(toolMsg.content, /poprawnym JSON/);
-  assert.equal(calls[1].body.messages.find((m) => m.tool_calls)?.tool_calls[0].function.arguments, '{}');
-  assert.ok(botTexts(channel).some((t) => /spróbujmy jeszcze raz/.test(t)));
-
-  const retried = groq({ status: 400, body: { error: { message: 'Failed to call a function. Please adjust your prompt.', type: 'invalid_request_error', code: 'tool_use_failed' } } }, say('Cześć!'));
-  const second = await open('support');
-  assert.equal(retried.length, 2, 'one more try after tool_use_failed');
-  assert.equal(aiOf(second.channel).active, true);
-  assert.ok(botTexts(second.channel).some((t) => /^Cześć!/.test(t)));
-});
-
-test('429 (free limit): the assistant takes a break until retry-after, says so, calls the team – and comes back', async () => {
-  await server();
-  const calls = groq(say('Cześć!'), { status: 429, headers: { 'retry-after': '1' }, body: { error: { message: 'Rate limit reached for model openai/gpt-oss-120b', type: 'tokens', code: 'rate_limit_exceeded' } } });
   const { channel, author } = await open('support');
-  await write(channel, author, 'mody mi się nie instalują');
-  assert.equal(calls.length, 2);
-  assert.ok(botTexts(channel).some((t) => t.startsWith(LIMIT_TEXT)), 'the exact message about the break');
-  const ping = botMessages(channel).find((m) => /Wołam zespół/.test(textOf(m.body)));
-  assert.ok(ping, 'the team is called');
-  assert.ok(ping.body.allowedMentions.roles.includes(role('support')));
-  assert.equal(aiOf(channel).stopped, 'escalated');
+  const calls = groq(fakes.limited(600), say('Odpowiada drugi model.'), say('Znowu drugi model.'));
+  await write(channel, author, 'launcher się zawiesza przy starcie');
+  assert.deepEqual(calls.map((c) => c.body.model), ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']);
+  assert.deepEqual(calls[1].body.messages, calls[0].body.messages, 'the very same request');
+  assert.ok(botTexts(channel).some((t) => /Odpowiada drugi model/.test(t)));
+  assert.equal(botTexts(channel).some((t) => /przerwę|Wołam zespół/.test(t)), false);
+  assert.equal(assistant.paused(), null);
+  assert.equal(aiOf(channel).active, true);
+
+  await write(channel, author, 'a teraz?');
+  assert.equal(calls[2].body.model, 'openai/gpt-oss-20b', 'the limited model is skipped until its reset');
+  const status = await statusText(channel);
+  assert.match(status, /⏸️ limit do \d\d:\d\d · `openai\/gpt-oss-120b`/);
+  assert.match(status, /✅ działa · `openai\/gpt-oss-20b` · dziś: 2 zapytania, 1\s?880 tokenów/);
+  assert.match(status, /✅ działa · `qwen\/qwen3-32b`/);
+});
+
+test('a model the provider does not know (404) is skipped silently for the rest of the run – one console warning', async (t) => {
+  await server();
+  const warns = t.mock.method(console, 'warn', () => {});
+  const { channel, author } = await open('plus', [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'Jak aktywować kod?']]);
+  const calls = groq(fakes.notFound(), say('Hammer+ → „Mam kod” → wklej → Aktywuj.'), say('Proszę bardzo!'));
+  await write(channel, author, 'jak wpisać kod?');
+  await write(channel, author, 'dzięki');
+  assert.deepEqual(calls.map((c) => c.body.model), ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'openai/gpt-oss-20b']);
+  assert.equal(warns.mock.calls.filter((c) => /openai\/gpt-oss-120b[\s\S]*nie działa na tym koncie/.test(String(c.arguments[0]))).length, 1);
+  assert.equal(botTexts(channel).some((t) => /przerwę|Wołam zespół/.test(t)), false);
+  assert.match(await statusText(channel), /❌ niedostępny · `openai\/gpt-oss-120b`/);
+});
+
+test('every model limited → one break notice that calls the team, other tickets told once, and the assistant comes back after it', async () => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'model-a, model-b' });
+  assert.deepEqual(ai.models(), ['model-a', 'model-b']);
+  const first = await open('support');
+  const second = await open('bug');
+  const calls = groq(limited(1), limited(1));
+  await write(first.channel, first.author, 'nie działa mi launcher');
+  assert.deepEqual(calls.map((c) => c.body.model), ['model-a', 'model-b']);
   assert.equal(assistant.paused().reason, 'limit');
-  assert.ok(assistant.paused().until - Date.now() <= 1100);
+  assert.equal(countTexts(first.channel, new RegExp(LIMIT_TEXT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))), 1, 'the exact break message, once');
+  const notice = botMessages(first.channel).find((m) => textOf(m.body).includes(LIMIT_TEXT));
+  assert.ok(notice.body.allowedMentions.roles.includes(role('support')), 'the team is pinged in the same message');
+  assert.equal(countTexts(first.channel, /Wołam zespół/), 0, 'no second notice saying the same');
+  assert.equal(aiOf(first.channel).stopped, 'break');
   assert.ok(ticketLog().some((t) => /skończył się darmowy limit/.test(t)));
-  assert.equal(assistant.available(), false);
 
-  // During the break: no AI calls; a winner still gets the claim buttons.
-  const winner = guild.addMember(uid(), [role('member')]);
-  const gw = giveaway({ prize: 'Hammer+ 30 dni', winners: [winner.id] });
-  const reward = await open('reward', [], winner);
-  assert.equal(calls.length, 2);
-  assert.deepEqual(customIds(panelOf(reward.channel).body), [`ai:claim:${gw.id}`, 'ai:human']);
+  await write(second.channel, second.author, 'edytor HUD nie zapisuje pozycji');
+  await write(second.channel, second.author, 'halo?');
+  assert.equal(calls.length, 2, 'no requests during the break');
+  assert.equal(countTexts(second.channel, /Przerwa asystenta AI/), 1, 'another ticket is told once');
+  const reward = await open('reward');
+  assert.ok(panelOf(reward.channel), 'a reward ticket opened in the break gets the buttons');
+  assert.equal(botTexts(reward.channel).some((t) => t.startsWith(GREETINGS.reward)), false, 'no AI greeting during the break');
 
-  // After it: answers again.
   await sleep(1100);
   assert.equal(assistant.paused(), null);
-  const back = groq(say('Jestem z powrotem!'));
-  const later = await open('support');
+  const back = groq(say('Jestem z powrotem – w czym pomóc?'));
+  await write(first.channel, first.author, 'jesteś?');
   assert.equal(back.length, 1);
-  assert.ok(botTexts(later.channel).some((t) => /Jestem z powrotem!/.test(t)));
+  assert.equal(aiOf(first.channel).stopped, null, 'the break is over – it answers again');
+  assert.ok(botTexts(first.channel).some((t) => /Jestem z powrotem/.test(t)));
+  assert.equal(countTexts(first.channel, /Przerwa asystenta AI/), 1);
 });
 
-test('a per-minute limit that frees up within seconds is waited out once – no break, no ping', async () => {
-  await server();
+test('a per-minute limit on the last model that frees up within seconds is waited out once – no break, no ping', async () => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'openai/gpt-oss-120b' });
   openai.setShortWait(2000);
   try {
+    const { channel, author } = await open('support');
     const calls = groq({ status: 429, headers: { 'retry-after': '0.05' }, body: { error: { message: 'Rate limit reached (tokens per minute)', code: 'rate_limit_exceeded' } } }, say('Cześć!'));
-    const { channel } = await open('support');
+    await write(channel, author, 'pomocy');
     assert.equal(calls.length, 2);
     assert.equal(assistant.paused(), null);
-    assert.equal(aiOf(channel).active, true);
     assert.equal(botTexts(channel).some((t) => /Wołam zespół|przerwę/.test(t)), false);
   } finally {
     openai.setShortWait(0);
@@ -248,52 +203,129 @@ test('how long a break lasts: retry-after or the reset of the exhausted limit, n
   assert.equal(openai.parseDuration('350ms'), 350);
 });
 
-test('401 (a bad key): a clear console message, the assistant pauses, the ticket goes to the team', async (t) => {
+test('401 (a bad key): no other model is tried, a clear console message, a break until the restart, the ticket goes to the team', async (t) => {
   await server();
   const errors = t.mock.method(console, 'error', () => {});
-  groq({ status: 401, body: { error: { message: 'Invalid API Key', type: 'invalid_request_error', code: 'invalid_api_key' } } });
-  const { channel } = await open('support');
+  const { channel, author } = await open('support');
+  const calls = groq({ status: 401, body: { error: { message: 'Invalid API Key', type: 'invalid_request_error', code: 'invalid_api_key' } } });
+  await write(channel, author, 'pomocy');
+  assert.equal(calls.length, 1, 'a bad key is the same for every model');
   assert.equal(assistant.paused().reason, 'auth');
+  assert.equal(assistant.paused().until, Infinity);
   assert.ok(errors.mock.calls.some((c) => /GROQ_API_KEY/.test(c.arguments[0]) && /uruchom bota ponownie/.test(c.arguments[0])));
-  assert.equal(aiOf(channel).stopped, 'escalated');
-  const status = createInteraction({ guild, member: guild.members.cache.get(guild.ownerId), kind: 'command', commandName: 'assistant', subcommand: 'status', channel });
-  await assistantCommand.execute(status);
-  assert.match(textOf(lastResponse(status)), /ma przerwę do[\s\S]*klucz API został odrzucony/);
-  assert.match(textOf(lastResponse(status)), /Przerwa ⏸️ do/);
+  assert.equal(countTexts(channel, /Przerwa asystenta AI/), 1);
+  const status = await statusText(channel);
+  assert.match(status, /ma przerwę do ponownego uruchomienia bota[\s\S]*klucz API został odrzucony/);
 });
 
-test('a model Groq does not know (404): tells the owner to set AI_MODEL, pauses, and a reward ticket gets the buttons', async (t) => {
+test('no model of the list works (404 each): tells the owner to set AI_MODEL, a break until the restart, the reward buttons still work', async (t) => {
   await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'llama-stary-model' });
   const errors = t.mock.method(console, 'error', () => {});
-  const calls = groq({ status: 404, body: { error: { message: 'The model `llama-stary-model` does not exist or you do not have access to it.', type: 'invalid_request_error', code: 'model_not_found' } } });
+  t.mock.method(console, 'warn', () => {});
   const author = guild.addMember(uid(), [role('member')]);
   const gw = giveaway({ prize: 'Hammer+ 30 dni', winners: [author.id], plusDays: 30 });
   const { channel } = await open('reward', [], author);
+  const calls = groq(notFound());
+  await write(channel, author, 'co mam zrobić?');
   assert.equal(calls[0].body.model, 'llama-stary-model');
   assert.equal(assistant.paused().reason, 'model');
   assert.ok(errors.mock.calls.some((c) => /console\.groq\.com\/docs\/models/.test(c.arguments[0]) && /AI_MODEL=/.test(c.arguments[0])));
-  assert.ok(botTexts(channel).some((t) => /Wołam zespół/.test(t)));
   assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human'], 'the no-AI path still works');
+  assert.equal(countTexts(channel, /^## 🎁 Twoje wygrane/), 1, 'the list is not posted twice');
 });
 
-test('AI_MODEL set to a model that cannot chat (Prompt Guard, Whisper…): the default chat model is used, said once', async (t) => {
-  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'meta-llama/llama-prompt-guard-2-86m' });
+test('AI_MODEL: a comma-separated list; models that cannot chat are dropped (said once); nothing left → the default chain', async (t) => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'meta-llama/llama-prompt-guard-2-86m, llama-3.3-70b-versatile ,whisper-large-v3,qwen/qwen3-32b' });
   const warns = t.mock.method(console, 'warn', () => {});
+  assert.deepEqual(ai.models(), ['llama-3.3-70b-versatile', 'qwen/qwen3-32b']);
+  ai.models();
+  assert.equal(warns.mock.calls.filter((c) => /llama-prompt-guard-2-86m[\s\S]*whisper-large-v3[\s\S]*nie prowadzą rozmów/.test(String(c.arguments[0]))).length, 1);
+
+  useEnv({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'meta-llama/llama-prompt-guard-2-86m' });
+  const { channel, author } = await open('support');
   const calls = groq({ status: 200, body: { choices: [{ message: { role: 'assistant', content: 'Cześć! W czym mogę pomóc?' }, finish_reason: 'stop' }] } });
-  await open('support');
+  await write(channel, author, 'hej');
   assert.equal(calls[0].body.model, 'openai/gpt-oss-120b');
   assert.equal(warns.mock.calls.filter((c) => /llama-prompt-guard-2-86m[\s\S]*nie prowadzi rozmów[\s\S]*openai\/gpt-oss-120b/.test(String(c.arguments[0]))).length, 1);
-  assert.equal(require('../src/features/ai/client').model(), 'openai/gpt-oss-120b');
+  assert.equal(ai.model(), 'openai/gpt-oss-120b');
+  assert.deepEqual(ai.models(), ai.DEFAULT_CHAINS.groq);
 });
 
 test('403 about the model (blocked for the account) is reported as a model problem, not as a bad key', async (t) => {
   await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'jakis/zablokowany-model' });
   const errors = t.mock.method(console, 'error', () => {});
+  t.mock.method(console, 'warn', () => {});
+  const { channel, author } = await open('support');
   groq({ status: 403, body: { error: { message: 'The model `jakis/zablokowany-model` is blocked at the organization level.', type: 'permission_error', code: 'model_permission_blocked_org' } } });
-  await open('support');
+  await write(channel, author, 'hej');
   assert.equal(assistant.paused().reason, 'model');
   assert.ok(errors.mock.calls.some((c) => /nie działa na Twoim koncie/.test(c.arguments[0]) && /AI_MODEL=/.test(c.arguments[0])));
   assert.ok(!errors.mock.calls.some((c) => /klucz został odrzucony/.test(c.arguments[0])));
+});
+
+test('qwen writes its reasoning into the answer – <think> blocks never reach the ticket', async () => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'qwen/qwen3-32b' });
+  const { channel, author } = await open('support');
+  groq((body) => chat({ content: '<think>\nUżytkownik pyta o FPS. Zastanówmy się…\n</think>\n\nWłącz Optymalizacja → Zoptymalizuj wszystko.' }, 'stop', body.model));
+  await write(channel, author, 'mam mało fps');
+  const answer = botMessages(channel).at(-1).content;
+  assert.match(answer, /^Włącz Optymalizacja/);
+  assert.doesNotMatch(answer, /think|Zastanówmy/);
+});
+
+test('broken tool JSON from a free model: an error tool result and another try – never a crash; Groq\'s tool_use_failed is retried', async () => {
+  await server();
+  const { channel, author } = await open('support');
+  const calls = groq(callTools(['info_launchera', '{"nick": "ab', 'c1']), say('Przepraszam – spróbujmy jeszcze raz. Czego dotyczy problem?'));
+  await write(channel, author, 'jaka jest najnowsza wersja?');
+  assert.equal(calls.length, 2);
+  const [toolMsg] = toolMessages(calls[1]);
+  assert.equal(toolMsg.tool_call_id, 'c1');
+  assert.match(toolMsg.content, /poprawnym JSON/);
+  assert.equal(calls[1].body.messages.find((m) => m.tool_calls)?.tool_calls[0].function.arguments, '{}');
+  assert.ok(botTexts(channel).some((t) => /spróbujmy jeszcze raz/.test(t)));
+
+  const retried = groq({ status: 400, body: { error: { message: 'Failed to call a function. Please adjust your prompt.', type: 'invalid_request_error', code: 'tool_use_failed' } } }, say('Cześć!'));
+  await write(channel, author, 'halo');
+  assert.equal(retried.length, 2, 'one more try after tool_use_failed');
+  assert.deepEqual(retried.map((c) => c.body.model), ['openai/gpt-oss-120b', 'openai/gpt-oss-120b'], 'on the same model');
+  assert.equal(aiOf(channel).active, true);
+});
+
+test('a tool this ticket does not offer cannot be run, even if the model names it', async () => {
+  await server();
+  const author = guild.addMember(uid(), [role('member')]);
+  const gw = giveaway({ prize: 'Hammer+ 30 dni', winners: [author.id], plusDays: 30 });
+  const { channel } = await open('support', [], author);
+  const calls = groq(callTools(['odbierz_nagrode', { giveawayId: gw.id, minecraftNick: 'Steve' }, 'x']), say('Nagrody odbiera się w tickecie „Odbierz nagrodę”.'));
+  await write(channel, author, 'daj mi nagrodę');
+  assert.match(toolMessages(calls[1])[0].content, /Nie ma narzędzia odbierz_nagrode w tym tickecie/);
+  assert.equal(gw.claims, undefined);
+});
+
+test('AI_PROVIDER=openai: any OpenAI-compatible API, e.g. Gemini; auto picks Groq first, then Claude', async () => {
+  await server({ AI_PROVIDER: 'openai', AI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai', AI_API_KEY: 'gemini-test-key', AI_MODEL: 'gemini-2.5-flash' });
+  const { channel, author } = await open('support');
+  const calls = groq(say('Cześć z Gemini!'));
+  await write(channel, author, 'hej');
+  assert.equal(calls[0].url, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+  assert.equal(calls[0].headers.authorization, 'Bearer gemini-test-key');
+  assert.equal(calls[0].body.model, 'gemini-2.5-flash');
+  assert.equal(calls[0].body.reasoning_effort, undefined, 'only gpt-oss gets reasoning_effort');
+  assert.match(ai.label(), /zgodne z OpenAI \(generativelanguage\.googleapis\.com\)/);
+
+  useEnv({ AI_PROVIDER: 'openai', AI_BASE_URL: 'https://example.com/v1' });
+  assert.equal(ai.problem(), 'openai-incomplete');
+  assert.match(assistant.unavailableText(), /AI_BASE_URL.*AI_API_KEY.*AI_MODEL/);
+  useEnv({ ANTHROPIC_API_KEY: 'sk-ant-test' });
+  assert.deepEqual([ai.provider(), ai.model(), ai.compact()], ['claude', 'claude-opus-5-5', false]);
+  useEnv({ ANTHROPIC_API_KEY: 'sk-ant-test', AI_MODEL: 'claude-opus-5-5, claude-sonnet-5-5' });
+  assert.deepEqual(ai.models(), ['claude-opus-5-5'], 'Claude stays one model');
+  useEnv({ ANTHROPIC_API_KEY: 'sk-ant-test', GROQ_API_KEY: 'gsk_x' });
+  assert.equal(ai.provider(), 'groq');
+  useEnv({ AI_PROVIDER: 'gemini' });
+  assert.equal(ai.problem(), 'bad-provider');
+  useEnv({});
 });
 
 test('no key: a reward ticket lists only real, unclaimed wins; Hammer+ asks for the nick and issues the code like the AI does', async () => {
@@ -370,27 +402,6 @@ test('no key: no win on this account → a short note without a ping; „człowi
   assert.equal(botTexts(channel).filter((t) => /Wołam zespół/.test(t)).length, 1, 'once per ticket');
 });
 
-test('AI_PROVIDER=openai: any OpenAI-compatible API, e.g. Gemini; auto picks Groq first, then Claude', async () => {
-  await server({ AI_PROVIDER: 'openai', AI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai', AI_API_KEY: 'gemini-test-key', AI_MODEL: 'gemini-2.5-flash' });
-  const calls = groq(say('Cześć z Gemini!'));
-  await open('support');
-  assert.equal(calls[0].url, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
-  assert.equal(calls[0].headers.authorization, 'Bearer gemini-test-key');
-  assert.equal(calls[0].body.model, 'gemini-2.5-flash');
-  assert.equal(calls[0].body.reasoning_effort, undefined, 'only gpt-oss gets reasoning_effort');
-  assert.match(ai.label(), /zgodne z OpenAI \(generativelanguage\.googleapis\.com\)/);
-
-  useEnv({ AI_PROVIDER: 'openai', AI_BASE_URL: 'https://example.com/v1' });
-  assert.equal(ai.problem(), 'openai-incomplete');
-  assert.match(assistant.unavailableText(), /AI_BASE_URL.*AI_API_KEY.*AI_MODEL/);
-  useEnv({ ANTHROPIC_API_KEY: 'sk-ant-test' });
-  assert.deepEqual([ai.provider(), ai.model()], ['claude', 'claude-opus-5-5']);
-  useEnv({ ANTHROPIC_API_KEY: 'sk-ant-test', GROQ_API_KEY: 'gsk_x' });
-  assert.equal(ai.provider(), 'groq');
-  useEnv({ AI_PROVIDER: 'gemini' });
-  assert.equal(ai.problem(), 'bad-provider');
-  useEnv({});
-});
 
 test('the adapter: Anthropic blocks ↔ chat messages, finish reasons, defensive argument parsing', () => {
   const body = openai.toChat({

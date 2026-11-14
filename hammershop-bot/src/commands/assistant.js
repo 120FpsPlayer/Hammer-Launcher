@@ -7,15 +7,27 @@ const assistant = require('../features/aiassistant');
 const config = require('../lib/config');
 const db = require('../lib/db');
 const { COLORS } = require('../lib/theme');
-const { embed, reply, replyError, isAdmin, isStaff, pad, ts } = require('../lib/utils');
+const { embed, reply, replyError, isAdmin, isStaff, pad, ts, count, truncate } = require('../lib/utils');
 const { slash } = require('../lib/commandsPl');
 
-const STOPPED = { staff: 'odpisał ktoś z zespołu', escalated: 'zawołał zespół', manual: 'wyłączony przez zespół' };
+const STOPPED = { staff: 'odpisał ktoś z zespołu', escalated: 'zawołał zespół', manual: 'wyłączony przez zespół', break: 'ma przerwę – odpowie znowu, gdy się skończy' };
+const time = (ms) => new Date(ms).toLocaleTimeString('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit' });
+
+/** "✅ `openai/gpt-oss-120b` · dziś: 12 zapytań, 31 400 tokenów" – one line per model of the chain. */
+function chainLines(chain) {
+  return chain
+    .map((m) => {
+      const state = m.state === 'unavailable' ? '❌ niedostępny' : m.state === 'limited' ? `⏸️ limit do ${time(m.until)}` : '✅ działa';
+      const use = m.requests ? ` · dziś: ${count(m.requests, 'zapytanie', 'zapytania', 'zapytań')}, ${m.tokens.toLocaleString('pl-PL')} tokenów` : '';
+      return `${state} · \`${m.model}\`${use}`;
+    })
+    .join('\n');
+}
 
 function ticketLine(s) {
   if (!s.ticket) return null;
   if (!s.ticket.open) return 'Ten ticket jest zamknięty.';
-  if (s.ticket.mode === 'noai' && !s.ticket.stopped) return '⚪ bez AI – nagrody przyciskami, „człowiek” woła zespół';
+  if (s.ticket.mode === 'noai' && !s.ticket.stopped) return '⚪ otwarty bez AI – asystent odpowie na następną wiadomość autora, gdy AI będzie dostępne (nagrody przyciskami, „człowiek” woła zespół)';
   if (s.ticket.active) return `🟢 odpowiada · odpowiedzi: **${s.ticket.replies ?? 0}/${s.maxReplies}**`;
   if (s.ticket.stopped) return `⚪ nie odpowiada – ${STOPPED[s.ticket.stopped] ?? s.ticket.stopped} · \`${slash('assistant ticket')}\` włącza go ponownie`;
   return `⚪ nie działa w tym tickecie · \`${slash('assistant ticket')}\` go włącza`;
@@ -35,10 +47,10 @@ function statusEmbed(guild, channel) {
     )
     .addFields(
       { name: 'Dostawca AI', value: s.providerLabel, inline: true },
-      { name: 'Model', value: s.model ? `\`${s.model}\`` : '—', inline: true },
+      { name: s.chain.length > 1 ? 'Model (pierwszy z listy)' : 'Model', value: s.model ? `\`${s.model}\`` : '—', inline: true },
       { name: 'Klucz API', value: s.problem ? '❌ brak albo niepełna konfiguracja' : '✅ ustawiony', inline: true },
       { name: 'Na serwerze', value: s.global ? '🟢 włączony' : '⚪ wyłączony', inline: true },
-      { name: 'Przerwa', value: s.pause ? `⏸️ do ${ts(s.pause.until, 't')} (${ts(s.pause.until, 'R')})` : '—', inline: true },
+      { name: 'Przerwa', value: s.pause ? (s.pause.until === Infinity ? '⏸️ do ponownego uruchomienia bota' : `⏸️ do ${ts(s.pause.until, 't')} (${ts(s.pause.until, 'R')})`) : '—', inline: true },
       { name: 'Aktywny w ticketach', value: String(s.activeTickets), inline: true },
     )
     .setFooter({
@@ -47,6 +59,12 @@ function statusEmbed(guild, channel) {
           ? 'Odmowy modelu obsługuje model zapasowy · logi: kanał logów ticketów'
           : 'Bez klucza albo w przerwie nagrody odbiera się przyciskami, a „człowiek” woła zespół · logi: kanał logów ticketów',
     });
+  if (s.chain.length) {
+    e.addFields({
+      name: s.chain.length > 1 ? 'Modele po kolei (gdy jednemu skończy się limit, odpowiada następny)' : 'Model',
+      value: truncate(`${chainLines(s.chain)}\n-# Liczniki od północy (albo od uruchomienia bota).`, 1024),
+    });
+  }
   const line = ticketLine(s);
   if (line) e.addFields({ name: 'Ten ticket', value: line });
   return e;

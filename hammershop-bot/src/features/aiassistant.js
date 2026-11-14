@@ -4,7 +4,9 @@
  * 🤖 AI assistant in tickets (Hammer Launcher server) – answers people before the team does. The AI is chosen in .env
  * (src/features/ai/client.js): Groq (free, the default with GROQ_API_KEY), Claude, or any OpenAI-compatible API.
  *
- *   - A ticket opens → the assistant reads the form answers and writes first (after the ticket card is posted).
+ *   - A ticket opens → Claude reads the form answers and writes first (after the ticket card is posted); on the free
+ *     providers the bot posts a fixed greeting for the ticket type instead (no API call – their limits are small), and
+ *     a „Odbierz nagrodę” ticket gets the claim buttons right away.
  *   - The ticket's author writes → it answers (bursts are waited out – DEBOUNCE – and "typing…" is shown).
  *   - It can check giveaway wins and hand out the prize (Hammer+ codes at once, anything else goes to the team),
  *     tell the current launcher version / Hammer+ prices, and call the team (src/features/ai/tools.js).
@@ -19,9 +21,11 @@
  * code like the AI does, anything else goes to the team), and asking for a person still calls the team. Other tickets
  * work as before the assistant existed. Only on the Hammer Launcher server (BOT_PROFILE=launcher).
  *
- * State: ticket.ai = { mode ('ai' | 'noai'), active, stopped ('staff' | 'escalated' | 'manual' | null), replies, msgIds
- *   (its own messages), firstMsgId, answeredUpTo (the newest author message already answered), greeted, failures,
- *   escalatedAt, resumedAt, panelId (the no-AI prize list) }
+ * State: ticket.ai = { mode ('ai' | 'noai'), active, stopped ('staff' | 'escalated' | 'manual' | 'break' | null), replies,
+ *   msgIds (its own messages), firstMsgId, answeredUpTo (the newest author message already answered), greeted, failures,
+ *   escalatedAt, resumedAt, breakUntil (the break it told this ticket about), panelId (the prize list) }
+ *   'break' = the assistant had a break while this ticket waited: the team was called, and once the break is over the
+ *   assistant answers here again (unless a staff member wrote meanwhile).
  *   db.guild(id).aiAssistant = { enabled (false = off on the whole server), by, at }
  * Logs: what it does (prize handed out, team called, errors) goes to the ticket log – never the conversation.
  */
@@ -39,20 +43,20 @@ const { UserError, logEmbed, sendLog, sendTicketLog, pad, truncate, reply, isSta
 const hammerplus = require('./hammerplus');
 const ai = require('./ai/client');
 const prizes = require('./ai/prizes');
-const { SYSTEM_PROMPT } = require('./ai/prompt');
-const { TOOLS, runTool, brokenInput, REPORT_WHY } = require('./ai/tools');
+const models = require('./ai/models');
+const { SYSTEM_PROMPT, SYSTEM_PROMPT_FREE, GREETINGS } = require('./ai/prompt');
+const { TOOLS, toolsFor, runTool, brokenInput, REPORT_WHY } = require('./ai/tools');
 const { ProviderError } = require('./ai/openai');
 const { asksForHuman } = require('./ai/human');
 
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01'; // Claude: refusal fallbacks – a declined request is retried on another model
 const EFFORT = 'low'; // chat / support – Opus 5.5 always thinks, effort keeps it short (gpt-oss on Groq: reasoning_effort)
-const MAX_TOKENS = 8000; // thinking counts toward it too; the replies themselves are short (free providers: capped lower)
 const MAX_ITERATIONS = 6; // model calls per answer (tool round trips)
 const MAX_REPLIES = 25; // per ticket – then the team takes over
 const HOURLY_CAP = 20; // answers per author per hour, across tickets
 const MAX_FAILURES = 2; // failed answers in a row before the team is called
 const BODY_MAX = 1820; // + the footer line stays under 1900 characters
-const KEY_PAUSE_MS = 3_600_000; // a rejected key or model / no credits: no new calls for an hour (fix .env, restart)
+const KEY_PAUSE_MS = 3_600_000; // no credits on Claude: no new calls for an hour
 const MAX_PAUSE_MS = 3_600_000; // a free limit: as long as the provider says, at most an hour
 const LIMIT_TEXT = 'Asystent AI ma teraz przerwę – skończył się darmowy limit. Zawołałem zespół, ktoś zaraz odpisze.';
 const NICK = /^[A-Za-z0-9_]{1,16}$/;
@@ -62,20 +66,23 @@ const timing = { debounce: 4000, open: 2500, typing: 8000 };
 
 // ───────────── Switches ─────────────
 
-let pause = null; // { until (ms), reason: 'limit' | 'auth' | 'model' | 'config' | 'billing' }
+let pause = null; // { until (ms – Infinity: until the bot is restarted), reason: 'limit' | 'auth' | 'model' | 'config' | 'billing' }
 
 /** The assistant's break – null when there is none (or it is over). */
 const paused = () => (pause && Date.now() < pause.until ? pause : null);
+/** ms: how long (a free limit: at most an hour); Infinity: until a restart (a key or model only .env can fix). */
 function pauseFor(reason, ms) {
-  const until = Date.now() + Math.min(Math.max(ms, 1000), MAX_PAUSE_MS);
-  if (!paused() || pause.until < until) pause = { until, reason };
+  const until = ms === Infinity ? Infinity : Date.now() + Math.min(Math.max(ms, 1000), MAX_PAUSE_MS);
+  if (!paused()) pause = { since: Date.now(), until, reason };
+  else if (pause.until < until) pause = { ...pause, until, reason }; // the same break, only longer
   return pause;
 }
+const forever = (p) => p?.until === Infinity;
 const PAUSE_REASONS = {
   limit: 'skończył się darmowy limit dostawcy AI',
   auth: 'klucz API został odrzucony – popraw go w .env i uruchom bota ponownie',
-  model: 'dostawca nie zna modelu – ustaw AI_MODEL w .env i uruchom bota ponownie',
-  config: 'klucz API albo model został odrzucony – sprawdź .env',
+  model: 'żaden model z listy nie działa na tym koncie – popraw AI_MODEL w .env i uruchom bota ponownie',
+  config: 'klucz API albo model został odrzucony – popraw .env i uruchom bota ponownie',
   billing: 'brak środków na koncie Anthropic',
 };
 
@@ -114,7 +121,9 @@ function unavailableText() {
 /** "Asystent AI ma przerwę do 18:00 (za 20 minut) – skończył się darmowy limit…" – null without a break. */
 function pauseText() {
   const p = paused();
-  return p ? `Asystent AI ma przerwę do ${ts(p.until, 't')} (${ts(p.until, 'R')}) – ${PAUSE_REASONS[p.reason] ?? p.reason}. W tym czasie tickety działają bez AI.` : null;
+  if (!p) return null;
+  const until = forever(p) ? 'do ponownego uruchomienia bota' : `do ${ts(p.until, 't')} (${ts(p.until, 'R')})`;
+  return `Asystent AI ma przerwę ${until} – ${PAUSE_REASONS[p.reason] ?? p.reason}. W tym czasie tickety działają bez AI.`;
 }
 
 // ───────────── Ticket state ─────────────
@@ -252,7 +261,10 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   }
   const opening = !s.greeted;
   if (!fresh.length && !opening) return null;
-  const turns = [{ role: 'user', text: formBlock(ticket, type, budget.formChars) }, ...older, ...fresh];
+  // Only the newest turns (the free providers get a few): every unanswered author message, then older ones up to it.
+  const kept = fresh.slice(-budget.history);
+  const recent = older.slice(Math.max(0, older.length - (budget.history - kept.length)));
+  const turns = [{ role: 'user', text: formBlock(ticket, type, budget.formChars) }, ...recent, ...kept];
   const messages = [];
   for (const turn of turns) {
     const last = messages[messages.length - 1];
@@ -264,19 +276,26 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   return { messages, newestOwnerId };
 }
 
-/** The request – tools, system prompt and settings never change, so they are read from the cache after the first call. */
-const request = (messages) => ({
-  model: ai.model(),
-  max_tokens: MAX_TOKENS,
-  betas: [FALLBACK_BETA],
-  fallbacks: 'default',
-  output_config: { effort: EFFORT },
-  cache_control: { type: 'ephemeral' }, // the growing conversation
-  system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }], // tools + system prompt
-  tools: TOOLS,
-  tool_choice: { type: 'auto' },
-  messages,
-});
+/**
+ * The request. Claude: the full prompt and every tool, frozen, so they are read from its cache after the first call.
+ * The free providers: the short prompt and only the tools this ticket type needs (the adapter drops the Claude-only
+ * fields – betas, fallbacks, cache_control, output_config – and maps effort to gpt-oss's reasoning_effort).
+ */
+function request(messages, type = null) {
+  const compact = ai.compact();
+  return {
+    model: ai.model(),
+    max_tokens: ai.budget().maxTokens,
+    betas: [FALLBACK_BETA],
+    fallbacks: 'default',
+    output_config: { effort: EFFORT },
+    cache_control: { type: 'ephemeral' }, // the growing conversation
+    system: [{ type: 'text', text: compact ? SYSTEM_PROMPT_FREE : SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }], // tools + system prompt
+    tools: compact ? toolsFor(type?.id) : TOOLS,
+    tool_choice: { type: 'auto' },
+    messages,
+  };
+}
 
 /**
  * Content to send back on the next call. After a fallback (another model took over mid-answer) the blocks before the
@@ -296,18 +315,23 @@ const textOf = (content) =>
     .trim();
 
 /**
- * The tool loop → { kind: 'text', text } | { kind: 'cut' } (max_tokens without text) | { kind: 'refusal' }
+ * The tool loop → { kind: 'text', text, usedTools } | { kind: 'cut' } (max_tokens without text) | { kind: 'refusal' }
  * | { kind: 'escalated' } (a tool called the team – nothing more is said) | { kind: 'limit' } (too many steps).
  */
 async function converse(messages, ctx) {
   const client = ai.client();
+  let usedTools = false;
   for (let i = 0; i < MAX_ITERATIONS; i += 1) {
-    const response = await client.beta.messages.create(request(messages));
+    const params = request(messages, ctx.type);
+    ctx.allowed = new Set(params.tools.map((t) => t.name)); // a tool this ticket doesn't offer can't be run
+    const response = await client.beta.messages.create(params);
+    models.noteUsage(response.model ?? params.model, response.usage); // today's requests and tokens per model
     const content = echoable(response.content ?? []);
     const stopReason = response.stop_reason;
     if (stopReason === 'refusal') return { kind: 'refusal' };
     const uses = content.filter((b) => b.type === 'tool_use');
     if (stopReason === 'tool_use' && uses.length) {
+      usedTools = true;
       messages.push({ role: 'assistant', content });
       const results = [];
       for (const use of uses) {
@@ -324,14 +348,16 @@ async function converse(messages, ctx) {
     }
     const text = textOf(content);
     if (stopReason === 'max_tokens' && !text) return { kind: 'cut' }; // never run a cut-off tool call
-    return { kind: 'text', text };
+    if (!text && !usedTools) return { kind: 'cut' }; // a free model that only "thought" – nothing to send, try again later
+    return { kind: 'text', text, usedTools };
   }
   return { kind: 'limit' };
 }
 
 // ───────────── Answering ─────────────
 
-async function sendReply(channel, text) {
+/** An assistant message in the ticket. counted: false for the fixed greeting (it isn't an answer from the model). */
+async function sendReply(channel, text, { counted = true } = {}) {
   const s = db.getTicket(channel.id)?.ai ?? {};
   const first = !(s.msgIds ?? []).length;
   const body = truncate(clean(text), BODY_MAX);
@@ -342,8 +368,17 @@ async function sendReply(channel, text) {
     components: first ? [row(btn('ai:human', 'Zawołaj zespół', '🙋'), btn('ai:off', 'Wyłącz asystenta', '🔕'))] : [],
   });
   const now = db.getTicket(channel.id)?.ai ?? {};
-  patchAi(channel.id, { msgIds: [...(now.msgIds ?? []), msg.id].slice(-40), replies: (now.replies ?? 0) + 1, firstMsgId: now.firstMsgId ?? msg.id, lastReplyAt: Date.now() });
+  patchAi(channel.id, { msgIds: [...(now.msgIds ?? []), msg.id].slice(-40), replies: (now.replies ?? 0) + (counted ? 1 : 0), firstMsgId: now.firstMsgId ?? msg.id, lastReplyAt: Date.now() });
   return msg;
+}
+
+/** "typing…" while the model works – started only when there really is something to answer. */
+function startTyping(channel) {
+  const typing = () => channel.sendTyping?.()?.catch?.(() => null);
+  typing();
+  const interval = setInterval(typing, timing.typing);
+  interval.unref?.();
+  return () => clearInterval(interval);
 }
 
 async function answer(channel) {
@@ -354,25 +389,33 @@ async function answer(channel) {
   if (!activeIn(guild.id)) return paused() && globallyOn(guild.id) ? takeBreak(channel) : undefined; // a break began meanwhile
   const type = config.getType(ticket.typeId);
   const budget = ai.budget();
-  const list = await channel.messages.fetch({ limit: budget.history }).catch(() => null);
+  // More than the turns kept: the ticket's own cards and notices are in the channel too.
+  const list = await channel.messages.fetch({ limit: Math.min(50, budget.history * 3) }).catch(() => null);
   const convo = buildConversation(guild, ticket, type, list ? [...list.values()].reverse() : [], budget);
   if (!convo) return;
   if ((ticket.ai.replies ?? 0) >= MAX_REPLIES) return escalate(channel, { reason: `Asystent AI wykorzystał limit ${MAX_REPLIES} odpowiedzi w tym tickecie.`, source: 'limit' });
   if (recentReplies(ticket.ownerId) >= HOURLY_CAP) return escalate(channel, { reason: `Autor dostał już ${HOURLY_CAP} odpowiedzi asystenta w ciągu godziny.`, source: 'limit' });
 
-  const ctx = { guild, channel, ticket, ownerId: ticket.ownerId, botId: guild.client?.user?.id ?? null, escalated: false };
+  const ctx = { guild, channel, ticket, type, ownerId: ticket.ownerId, botId: guild.client?.user?.id ?? null, escalated: false };
   ctx.escalate = async (reason, opts = {}) => {
     ctx.escalated = true;
     await escalate(channel, { reason, source: opts.prize ? 'prize' : 'ai' });
+    if (opts.prize) await refreshPanel(channel);
   };
-  ctx.deliverCode = (granted) => deliverCode(channel, ticket, granted);
+  ctx.deliverCode = async (granted) => {
+    await deliverCode(channel, ticket, granted);
+    await refreshPanel(channel); // the claim buttons above follow
+  };
 
   let outcome;
+  const stopTyping = startTyping(channel);
   try {
     outcome = await converse(convo.messages, ctx);
   } catch (err) {
+    stopTyping();
     return failed(channel, err);
   }
+  stopTyping();
   if (outcome.kind === 'cut') return failed(channel, null); // nothing usable – those messages stay unanswered
   patchAi(channel.id, { answeredUpTo: convo.newestOwnerId ?? ticket.ai.answeredUpTo ?? null, greeted: true, failures: 0 });
   if (outcome.kind === 'escalated') return;
@@ -386,18 +429,15 @@ async function answer(channel) {
 async function run(channel) {
   const s = state(channel.id);
   s.running = true;
-  const typing = () => channel.sendTyping?.()?.catch?.(() => null);
-  typing();
-  const interval = setInterval(typing, timing.typing);
-  interval.unref?.();
   try {
     await answer(channel);
   } catch (err) {
     console.error('[asystent]', err);
   } finally {
-    clearInterval(interval);
     s.running = false;
-    if (s.again) {
+    const ticket = db.getTicket(channel.id);
+    if (ticket?.status !== 'open') channels.delete(channel.id); // closed or deleted meanwhile – nothing left to do here
+    else if (s.again) {
       s.again = false;
       schedule(channel, timing.debounce);
     }
@@ -412,7 +452,7 @@ async function run(channel) {
  */
 function classify(err) {
   if (err instanceof ProviderError) {
-    return { 'rate-limit': 'limit', auth: 'auth', model: 'model', 'bad-request': 'request' }[err.kind] ?? 'transient';
+    return { 'rate-limit': 'limit', auth: 'auth', model: 'model', 'bad-request': 'request', 'too-large': 'request' }[err.kind] ?? 'transient';
   }
   const A = ai.Anthropic();
   if (!err || !A) return 'bug';
@@ -425,41 +465,52 @@ function classify(err) {
 
 const errorText = (err) => (err ? truncate(`${err.constructor?.name ?? 'Error'}${err.status ? ` (HTTP ${err.status})` : ''}: ${err.message ?? ''}`, 300) : 'odpowiedź ucięta (max_tokens)');
 
+/** "18:05" – or „ponownego uruchomienia bota” for a break only .env and a restart can end. */
+const untilText = (p) => (forever(p) ? 'ponownego uruchomienia bota' : new Date(p?.until ?? Date.now()).toLocaleTimeString('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit' }));
+
 /** One clear console line for the owner when the assistant has to take a break. */
 function announcePause(kind, err) {
   const who = ai.label();
-  const until = new Date(paused()?.until ?? Date.now()).toLocaleTimeString('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit' });
+  const until = untilText(paused());
   const keyVar = ai.KEY_VARS[ai.provider()] ?? 'klucz';
+  const chain = ai.models();
+  const names = chain.length > 1 ? `żaden z modeli (${chain.join(', ')})` : `model „${chain[0] ?? ai.model()}”`;
   const lines = {
-    limit: `🤖 Asystent AI (${who}): skończył się darmowy limit – przerwa do ${until}. W tym czasie tickety działają bez AI (nagrody przyciskami, „człowiek” woła zespół).`,
+    limit:
+      chain.length > 1
+        ? `🤖 Asystent AI (${who}): wszystkie modele (${chain.join(', ')}) wyczerpały darmowy limit – przerwa do ${until}. W tym czasie tickety działają bez AI (nagrody przyciskami, „człowiek” woła zespół).`
+        : `🤖 Asystent AI (${who}): skończył się darmowy limit – przerwa do ${until}. W tym czasie tickety działają bez AI (nagrody przyciskami, „człowiek” woła zespół).`,
     auth: `🤖 Asystent AI (${who}): klucz został odrzucony (HTTP ${err?.status ?? '?'}) – sprawdź ${keyVar} w .env i uruchom bota ponownie. Asystent wstrzymany do ${until}.`,
     model:
       ai.provider() === 'groq'
-        ? `🤖 Asystent AI (Groq): model „${ai.model()}” nie działa na Twoim koncie (nie istnieje, został wycofany albo jest wyłączony w ustawieniach Groq). Wybierz aktualny model z https://console.groq.com/docs/models i wpisz go w .env jako AI_MODEL=…, potem uruchom bota ponownie. Asystent wstrzymany do ${until}.`
+        ? `🤖 Asystent AI (Groq): ${names} nie działa na Twoim koncie (nie istnieje, został wycofany albo jest wyłączony w ustawieniach Groq). Wybierz aktualne modele z https://console.groq.com/docs/models i wpisz je w .env jako AI_MODEL=… (kilka po przecinku), potem uruchom bota ponownie. Asystent wstrzymany do ${until}.`
         : `🤖 Asystent AI (${who}): dostawca nie zna modelu „${ai.model()}” – popraw AI_MODEL w .env i uruchom bota ponownie. Asystent wstrzymany do ${until}.`,
-    config: `🤖 Asystent AI: Claude API odrzuciło klucz ANTHROPIC_API_KEY albo nie zna modelu AI_MODEL – sprawdź .env. Asystent wstrzymany do ${until}.`,
+    config: `🤖 Asystent AI: Claude API odrzuciło klucz ANTHROPIC_API_KEY albo nie zna modelu AI_MODEL – popraw .env i uruchom bota ponownie. Asystent wstrzymany do ${until}.`,
     billing: `🤖 Asystent AI: brak środków na koncie Anthropic (console.anthropic.com → Billing) – asystent wstrzymany do ${until}.`,
   };
   console.error(lines[kind]);
 }
+
+/** How long a break lasts: a free limit as long as the provider says; a key or model only .env fixes – until a restart. */
+const breakLength = (kind, err) => (kind === 'limit' ? err?.retryAfterMs ?? 60_000 : kind === 'billing' ? KEY_PAUSE_MS : Infinity);
 
 async function failed(channel, err) {
   const kind = err ? classify(err) : 'transient';
   const failures = (db.getTicket(channel.id)?.ai?.failures ?? 0) + 1;
   patchAi(channel.id, { failures });
   const breaks = ['limit', 'auth', 'model', 'config', 'billing'].includes(kind);
-  if (breaks) {
-    pauseFor(kind, kind === 'limit' ? err?.retryAfterMs ?? 60_000 : KEY_PAUSE_MS);
-    announcePause(kind, err);
-  } else if (kind !== 'transient') console.error('[asystent] błąd odpowiedzi:', err);
-  else console.warn('[asystent] chwilowy błąd:', errorText(err));
+  const fresh = breaks && !paused(); // the first ticket that runs into it says so in the console
+  if (breaks) pauseFor(kind, breakLength(kind, err));
+  if (fresh) announcePause(kind, err);
+  else if (!breaks && kind !== 'transient') console.error('[asystent] błąd odpowiedzi:', err);
+  else if (!breaks) console.warn('[asystent] chwilowy błąd:', errorText(err));
 
   const ticket = db.getTicket(channel.id);
   await sendTicketLog(channel.guild, {
     embeds: [
       logEmbed(COLORS.danger, kind === 'limit' ? '⏸️ Asystent AI: skończył się darmowy limit' : '⚠️ Asystent AI: błąd').addFields(
         { name: 'Ticket', value: `${channel} (\`#${pad(ticket?.number ?? 0)}\`)`, inline: true },
-        { name: breaks ? 'Przerwa do' : 'Próba', value: breaks ? ts(paused()?.until ?? Date.now(), 'f') : `${failures} z ${MAX_FAILURES}`, inline: true },
+        { name: breaks ? 'Przerwa do' : 'Próba', value: breaks ? (forever(paused()) ? 'ponownego uruchomienia bota' : ts(paused()?.until ?? Date.now(), 'f')) : `${failures} z ${MAX_FAILURES}`, inline: true },
         { name: 'Błąd', value: errorText(err) },
       ),
     ],
@@ -475,16 +526,23 @@ async function failed(channel, err) {
 }
 
 /**
- * The assistant has a break (free limit, rejected key or model) while a ticket waits for it: say so, call the team –
- * and in a „Odbierz nagrodę” ticket offer the claim buttons of the no-AI mode, so a winner doesn't have to wait.
+ * The assistant has a break (every model's free limit used up, a rejected key or model) while a ticket waits for it:
+ * one notice in the ticket that also calls the team, and in a „Odbierz nagrodę” ticket the claim buttons, so a winner
+ * doesn't have to wait. Once per ticket per break; when the break is over, the assistant answers there again.
  */
 async function takeBreak(channel, kind = paused()?.reason) {
   const ticket = db.getTicket(channel.id);
-  if (!ticket || ticket.ai?.stopped) return;
-  if (kind === 'limit') await channel.send({ content: `${LIMIT_TEXT}\n${FOOTER}`, allowedMentions: { parse: [] } }).catch(() => null);
+  const p = paused();
+  const stopped = ticket?.ai?.stopped;
+  if (!ticket || ticket.status !== 'open' || (stopped && stopped !== 'break')) return;
+  if (stopped === 'break' && p && ticket.ai.breakSince === p.since) return; // told already about this break
+  patchAi(channel.id, { breakSince: p?.since ?? Date.now() });
   await escalate(channel, {
-    reason: kind === 'limit' ? 'Skończył się darmowy limit asystenta AI – sprawą musi zająć się zespół.' : 'Asystent AI ma przerwę (problem z kluczem albo modelem AI) i nie może odpowiedzieć.',
+    reason: kind === 'limit' ? 'Skończył się darmowy limit asystenta AI.' : 'Asystent AI ma przerwę (problem z kluczem albo modelem AI).',
     source: kind === 'limit' ? 'free-limit' : 'error',
+    stopAs: 'break',
+    force: true,
+    lead: kind === 'limit' ? LIMIT_TEXT : 'Asystent AI ma teraz przerwę – po stronie bota jest problem techniczny. Zawołałem zespół, ktoś zaraz odpisze.',
   });
   if (ticket.typeId === 'reward' && !db.getTicket(channel.id)?.ai?.panelId) await showRewardPanel(channel);
 }
@@ -511,30 +569,33 @@ function pingRoles(guild, type) {
 }
 
 /** "Calling the team": a ping in the ticket, "help is coming", the assistant off here. → false when the team was just called. */
-async function escalate(channel, { reason = '', source = 'ai', force = false } = {}) {
+/**
+ * stopAs: 'escalated' (the team takes it from here) or 'break' (the assistant comes back after its break).
+ * lead: the notice's own text instead of the usual one (the break notice). force: post even if the team was just called.
+ */
+async function escalate(channel, { reason = '', source = 'ai', force = false, stopAs = 'escalated', lead = null } = {}) {
   const guild = channel.guild;
   const ticket = db.getTicket(channel.id);
   if (!ticket) return false;
   clearTimer(channel.id);
   const before = ticket.ai ?? {};
   const again = before.escalatedAt && Date.now() - before.escalatedAt < ESCALATE_AGAIN_MS;
-  patchAi(channel.id, { active: false, stopped: 'escalated', escalatedAt: again ? before.escalatedAt : Date.now() });
-  if (again && !force) return false; // force: a second prize to hand out is a new matter
+  patchAi(channel.id, { active: false, stopped: stopAs, escalatedAt: again ? before.escalatedAt : Date.now() });
+  if (again && !force) return false; // force: a second prize to hand out (or a new break) is a new matter
 
   const type = config.getType(ticket.typeId);
   const roles = pingRoles(guild, type);
   const users = ticket.claimedBy ? [ticket.claimedBy] : [];
   const who = [...users.map((id) => `<@${id}>`), ...roles.map((id) => `<@&${id}>`)].join(' ') || 'Zespół';
   const why = truncate(clean(reason).replace(/\n+/g, ' '), 300);
+  const aiWasHere = before.mode !== 'noai' || before.active; // in a ticket without AI there is nothing to switch back on
+  const canResume = aiWasHere && stopAs !== 'break' && !unavailableText();
+  const body = lead
+    ? `### ⏸️ Przerwa asystenta AI\n${lead}\n-# 🔔 ${who}`
+    : `### 🙋 Wołam zespół\n${who} – <@${ticket.ownerId}> potrzebuje pomocy.\n${why ? `> ${why}\n` : ''}Zaraz ktoś z zespołu Ci pomoże – zwykle odpisujemy w ciągu kilku godzin. 🧡` +
+      (aiWasHere ? '\n-# 🤖 Asystent AI nie odpowiada już w tym tickecie.' : '');
   await channel
-    .send(
-      notice(
-        COLORS.warning,
-        `### 🙋 Wołam zespół\n${who} – <@${ticket.ownerId}> potrzebuje pomocy.\n${why ? `> ${why}\n` : ''}` +
-          'Zaraz ktoś z zespołu Ci pomoże – zwykle odpisujemy w ciągu kilku godzin. 🧡\n-# 🤖 Asystent AI nie odpowiada już w tym tickecie.',
-        { mentions: { roles, users }, buttons: [btn('ai:on', 'Włącz asystenta ponownie', '🤖')] },
-      ),
-    )
+    .send(notice(lead ? COLORS.muted : COLORS.warning, body, { mentions: { roles, users }, buttons: canResume ? [btn('ai:on', 'Włącz asystenta ponownie', '🤖')] : [] }))
     .catch((err) => console.warn('[asystent] nie udało się zawołać zespołu:', err.message));
   const owner = await guild.client.users.fetch(ticket.ownerId).catch(() => null);
   await sendTicketLog(guild, {
@@ -589,7 +650,7 @@ const PRIZE_ERRORS = {
   'not-found': 'Tego giveawayu już nie ma.',
   'not-ended': 'Ten giveaway jeszcze trwa – zwycięzców bot wylosuje, gdy skończy się czas.',
   'not-winner': 'Nie wygrałeś/aś tego giveawayu, więc nie możesz odebrać tej nagrody.',
-  busy: 'Ta nagroda właśnie się wydaje – chwilka.',
+  busy: 'Ta nagroda jest właśnie wydawana – poczekaj chwilę.',
 };
 
 function prizeError(r) {
@@ -714,7 +775,9 @@ async function setTicket(channel, on, actor) {
     const latest = await channel.messages.fetch({ limit: 1 }).catch(() => null);
     patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, resumedAt: Date.now(), escalatedAt: null, greeted: true, answeredUpTo: latest?.first?.()?.id ?? ticket.ai?.answeredUpTo ?? null, replies: 0 });
   } else {
-    if (!ticket.ai?.active) throw new UserError('Asystent nie odpowiada w tym tickecie.');
+    // Off also while it has a break or waits for the AI to come back – otherwise it would start answering by itself.
+    const couldAnswer = ticket.ai?.active || ticket.ai?.stopped === 'break' || (ticket.ai?.mode === 'noai' && !ticket.ai?.stopped);
+    if (!couldAnswer) throw new UserError('Asystent nie odpowiada w tym tickecie.');
     stop(channel, 'manual');
   }
   await channel.send(notice(on ? COLORS.brand : COLORS.muted, on ? `🤖 Asystent AI znów odpowiada w tym tickecie – włącza go ${by}.` : `🔕 Asystent AI nie odpowiada już w tym tickecie – wyłącza go ${by}.`)).catch(() => null);
@@ -734,6 +797,7 @@ function status(guild, channel = null) {
     pause: paused(),
     pauseText: pauseText(),
     model: ai.model(),
+    chain: ai.problem() ? [] : models.describe(ai.models()),
     global: globallyOn(guild.id),
     activeTickets: open.filter((t) => t.ai?.active).length,
     ticket: ticket ? { open: ticket.status === 'open', ...(ticket.ai ?? {}) } : null,
@@ -746,8 +810,12 @@ function status(guild, channel = null) {
 hooks.on('ticketOpened', async ({ guild, channel, ticket, type }) => {
   if (!guild || !channel || !ticket || !profile.launcher || !eligible(type)) return;
   if (activeIn(guild.id)) {
-    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, replies: 0, msgIds: [], failures: 0, greeted: false, answeredUpTo: null, since: Date.now() });
-    schedule(channel, timing.open);
+    const compact = ai.compact();
+    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, replies: 0, msgIds: [], failures: 0, greeted: compact, answeredUpTo: null, since: Date.now() });
+    if (!compact) return schedule(channel, timing.open); // Claude reads the form and answers it right away
+    // Free providers: a fixed greeting – the model is asked only once the author writes (every request counts).
+    await sendReply(channel, GREETINGS[type.id] ?? GREETINGS.default, { counted: false });
+    if (type.id === 'reward') await showRewardPanel(channel); // the claim buttons cost nothing and never get it wrong
     return;
   }
   // No-AI mode (no key, a break, or switched off): prizes with buttons, „człowiek” still calls the team.
@@ -758,8 +826,11 @@ hooks.on('ticketOpened', async ({ guild, channel, ticket, type }) => {
 async function onMessage(message) {
   if (!message.guild || !message.author || message.author.bot) return;
   const ticket = db.getTicket(message.channel?.id);
-  // stopped: a human took over, the team was called or staff switched it off – the bot stays out of it.
-  if (!ticket?.ai || ticket.ai.stopped || ticket.status !== 'open') return;
+  if (!ticket?.ai || ticket.status !== 'open') return;
+  // stopped: a human took over, the team was called or staff switched it off – the bot stays out of it. Only a break
+  // ('break') ends by itself.
+  const stopped = ticket.ai.stopped;
+  if (stopped && stopped !== 'break') return;
   const channel = message.channel;
   if (message.author.id !== ticket.ownerId) {
     const member = message.member ?? (await message.guild.members.fetch(message.author.id).catch(() => null));
@@ -768,10 +839,17 @@ async function onMessage(message) {
   }
   if (humanTookOver(ticket)) return stop(channel, 'staff');
   if (asksForHuman(message.content)) {
-    await escalate(channel, { reason: 'Autor ticketu prosi o rozmowę z kimś z zespołu.', source: 'keyword' }); // with or without AI
+    const called = await escalate(channel, { reason: 'Autor ticketu prosi o rozmowę z kimś z zespołu.', source: 'keyword' }); // with or without AI
+    // The team was called a moment ago (e.g. by the break notice) – no second ping, but an answer.
+    if (!called) await channel.send(notice(COLORS.muted, '🙋 Zespół jest już powiadomiony – ktoś zaraz tu odpisze.')).catch(() => null);
     return;
   }
-  if (!ticket.ai.active) return; // no-AI mode
+  if (!ticket.ai.active) {
+    if (!activeIn(message.guild.id)) return; // no AI (yet), or the break goes on – the team was told already
+    // The break is over, or the AI came back (a ticket opened without it): answer from here on.
+    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, greeted: true });
+    return schedule(channel, timing.debounce);
+  }
   if (activeIn(message.guild.id)) return schedule(channel, timing.debounce);
   if (paused() && globallyOn(message.guild.id)) await takeBreak(channel); // it answered here before – say why it doesn't now
 }
@@ -807,7 +885,8 @@ hooks.on('ready', () => {
   if (p === 'no-key') {
     console.warn('🤖 Asystent AI: brak klucza w .env – asystent w ticketach jest wyłączony. Nagrody z giveawayów odbiera się przyciskami, a „człowiek” woła zespół. Darmowy klucz: GROQ_API_KEY z console.groq.com (README → „Asystent AI w ticketach”).');
   } else if (p) console.warn(`🤖 Asystent AI jest wyłączony: ${PROBLEMS[p].replace(/`/g, '')}`);
-  else console.log(`🤖 Asystent AI w ticketach: ${ai.label()} · model ${ai.model()}${ai.provider() === 'claude' ? ' · odmowy obsługuje model zapasowy' : ''}.`);
+  else if (ai.provider() === 'claude') console.log(`🤖 Asystent AI w ticketach: ${ai.label()} · model ${ai.model()} · odmowy obsługuje model zapasowy.`);
+  else console.log(`🤖 Asystent AI w ticketach: ${ai.label()} · modele po kolei (gdy jednemu skończy się limit, odpowiada następny): ${ai.models().join(', ')}.`);
 });
 
 // ───────────── Tests ─────────────
@@ -827,6 +906,7 @@ function _reset() {
   channels.clear();
   repliesTo.clear();
   pause = null;
+  models.reset();
 }
 
 module.exports = {

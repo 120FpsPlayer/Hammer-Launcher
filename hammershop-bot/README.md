@@ -386,12 +386,14 @@ Na Discordzie `/zbuduj` tworzy kanał **#launcher** z kartą launchera i przycis
 ## 🤖 Asystent AI w ticketach (Hammer Launcher)
 
 Na serwerze **Hammer Launcher** (`BOT_PROFILE=launcher`) bot może odpowiadać w ticketach, zanim odpisze ktoś z zespołu.
-Domyślnie korzysta z **darmowego Groq** (model `openai/gpt-oss-120b`) – nie trzeba za nic płacić ani podawać karty.
+Domyślnie korzysta z **darmowego Groq** (kilka darmowych modeli po kolei, na początek `openai/gpt-oss-120b`) – nie trzeba
+za nic płacić ani podawać karty.
 Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenAI, np. **Gemini**.
 
 **Co robi:**
-- Gdy ktoś otworzy ticket, czyta odpowiedzi z formularza i pisze pierwszy; potem odpowiada na każdą wiadomość autora
-  (czeka chwilę, aż ktoś skończy pisać, i pokazuje „pisze…”). Przedstawia się jako asystent AI bota.
+- Gdy ktoś otworzy ticket, wita się jako asystent AI bota (na darmowym Groq to gotowe powitanie dla danego rodzaju
+  ticketu – bez pytania AI, żeby nie zużywać limitu; Claude od razu czyta formularz i odpisuje). Potem odpowiada na każdą
+  wiadomość autora (czeka chwilę, aż ktoś skończy pisać, i pokazuje „pisze…”), a odpowiedzi z formularza zna.
 - Pomaga z launcherem, Hammer Client i Hammer+ (instalacja, SmartScreen, logi, FPS, kody…), podaje aktualną wersję
   launchera i cennik Hammer+ z panelu admina.
 - **Nagrody z giveawayów:** sprawdza, czy autor ticketu naprawdę wygrał. **Hammer+** wydaje od razu (kod na nick
@@ -408,8 +410,9 @@ Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenA
 - W logach ticketów (#📁 logi-ticketów) zapisuje, co zrobił (wydana nagroda, zawołany zespół, błędy, przerwa) – nigdy
   treści rozmowy. Nie prosi o hasła ani dane karty i nie obiecuje zwrotów.
 
-**Bez AI też działa najważniejsze.** Bez klucza (albo gdy asystent ma przerwę, np. po wyczerpaniu darmowego limitu) ticket
-**„Odbierz nagrodę”** pokazuje listę nieodebranych wygranych autora z przyciskiem **„Odbierz: …”** przy każdej. Hammer+
+**Bez AI też działa najważniejsze.** W tickecie **„Odbierz nagrodę”** bot od razu pokazuje listę nieodebranych wygranych
+autora z przyciskiem **„Odbierz: …”** przy każdej – także bez klucza i gdy asystent ma przerwę (na Claude: bez klucza
+i w przerwie; tam nagrody wydaje też sam asystent). Hammer+
 wydaje się od razu – bot pyta tylko o nick Minecraft w okienku – a inne nagrody bot zgłasza zespołowi. Kto nic nie wygrał,
 dostaje krótką informację, że zespół to sprawdzi (bez pingu). Prośba o człowieka nadal woła zespół, a pozostałe tickety
 działają jak zawsze.
@@ -419,19 +422,32 @@ działają jak zawsze.
 2. Otwórz **API Keys** → **Create API Key**, nazwij go np. „bot” i skopiuj klucz (`gsk_…`).
 3. Wklej go do `.env`: `GROQ_API_KEY=gsk_…` (nikomu go nie pokazuj).
 4. Uruchom bota ponownie (po aktualizacji najpierw `npm install`). W konsoli pojawi się
-   „🤖 Asystent AI w ticketach: Groq (darmowy) · model openai/gpt-oss-120b”, a `/asystent status` pokaże to samo.
+   „🤖 Asystent AI w ticketach: Groq (darmowy) · modele po kolei …”, a `/asystent status` pokaże to samo.
 
-**Darmowe limity:** w chwili pisania darmowy plan Groq to mniej więcej **1000 zapytań dziennie i 30 na minutę**, do tego
-limit tokenów na minutę i na dzień – aktualne liczby dla Twojego konta są na console.groq.com (**Settings → Limits**).
-Jedna odpowiedź to zwykle 1 zapytanie, odbiór nagrody 2–3. Gdy limit się skończy, bot pisze w tickecie, że asystent ma
-przerwę, woła zespół i do odnowienia limitu (najwyżej godzina, potem próbuje znowu) działa bez AI – nagrody przyciskami.
-Krótkie limity minutowe bot po prostu odczekuje.
+**Darmowe limity – uczciwie:** darmowy plan Groq jest mały i liczony **osobno dla każdego modelu** (na całe konto):
+w chwili pisania to mniej więcej **30 zapytań i ok. 8 tys. tokenów na minutę oraz ok. 1000 zapytań i 200 tys. tokenów
+dziennie na model** (dokładne liczby dla Twojego konta: console.groq.com → **Settings → Limits**). Dlatego bot:
+- przy otwarciu ticketu nie pyta AI (gotowe powitanie, w tickecie z nagrodą od razu przyciski),
+- wysyła darmowym modelom krótką instrukcję, tylko ostatnie 6 wiadomości i tylko narzędzia potrzebne w danym tickecie
+  (jedno zapytanie to zwykle ok. 1,5–2,5 tys. tokenów),
+- **sam przełącza się między kilkoma darmowymi modelami**: gdy jednemu skończy się limit, to samo pytanie od razu trafia
+  do następnego – w tickecie nic nie widać. Domyślna kolejka: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`,
+  `llama-3.3-70b-versatile`, `meta-llama/llama-4-scout-17b-16e-instruct`, `qwen/qwen3-32b`. Model, którego Groq już nie ma,
+  bot pomija (jedno ostrzeżenie w konsoli).
+
+Dopiero gdy limit skończy się **wszystkim** modelom, bot pisze w tickecie, że asystent ma przerwę, i w tej samej wiadomości
+woła zespół. Do odnowienia limitu (najwyżej godzina, potem próbuje znowu) działa bez AI – nagrody przyciskami – a po przerwie
+odpowiada w tym tickecie dalej (chyba że w międzyczasie odpisał ktoś z zespołu). Limity minutowe, które zwalniają się
+w kilka sekund, bot po prostu odczekuje. `/asystent status` pokazuje każdy model (✅ działa / ⏸️ limit do … / ❌ niedostępny)
+i ile dziś zapytań oraz tokenów zużył.
 
 **Uczciwie o prywatności:** na darmowych planach dostawca AI może wykorzystywać rozmowy do ulepszania swoich modeli.
 Dlatego w ticketach nikt nie prosi o hasła ani dane karty – zespół tego nie robi i asystent też nie.
 
-**Model:** Groq co jakiś czas zmienia listę modeli. Gdy model zniknie, bot napisze w konsoli, żeby wpisać aktualny z
-**console.groq.com/docs/models** jako `AI_MODEL=…` w `.env` (i uruchomić bota ponownie) – do tego czasu działa bez AI.
+**Własna lista modeli:** w `.env` wpisz modele po przecinku, w kolejności, w jakiej mają odpowiadać, np.
+`AI_MODEL=openai/gpt-oss-120b, llama-3.3-70b-versatile, qwen/qwen3-32b` (aktualne nazwy: **console.groq.com/docs/models**).
+Modele, które nie prowadzą rozmów (np. Prompt Guard, Whisper), bot pomija. Gdy żaden model z listy nie działa, bot napisze
+w konsoli, co poprawić, i do ponownego uruchomienia działa bez AI.
 
 **Inny dostawca (`AI_PROVIDER` w `.env`):**
 - `auto` (domyślnie) – Groq, gdy jest `GROQ_API_KEY`; inaczej Claude, gdy jest `ANTHROPIC_API_KEY`; inaczej bez AI.
@@ -443,9 +459,9 @@ Dlatego w ticketach nikt nie prosi o hasła ani dane karty – zespół tego nie
   (4 $ za milion tokenów wejścia, 20 $ za milion wyjścia; instrukcja asystenta jest zapamiętywana – *prompt caching* – więc
   typowa odpowiedź to ok. 1–2 centy). Odmowy modelu Claude API samo ponawia na modelu zapasowym (*refusal fallbacks*).
 
-Przy chwilowym błędzie dostawcy autor dostaje krótką wiadomość, a przy kolejnym bot woła zespół. Odrzucony klucz albo
-nieznany model wstrzymuje asystenta na godzinę (dokładna wskazówka jest w konsoli); `/asystent status` pokazuje dostawcę,
-model i to, czy (i do kiedy) asystent ma przerwę.
+Przy chwilowym błędzie dostawcy autor dostaje krótką wiadomość, a przy kolejnym bot woła zespół. Odrzucony klucz (albo
+lista, w której żaden model nie działa) wstrzymuje asystenta do ponownego uruchomienia bota – dokładna wskazówka jest
+w konsoli; `/asystent status` pokazuje dostawcę, modele i to, czy (i do kiedy) asystent ma przerwę.
 
 ## 🗺️ Co tworzy /zbuduj
 

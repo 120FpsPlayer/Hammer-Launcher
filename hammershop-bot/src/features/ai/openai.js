@@ -13,13 +13,19 @@
  *             the loop answers with an error tool_result and the model tries again) · finish_reason stop → end_turn,
  *             tool_calls → tool_use, length → max_tokens, content_filter → refusal
  * Errors are ProviderError with a kind the assistant acts on: 'rate-limit' (with retryAfterMs) · 'auth' · 'model' ·
- * 'server' · 'network' · 'timeout' · 'bad-request'.
+ * 'server' · 'network' · 'timeout' · 'bad-request' · 'too-large'.
+ *
+ * Model rotation: the client gets a chain of models (AI_MODEL, or the provider's default list). A model the provider
+ * doesn't know (404, retired, blocked) is marked unavailable and skipped; a 429 marks the model limited until its reset
+ * and the same request goes to the next model at once (./models.js keeps that state). Only when no model is left the
+ * error reaches the assistant – which then takes a break. A short per-minute limit (≤ SHORT_WAIT) is waited out once.
  */
 
 const crypto = require('node:crypto');
+const models = require('./models');
 
 const TIMEOUT_MS = 60_000;
-const MAX_OUTPUT = 1500; // free plans count tokens per minute – the replies are short anyway
+const MAX_OUTPUT = 1500; // a hard cap – the assistant asks for ~500 on the free providers
 const MAX_RETRY_AFTER_MS = 3_600_000;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 
@@ -41,7 +47,7 @@ const setFetch = (fn) => (fetcher = fn ?? null);
 let retryDelayMs = 1000;
 const setRetryDelay = (ms) => (retryDelayMs = ms);
 // A per-minute limit that frees up within seconds is waited out once instead of starting a break (and a staff ping).
-let shortWaitMs = 15_000;
+let shortWaitMs = 20_000;
 const setShortWait = (ms) => (shortWaitMs = ms);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -138,7 +144,10 @@ function fromChat(json, model) {
   const choice = json.choices[0];
   const msg = choice?.message ?? {};
   const raw = typeof msg.content === 'string' ? msg.content : Array.isArray(msg.content) ? msg.content.map((p) => p?.text ?? '').join('') : '';
-  const text = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim(); // models that write their reasoning into the answer
+  const text = raw
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/^[\s\S]*<\/think>/, '') // an answer whose opening <think> was cut off
+    .trim(); // models that write their reasoning into the answer (qwen)
   const content = [];
   if (text) content.push({ type: 'text', text });
   for (const call of msg.tool_calls ?? []) {
@@ -159,7 +168,7 @@ function fromChat(json, model) {
     id: json.id ?? `chat_${crypto.randomBytes(6).toString('hex')}`,
     type: 'message',
     role: 'assistant',
-    model: json.model ?? model,
+    model: model ?? json.model, // the name from the chain – today's counters are kept per chain entry
     content,
     stop_reason: stopReason,
     stop_details: null,
@@ -210,19 +219,30 @@ function toError(res, json, provider) {
   if (res.status === 403 && /model/i.test(`${code ?? ''} ${message}`)) return new ProviderError('model', message, meta);
   if (res.status === 401 || res.status === 403) return new ProviderError('auth', message, meta);
   if (res.status === 404 || code === 'model_not_found' || code === 'model_decommissioned') return new ProviderError('model', message, meta);
+  if (res.status === 413 || code === 'request_too_large') return new ProviderError('too-large', message, meta); // over this model's per-minute size
   if (res.status >= 500) return new ProviderError('server', message, meta);
   if (code === 'tool_use_failed') return new ProviderError('server', message, meta); // Groq: the model wrote a broken tool call
   return new ProviderError('bad-request', message, meta);
 }
 
+/** Nothing left in the chain: a rate-limit error (until the first model frees up) or a model error (none works). */
+function exhausted(chain, provider, now = Date.now()) {
+  const resets = chain.map((m) => models.limitedUntil(m, now)).filter(Boolean);
+  if (resets.length) {
+    return new ProviderError('rate-limit', `wszystkie modele mają wyczerpany limit (${chain.join(', ')})`, { provider, retryAfterMs: Math.min(...resets) - now, code: 'all_models_limited' });
+  }
+  return new ProviderError('model', `żaden model nie działa na tym koncie (${chain.join(', ')})`, { provider, code: 'no_model_available' });
+}
+
 /**
  * A client with the same surface as the Anthropic SDK's beta.messages.create (only what the assistant uses).
- * provider: 'groq' | 'openai' – for messages; baseURL without /chat/completions.
+ * provider: 'groq' | 'openai' – for messages; baseURL without /chat/completions; models: the chain to rotate through.
  */
-function createClient({ provider, baseURL, apiKey }) {
+function createClient({ provider, baseURL, apiKey, models: chain = [] }) {
   const url = `${String(baseURL).replace(/\/+$/, '')}/chat/completions`;
-  async function create(params) {
-    const body = toChat(params);
+
+  /** One model, one request – with one more try after a network error, a 5xx or a broken tool call. */
+  async function send(body) {
     for (let attempt = 0; ; attempt += 1) {
       let res;
       try {
@@ -246,18 +266,44 @@ function createClient({ provider, baseURL, apiKey }) {
         return fromChat(json, body.model);
       }
       const err = toError(res, json, provider);
-      if (err.kind === 'rate-limit' && attempt === 0 && err.retryAfterMs <= shortWaitMs) {
-        await sleep(err.retryAfterMs);
-        continue;
-      }
       if (err.kind === 'server' && attempt === 0) {
-        await sleep(retryDelayMs); // one more try – a 5xx or a broken tool call usually works the second time
+        await sleep(retryDelayMs);
         continue;
       }
       throw err;
     }
   }
-  return { provider, url, beta: { messages: { create } } };
+
+  async function create(params) {
+    const list = chain.length ? chain : [params.model].filter(Boolean);
+    let skipped = null; // a request this model can't take (400/413) – the next one may
+    let waited = false;
+    for (;;) {
+      for (const model of list) {
+        if (!models.isReady(model)) continue;
+        try {
+          return await send(toChat({ ...params, model }));
+        } catch (err) {
+          if (!(err instanceof ProviderError)) throw err;
+          if (err.kind === 'model') models.markUnavailable(model, err.message);
+          else if (err.kind === 'rate-limit') models.markLimited(model, Date.now() + err.retryAfterMs);
+          else if (err.kind === 'bad-request' || err.kind === 'too-large') skipped ??= err;
+          else throw err; // a bad key, the network, the provider down – the same for every model
+        }
+      }
+      const now = Date.now();
+      const resets = list.map((m) => models.limitedUntil(m, now)).filter(Boolean);
+      const soonest = resets.length ? Math.min(...resets) - now : Infinity;
+      if (!waited && soonest <= shortWaitMs && !list.some((m) => models.isReady(m, now))) {
+        waited = true; // every model is out, but one frees up in a few seconds – wait for it once
+        await sleep(soonest);
+        continue;
+      }
+      if (skipped && !resets.length) throw skipped;
+      throw exhausted(list, provider);
+    }
+  }
+  return { provider, url, models: chain, beta: { messages: { create } } };
 }
 
 module.exports = { createClient, ProviderError, toChat, fromChat, parseArguments, parseDuration, retryAfter, setFetch, setRetryDelay, setShortWait, MAX_OUTPUT };

@@ -6,9 +6,12 @@
  *   AI_PROVIDER = auto (default) | groq | claude | openai
  *     auto    Groq when GROQ_API_KEY is set, else Claude when ANTHROPIC_API_KEY is set, else none (the no-AI mode:
  *             prizes are claimed with buttons, „człowiek” still calls the team)
- *     groq    free – GROQ_API_KEY from console.groq.com; model openai/gpt-oss-120b unless AI_MODEL
- *     claude  paid – ANTHROPIC_API_KEY, the official Anthropic SDK; model claude-opus-5-5 unless AI_MODEL
+ *     groq    free – GROQ_API_KEY from console.groq.com; a chain of free models (DEFAULT_CHAINS.groq) unless AI_MODEL
+ *     claude  paid – ANTHROPIC_API_KEY, the official Anthropic SDK; model claude-opus-5-5 unless AI_MODEL (one model)
  *     openai  any OpenAI-compatible API (e.g. Gemini) – AI_BASE_URL + AI_API_KEY + AI_MODEL
+ *
+ *   AI_MODEL may be a comma-separated list: the free plans limit every model separately, so when one model's limit
+ *   runs out the next one answers (src/features/ai/models.js, ./openai.js). Claude uses the first entry only.
  *
  * Every provider is used with the same Anthropic-shaped request and response: Claude through its SDK, Groq and the
  * OpenAI-compatible ones through the adapter in ./openai.js (plain fetch). Tests put a fake client here with setClient().
@@ -18,7 +21,12 @@ require('../../env'); // .env is read before the keys are looked at
 const openai = require('./openai');
 
 const PROVIDERS = ['groq', 'claude', 'openai'];
-const DEFAULT_MODELS = { groq: 'openai/gpt-oss-120b', claude: 'claude-opus-5-5' };
+/** Groq's free chat models, best first (names change on Groq – a model it no longer knows is skipped by itself). */
+const DEFAULT_CHAINS = {
+  groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct', 'qwen/qwen3-32b'],
+  claude: ['claude-opus-5-5'],
+};
+const DEFAULT_MODELS = { groq: DEFAULT_CHAINS.groq[0], claude: DEFAULT_CHAINS.claude[0] };
 const GROQ_URL = 'https://api.groq.com/openai/v1';
 /** The .env key of each provider – for messages about a rejected key. */
 const KEY_VARS = { groq: 'GROQ_API_KEY', claude: 'ANTHROPIC_API_KEY', openai: 'AI_API_KEY' };
@@ -73,18 +81,39 @@ function provider() {
  */
 const NOT_CHAT = /(prompt-guard|llama-guard|safeguard|whisper|distil-whisper|\btts\b|-tts|playai|orpheus|embed|moderation|rerank)/i;
 let warnedModel = null;
-function model() {
-  const wanted = str('AI_MODEL');
-  const fallback = DEFAULT_MODELS[provider()] || '';
-  if (wanted && NOT_CHAT.test(wanted) && fallback) {
-    if (warnedModel !== wanted) {
-      warnedModel = wanted;
-      console.warn(`🤖 Asystent AI: „${wanted}” (AI_MODEL w .env) to model, który nie prowadzi rozmów (np. filtr bezpieczeństwa albo mowa) – używam domyślnego „${fallback}”. Usuń AI_MODEL z .env albo wpisz model czatu z https://console.groq.com/docs/models.`);
-    }
-    return fallback;
+
+/**
+ * The models to use, in order – AI_MODEL (a comma-separated list) or the provider's default chain. Models that can't
+ * chat are dropped from the list (said once); when nothing is left, the default chain is used.
+ */
+function models() {
+  const p = provider();
+  const raw = str('AI_MODEL');
+  const listed = [...new Set(raw.split(',').map((m) => m.trim()).filter(Boolean))];
+  const dropped = listed.filter((m) => NOT_CHAT.test(m));
+  const chat = listed.filter((m) => !NOT_CHAT.test(m));
+  const fallback = DEFAULT_CHAINS[p] ?? [];
+  const chain = chat.length ? chat : fallback;
+  if (dropped.length && warnedModel !== raw) {
+    warnedModel = raw;
+    const names = dropped.map((m) => `„${m}”`).join(', ');
+    console.warn(
+      `🤖 Asystent AI: ${names} (AI_MODEL w .env) to ${dropped.length > 1 ? 'modele, które nie prowadzą' : 'model, który nie prowadzi'} rozmów (np. filtr bezpieczeństwa albo mowa) – ` +
+        `${chat.length ? 'pomijam' : `używam domyślnego „${fallback[0] ?? '—'}”${fallback.length > 1 ? ` (i kolejnych: ${fallback.slice(1).join(', ')})` : ''}`}. ` +
+        'Usuń je z AI_MODEL albo wpisz modele czatu z https://console.groq.com/docs/models.',
+    );
   }
-  return wanted || fallback;
+  return p === 'claude' ? chain.slice(0, 1) : chain;
 }
+
+/** The first model of the chain – the one normally answering. */
+const model = () => models()[0] ?? '';
+
+/** Groq and the other OpenAI-compatible providers: small free limits – a compact prompt, fewer tools, a short history. */
+const compact = () => {
+  const p = provider();
+  return Boolean(p) && p !== 'claude';
+};
 
 /** Why there is no AI – null when it is configured. */
 function problem() {
@@ -96,7 +125,7 @@ function problem() {
   if (p === 'groq' && !str('GROQ_API_KEY')) return 'no-groq-key';
   if (p === 'claude' && !str('ANTHROPIC_API_KEY')) return 'no-claude-key';
   if (p === 'claude' && !Anthropic()) return 'no-sdk';
-  if (p === 'openai' && !(str('AI_BASE_URL') && str('AI_API_KEY') && str('AI_MODEL'))) return 'openai-incomplete';
+  if (p === 'openai' && !(str('AI_BASE_URL') && str('AI_API_KEY') && models().length)) return 'openai-incomplete';
   return null;
 }
 
@@ -115,8 +144,8 @@ function client() {
     }
     return real;
   }
-  if (p === 'groq') return openai.createClient({ provider: 'groq', baseURL: GROQ_URL, apiKey: str('GROQ_API_KEY') });
-  return openai.createClient({ provider: 'openai', baseURL: str('AI_BASE_URL'), apiKey: str('AI_API_KEY') });
+  if (p === 'groq') return openai.createClient({ provider: 'groq', baseURL: GROQ_URL, apiKey: str('GROQ_API_KEY'), models: models() });
+  return openai.createClient({ provider: 'openai', baseURL: str('AI_BASE_URL'), apiKey: str('AI_API_KEY'), models: models() });
 }
 
 /** "Groq", "Claude (Anthropic)", "zgodne z OpenAI (generativelanguage.googleapis.com)" – for /asystent status and logs. */
@@ -136,9 +165,11 @@ function label(p = provider()) {
 }
 
 /**
- * How much of the ticket goes into one request. The free providers count tokens per minute and per day, so they get
- * a shorter history; Claude reads the long prefix from its cache.
+ * How much of the ticket goes into one request (messages kept, characters per message, the form, output tokens). The
+ * free providers count tokens per minute and per day, so they get the short version; Claude reads its long prefix from
+ * the cache.
  */
-const budget = () => (provider() === 'claude' ? { history: 30, messageChars: 1500, formChars: 3000 } : { history: 10, messageChars: 600, formChars: 1200 });
+const budget = () =>
+  compact() ? { history: 6, messageChars: 400, formChars: 600, maxTokens: 500 } : { history: 30, messageChars: 1500, formChars: 3000, maxTokens: 8000 };
 
-module.exports = { DEFAULT_MODELS, KEY_VARS, GROQ_URL, provider, model, client, configured, problem, label, budget, setClient, Anthropic };
+module.exports = { DEFAULT_MODELS, DEFAULT_CHAINS, KEY_VARS, GROQ_URL, NOT_CHAT, provider, model, models, compact, client, configured, problem, label, budget, setClient, Anthropic };

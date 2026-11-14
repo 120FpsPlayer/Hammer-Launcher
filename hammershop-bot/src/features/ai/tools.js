@@ -61,6 +61,28 @@ const TOOLS = [
   },
 ];
 
+/**
+ * The same tools, worded short – for the free providers, which count every token. Fewer tools too: a reward ticket gets
+ * the prize tools, every other ticket only the version / price lookup; all of them can call the team.
+ */
+const TOOLS_COMPACT = {
+  info_launchera: {
+    name: 'info_launchera',
+    description: 'Aktualna wersja launchera, link do pobrania, cennik Hammer+ i status Hammer+ autora (albo podanego nicku).',
+    input_schema: object({ nick: { type: 'string' } }),
+  },
+  moje_wygrane: { name: 'moje_wygrane', description: 'Wygrane giveawaye autora ticketu i status odbioru.', input_schema: object({}) },
+  odbierz_nagrode: {
+    name: 'odbierz_nagrode',
+    description: 'Wydaje nagrodę z wygranego giveawayu (ID z moje_wygrane). Hammer+ wymaga nicku Minecraft.',
+    input_schema: object({ giveawayId: { type: 'string' }, minecraftNick: { type: 'string' } }, ['giveawayId']),
+  },
+  wezwij_zespol: { name: 'wezwij_zespol', description: 'Woła zespół do ticketu. Potem nic nie pisz.', input_schema: object({ powod: { type: 'string' } }, ['powod']) },
+};
+
+/** The compact tool list for a ticket type. */
+const toolsFor = (typeId) => (typeId === 'reward' ? ['moje_wygrane', 'odbierz_nagrode', 'wezwij_zespol'] : ['wezwij_zespol', 'info_launchera']).map((name) => TOOLS_COMPACT[name]);
+
 /** Checks the input against the tool's schema (no extra keys, required present, strings only) → error text or null. */
 function invalid(tool, input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Dane narzędzia muszą być obiektem.';
@@ -189,7 +211,7 @@ const brokenInput = () => fail('Argumenty narzędzia nie były poprawnym JSON-em
 /** Runs one tool_use block → { content (text for the tool_result), isError }. Never throws. */
 async function runTool(name, input, ctx) {
   const tool = TOOLS.find((t) => t.name === name);
-  if (!tool) return fail(`Nie ma narzędzia ${name}.`);
+  if (!tool || (ctx.allowed && !ctx.allowed.has(name))) return fail(`Nie ma narzędzia ${name} w tym tickecie.`);
   const problem = invalid(tool, input);
   if (problem) return fail(problem);
   try {
@@ -200,4 +222,4 @@ async function runTool(name, input, ctx) {
   }
 }
 
-module.exports = { TOOLS, runTool, invalid, brokenInput, REPORT_WHY };
+module.exports = { TOOLS, TOOLS_COMPACT, toolsFor, runTool, invalid, brokenInput, REPORT_WHY };
