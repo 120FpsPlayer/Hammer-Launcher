@@ -632,6 +632,15 @@ dialog input[type="text"] { min-height: 44px; border-radius: 11px; }
   .steps::before { left: 39px; }
 }
 
+@media (min-width: 1700px) {
+  body { font-size: 15.5px; }
+  .hero { padding-block: 64px 44px; }
+  .hero h1 { font-size: 64px; }
+  .lead { font-size: 17.5px; max-width: 33rem; }
+  .btn.big { min-height: 50px; font-size: 15px; }
+  .section h2, .final h2 { font-size: 42px; }
+}
+
 /* ───────────── Less motion ───────────── */
 @media (prefers-reduced-motion: reduce) {
   .hero-glow, .embers i, .float, .final-h, .cape.moving .cape-art, .cube-in, .plus-box::after, .plus-buy::after, .ref-panel::after, .hero-badge::after { animation: none !important; }

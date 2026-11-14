@@ -394,6 +394,14 @@
       syncClips();
     });
   });
+  // The posters (first frames) come only when a clip is near – a browser fetches a poster at once otherwise.
+  var posterOf = function (video) { if (!video.poster && video.getAttribute('data-poster')) video.poster = video.getAttribute('data-poster'); };
+  if (watch) {
+    var near = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { if (entry.isIntersecting) { posterOf(entry.target); near.unobserve(entry.target); } });
+    }, { rootMargin: '300px 0px' });
+    clips.forEach(function (video) { near.observe(video); });
+  } else clips.forEach(posterOf);
   if (watch) {
     var onScreen = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) { seen.set(entry.target, entry.isIntersecting); });
