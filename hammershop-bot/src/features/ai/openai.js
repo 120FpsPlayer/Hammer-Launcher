@@ -206,6 +206,8 @@ function toError(res, json, provider) {
   const message = String(body?.error?.message ?? `HTTP ${res.status}`).slice(0, 300);
   const meta = { status: res.status, code, provider };
   if (res.status === 429) return new ProviderError('rate-limit', message, { ...meta, retryAfterMs: retryAfter(res.headers) });
+  // A 403 about the model (blocked for the organisation, terms not accepted) is not a bad key.
+  if (res.status === 403 && /model/i.test(`${code ?? ''} ${message}`)) return new ProviderError('model', message, meta);
   if (res.status === 401 || res.status === 403) return new ProviderError('auth', message, meta);
   if (res.status === 404 || code === 'model_not_found' || code === 'model_decommissioned') return new ProviderError('model', message, meta);
   if (res.status >= 500) return new ProviderError('server', message, meta);

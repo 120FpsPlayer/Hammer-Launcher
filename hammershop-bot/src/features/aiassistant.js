@@ -435,7 +435,7 @@ function announcePause(kind, err) {
     auth: `🤖 Asystent AI (${who}): klucz został odrzucony (HTTP ${err?.status ?? '?'}) – sprawdź ${keyVar} w .env i uruchom bota ponownie. Asystent wstrzymany do ${until}.`,
     model:
       ai.provider() === 'groq'
-        ? `🤖 Asystent AI (Groq): model „${ai.model()}” nie istnieje albo został wycofany. Wybierz aktualny model z https://console.groq.com/docs/models i wpisz go w .env jako AI_MODEL=…, potem uruchom bota ponownie. Asystent wstrzymany do ${until}.`
+        ? `🤖 Asystent AI (Groq): model „${ai.model()}” nie działa na Twoim koncie (nie istnieje, został wycofany albo jest wyłączony w ustawieniach Groq). Wybierz aktualny model z https://console.groq.com/docs/models i wpisz go w .env jako AI_MODEL=…, potem uruchom bota ponownie. Asystent wstrzymany do ${until}.`
         : `🤖 Asystent AI (${who}): dostawca nie zna modelu „${ai.model()}” – popraw AI_MODEL w .env i uruchom bota ponownie. Asystent wstrzymany do ${until}.`,
     config: `🤖 Asystent AI: Claude API odrzuciło klucz ANTHROPIC_API_KEY albo nie zna modelu AI_MODEL – sprawdź .env. Asystent wstrzymany do ${until}.`,
     billing: `🤖 Asystent AI: brak środków na koncie Anthropic (console.anthropic.com → Billing) – asystent wstrzymany do ${until}.`,

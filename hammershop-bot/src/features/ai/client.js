@@ -67,7 +67,24 @@ function provider() {
   return null;
 }
 
-const model = () => str('AI_MODEL') || DEFAULT_MODELS[provider()] || '';
+/**
+ * Models that cannot hold a conversation – safety classifiers (Prompt Guard, Llama Guard), speech-to-text, text-to-speech,
+ * embeddings. Set in AI_MODEL by mistake, they would only fail; the default chat model is used instead (said once).
+ */
+const NOT_CHAT = /(prompt-guard|llama-guard|safeguard|whisper|distil-whisper|\btts\b|-tts|playai|orpheus|embed|moderation|rerank)/i;
+let warnedModel = null;
+function model() {
+  const wanted = str('AI_MODEL');
+  const fallback = DEFAULT_MODELS[provider()] || '';
+  if (wanted && NOT_CHAT.test(wanted) && fallback) {
+    if (warnedModel !== wanted) {
+      warnedModel = wanted;
+      console.warn(`🤖 Asystent AI: „${wanted}” (AI_MODEL w .env) to model, który nie prowadzi rozmów (np. filtr bezpieczeństwa albo mowa) – używam domyślnego „${fallback}”. Usuń AI_MODEL z .env albo wpisz model czatu z https://console.groq.com/docs/models.`);
+    }
+    return fallback;
+  }
+  return wanted || fallback;
+}
 
 /** Why there is no AI – null when it is configured. */
 function problem() {

@@ -276,6 +276,26 @@ test('a model Groq does not know (404): tells the owner to set AI_MODEL, pauses,
   assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human'], 'the no-AI path still works');
 });
 
+test('AI_MODEL set to a model that cannot chat (Prompt Guard, Whisper…): the default chat model is used, said once', async (t) => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'meta-llama/llama-prompt-guard-2-86m' });
+  const warns = t.mock.method(console, 'warn', () => {});
+  const calls = groq({ status: 200, body: { choices: [{ message: { role: 'assistant', content: 'Cześć! W czym mogę pomóc?' }, finish_reason: 'stop' }] } });
+  await open('support');
+  assert.equal(calls[0].body.model, 'openai/gpt-oss-120b');
+  assert.equal(warns.mock.calls.filter((c) => /llama-prompt-guard-2-86m[\s\S]*nie prowadzi rozmów[\s\S]*openai\/gpt-oss-120b/.test(String(c.arguments[0]))).length, 1);
+  assert.equal(require('../src/features/ai/client').model(), 'openai/gpt-oss-120b');
+});
+
+test('403 about the model (blocked for the account) is reported as a model problem, not as a bad key', async (t) => {
+  await server({ GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'jakis/zablokowany-model' });
+  const errors = t.mock.method(console, 'error', () => {});
+  groq({ status: 403, body: { error: { message: 'The model `jakis/zablokowany-model` is blocked at the organization level.', type: 'permission_error', code: 'model_permission_blocked_org' } } });
+  await open('support');
+  assert.equal(assistant.paused().reason, 'model');
+  assert.ok(errors.mock.calls.some((c) => /nie działa na Twoim koncie/.test(c.arguments[0]) && /AI_MODEL=/.test(c.arguments[0])));
+  assert.ok(!errors.mock.calls.some((c) => /klucz został odrzucony/.test(c.arguments[0])));
+});
+
 test('no key: a reward ticket lists only real, unclaimed wins; Hammer+ asks for the nick and issues the code like the AI does', async () => {
   await server({});
   assert.equal(ai.provider(), null);
