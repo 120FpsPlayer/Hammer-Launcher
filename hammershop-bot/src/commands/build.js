@@ -18,6 +18,7 @@ module.exports = {
           { name: '😀 Emojis – upload the missing custom emojis', value: 'emojis' },
           { name: '🔄 Panels – update all banners & cards (after editing config.json)', value: 'panels' },
           { name: '🎨 Names – rename channels & categories to the current style', value: 'names' },
+          { name: '🖼️ Icon – set the current logo as the server icon (and banner), refresh the cards', value: 'icon' },
         ),
     ),
 

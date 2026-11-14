@@ -75,6 +75,7 @@ const MAP = {
       emojis: '😀 Emotki – wgraj brakujące emotki',
       panels: '🔄 Panele – odśwież banery i karty (po zmianie config.json)',
       names: '🎨 Nazwy – zmień nazwy kanałów i kategorii na aktualny styl',
+      icon: '🖼️ Ikona – ustaw aktualne logo jako ikonę (i baner) serwera i odśwież karty',
     }),
   }),
   customer: C('klient', 'Profile klientów i prywatne notatki zespołu (zespół)', {

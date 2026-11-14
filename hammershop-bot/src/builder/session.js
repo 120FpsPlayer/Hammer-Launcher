@@ -165,6 +165,7 @@ async function start(interaction) {
   if (only === 'panels') return runRepost(interaction);
   if (only === 'names') return runNames(interaction);
   if (only === 'update') return runUpdate(interaction);
+  if (only === 'icon') return runIcon(interaction);
   return interaction.reply(previewCard(guild, member));
 }
 
@@ -193,6 +194,40 @@ async function runRepost(interaction) {
     return interaction.editReply({ embeds: [embed(res.errors.length ? COLORS.warning : COLORS.success).setTitle('🔄 Panele odświeżone').setDescription(desc)] });
   } finally {
     running.delete(interaction.guild.id);
+  }
+}
+
+/**
+ * /build only:icon – the current logo becomes the server icon (and the banner, on a boosted server), then every card is
+ * redrawn: the cards show the server icon in their corner, so after a new logo they would keep the old one otherwise.
+ * Kept out of only:update on purpose – an icon the owner set by hand is never replaced without being asked.
+ */
+async function runIcon(interaction) {
+  const { guild } = interaction;
+  if (!db.build(guild.id)) {
+    return interaction.reply({ embeds: [embed(COLORS.warning).setDescription(`Ten serwer nie został jeszcze zbudowany – najpierw użyj \`${slash('build')}\`.`)], flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  running.set(guild.id, { abort: false });
+  try {
+    const reason = `Nowe logo ${config.brand.name} (na prośbę ${interaction.user.id})`;
+    const errors = [];
+    const { logoPath, describeError } = require('./executor');
+    await guild.setIcon(logoPath(config.server.logo), reason).catch((err) => errors.push(`Ikona serwera: ${describeError(err)}`));
+    let banner = false;
+    if (guild.features?.includes?.('BANNER')) {
+      const file = require('node:path').join(__dirname, '..', '..', 'assets', 'brand', require('../lib/profile').launcher ? 'server-banner-launcher.png' : 'server-banner.png');
+      banner = await guild.setBanner(file, reason).then(() => true, (err) => (errors.push(`Baner serwera: ${describeError(err)}`), false));
+    }
+    const panels = await refreshContent(guild);
+    errors.push(...panels.errors);
+    const desc =
+      `${errors.some((e) => e.startsWith('Ikona')) ? '⚠️ Nie udało się zmienić ikony serwera.' : '✅ Ikona serwera to teraz aktualne logo.'}${banner ? ' Baner też.' : ''}\n` +
+      `Karty odświeżone: **${panels.edited}** ${plural(panels.edited, 'wiadomość', 'wiadomości', 'wiadomości')} – ich miniaturki pokazują już nową ikonę.` +
+      (errors.length ? `\n\n⚠️ ${errors.slice(0, 5).join('\n')}` : '');
+    return interaction.editReply({ embeds: [embed(errors.length ? COLORS.warning : COLORS.success).setTitle('🖼️ Nowe logo na serwerze').setDescription(desc)] });
+  } finally {
+    running.delete(guild.id);
   }
 }
 

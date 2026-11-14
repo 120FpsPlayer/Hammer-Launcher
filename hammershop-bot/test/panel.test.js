@@ -561,8 +561,8 @@ test('the launcher page and the panel are their own pages; sign-in brings people
     const html = (await call('GET', page)).body;
     for (const asset of assets) {
       const stamp = crypto.createHash('sha1').update(fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', asset))).digest('hex').slice(0, 8);
-      assert.ok(html.includes(`"/assets/${asset}?v=${stamp}"`), `${page}: ${asset}`);
-      assert.equal((await call('GET', `/assets/${asset}?v=${stamp}`)).status, 200);
+      assert.ok(html.includes(`"/assets/_v/${stamp}/${asset}"`), `${page}: ${asset}`);
+      assert.equal((await call('GET', `/assets/_v/${stamp}/${asset}`)).status, 200);
     }
   }
   // The page's short clips: video types, and parts of a file on request (Safari plays a video only that way).

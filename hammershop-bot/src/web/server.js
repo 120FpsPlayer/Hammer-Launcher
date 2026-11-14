@@ -54,7 +54,7 @@ const profile = require('../lib/profile');
 const config = require('../lib/config');
 
 const PUBLIC = path.join(__dirname, '..', '..', 'web', 'public');
-const { stampAssets, ASSET_REF } = require('./stamp');
+const { stampAssets, unstamp, ASSET_REF } = require('./stamp');
 const STRIPE_MIN = 50; // Stripe's smallest charge in EUR cents
 const MAX_QTY = 10;
 const web = () => env.web;
@@ -458,6 +458,7 @@ function pageHtml(file) {
 
 
 function serveStatic(req, res, pathname) {
+  pathname = unstamp(pathname); // /assets/_v/<stamp>/… is the same file – the stamp only makes a changed file a new address
   // Hammer Launcher's own site has no shop: its front page – and any address that is no file – is the launcher's page.
   const home = profile.launcher && (pathname === '/' || pathname === '/index.html' || (!pathname.startsWith('/assets/') && !path.extname(pathname)));
   const page = PAGES[pathname.replace(/\/+$/, '')] ?? (home ? 'launcher.html' : null);

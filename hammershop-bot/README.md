@@ -517,6 +517,7 @@ Trzymaj rolę integracji bota na samej górze w Ustawieniach serwera → Role �
 | `/zbuduj` | Buduje cały serwer (Zbuduj / Wyczyść i zbuduj) | Właściciel, admini |
 | `/zbuduj tylko:update` | **Po aktualizacji bota:** dodaje nowe kanały i role, stosuje styl nazw i odświeża każdy panel – Twoich własnych kanałów i ról nie rusza | Właściciel, admini |
 | `/zbuduj tylko:emojis` | Wgrywa emotki, które się jeszcze nie zmieściły (np. po boostach) | Właściciel, admini |
+| `/zbuduj tylko:ikona` | Ustawia aktualne logo jako ikonę serwera (i baner przy boostach), potem odświeża wszystkie karty – ich miniaturki w rogu to ikona serwera, więc po nowym logo trzeba to zrobić raz. `tylko:update` celowo nie zmienia ikony | Właściciel, admini |
 | `/zbuduj tylko:panels` | Odświeża wszystkie banery i karty **w miejscu** po edycji `config.json` (opinii, giveawayów i ogłoszeń nigdy nie rusza) | Właściciel, admini |
 | `/zbuduj tylko:names` | Zmienia nazwy wszystkich kanałów i kategorii na styl z `config.json` (np. po aktualizacji) – nic innego się nie zmienia | Właściciel, admini |
 | `/wylacz-platnosc metoda [powod]` · `/wlacz-platnosc metoda` | Wyłącza na chwilę metodę płatności (np. na czas naprawy PayPala) i włącza ją z powrotem – znika z formularzy zamówienia, koszyka i doładowania, a #płatności, FAQ i panel sklepu pokazują „chwilowo niedostępna”. Złożone już zamówienia działają dalej | Admini, sprzedawcy |

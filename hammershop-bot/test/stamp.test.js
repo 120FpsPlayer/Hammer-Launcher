@@ -28,22 +28,27 @@ test.after(() => site?.close());
 
 test('the launcher page: clips, posters, pictures, fonts, scripts and styles all carry their content stamp', async () => {
   const html = await (await fetch(`${base}/`)).text();
-  const clip = /src="(\/assets\/launcher\/clips\/graj\.mp4)\?v=([0-9a-f]{8})"/.exec(html);
-  assert.ok(clip, 'the clip has a stamp');
-  assert.equal(clip[2], stampOf(clip[1]));
-  assert.match(html, /data-poster="\/assets\/launcher\/clips\/graj-poster\.webp\?v=[0-9a-f]{8}"/);
-  assert.match(html, /href="\/assets\/launcher\.css\?v=[0-9a-f]{8}"/);
-  assert.doesNotMatch(html, /"\/assets\/[^"?]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, 'no unstamped asset address left in attributes');
-  // The stamped address serves the file (the stamp is only a query).
-  const res = await fetch(`${base}${clip[1]}?v=${clip[2]}`, { headers: { range: 'bytes=0-15' } });
+  const clip = /src="\/assets\/_v\/([0-9a-f]{8})\/(launcher\/clips\/graj\.mp4)"/.exec(html);
+  assert.ok(clip, 'the clip has a stamp in its path');
+  assert.equal(clip[1], stampOf(`/assets/${clip[2]}`));
+  assert.match(html, /data-poster="\/assets\/_v\/[0-9a-f]{8}\/launcher\/clips\/graj-poster\.webp"/);
+  assert.match(html, /href="\/assets\/_v\/[0-9a-f]{8}\/launcher\.css"/);
+  assert.doesNotMatch(html, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, 'no unstamped asset address left in attributes');
+  // The stamped address serves the very file – also in parts (Range), as browsers ask for videos.
+  const res = await fetch(`${base}/assets/_v/${clip[1]}/${clip[2]}`, { headers: { range: 'bytes=0-15' } });
   assert.ok([200, 206].includes(res.status));
+  const whole = fs.readFileSync(path.join(PUBLIC, 'assets', clip[2]));
+  const got = Buffer.from(await (await fetch(`${base}/assets/_v/${clip[1]}/${clip[2]}`)).arrayBuffer());
+  assert.ok(got.equals(whole), 'the same bytes as the file');
+  // A stamp can never reach outside the site.
+  assert.equal((await fetch(`${base}/assets/_v/00000000/../../package.json`)).status !== 200 || !(await (await fetch(`${base}/assets/_v/00000000/../../package.json`)).text()).includes('"dependencies"'), true);
 });
 
 test('stylesheets: url(/assets/…) carries the stamp – the HammerShop partner H and the logos change as soon as the file does', async () => {
   const css = await (await fetch(`${base}/assets/launcher.css`)).text();
-  assert.match(css, /url\(\/assets\/launcher\/logo-hammershop\.png\?v=[0-9a-f]{8}\)/);
-  assert.match(css, /url\(\/assets\/launcher\/logo-mark\.png\?v=[0-9a-f]{8}\)/);
-  assert.doesNotMatch(css, /url\(\/assets\/[^)?]+\)/, 'no unstamped url() left');
+  assert.match(css, /url\(\/assets\/_v\/[0-9a-f]{8}\/launcher\/logo-hammershop\.png\)/);
+  assert.match(css, /url\(\/assets\/_v\/[0-9a-f]{8}\/launcher\/logo-mark\.png\)/);
+  assert.doesNotMatch(css, /url\(\/assets\/(?!_v\/)[^)]+\)/, 'no unstamped url() left');
 });
 
 test('a changed file gets a new stamp; an unknown file is left as it is; nothing outside the site is read', () => {
@@ -55,11 +60,11 @@ test('a changed file gets a new stamp; an unknown file is left as it is; nothing
     const first = stampOf(url);
     fs.writeFileSync(file, 'two!');
     assert.notEqual(stampOf(url), first);
-    assert.equal(stampAssets(`a ${url} b`), `a ${url}?v=${stampOf(url)} b`);
+    assert.equal(stampAssets(`a ${url} b`), `a /assets/_v/${stampOf(url)}/launcher/${path.basename(file)} b`);
   } finally {
     fs.rmSync(file, { force: true });
   }
   assert.equal(stampAssets('/assets/nie-ma-takiego.png'), '/assets/nie-ma-takiego.png');
   assert.equal(stampOf('/assets/../../package.json'), '0');
-  assert.equal(stampAssets('/assets/launcher.css?v=1234abcd'), '/assets/launcher.css?v=1234abcd', 'never stamped twice');
+  assert.equal(stampAssets('/assets/_v/1234abcd/launcher.css'), '/assets/_v/1234abcd/launcher.css', 'never stamped twice');
 });

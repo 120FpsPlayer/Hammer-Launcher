@@ -505,7 +505,7 @@ test('/join: a small page in the website\'s look that opens hammer://join?… in
 
   // The website's look, with nothing loaded from elsewhere: one inline style, one inline script, the site's own logo.
   assert.match(html, /--bg:#0e0b09/);
-  assert.match(html, /\/assets\/hammershop-mark\.svg/);
+  assert.match(html, /\/assets\/_v\/[0-9a-f]{8}\/hammershop-mark\.svg/); // the logo, with the stamp of its content in the path
   assert.match(html, /Hammer<b>Shop<\/b>/);
   assert.equal((html.match(/<script/g) ?? []).length, 1);
   assert.doesNotMatch(html, /<script[^>]*\bsrc=|<link[^>]*rel="stylesheet"|@import|<iframe|<img|<form/i);
