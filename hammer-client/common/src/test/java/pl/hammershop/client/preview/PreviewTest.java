@@ -156,6 +156,62 @@ class PreviewTest {
     }
 
     @Test
+    void textsHaveGlyphs() throws Exception {
+        // Every text of ours must be drawable with the smooth font: a character its atlases lack is drawn as '?' (tip.2
+        // once said "(− / +)" with U+2212 MINUS SIGN and showed "(? / +)"). The atlas characters are CHARS in
+        // tools/gen_assets.py; checked are the atlases normal text uses (the 72 px one is for big titles only).
+        java.util.List<pl.hammershop.client.ui.Font.Atlas> atlases = new java.util.ArrayList<>();
+        for (pl.hammershop.client.ui.Font f : pl.hammershop.client.ui.Font.values()) {
+            atlases.add(f.atlas(18));
+            atlases.add(f.atlas(36));
+        }
+        for (String lang : new String[] {"pl_pl", "en_us"}) {
+            try (var in = getClass().getResourceAsStream("/assets/hammerclient/lang/" + lang + ".json")) {
+                var texts = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+                for (var e : texts.entrySet()) {
+                    if (!e.getKey().startsWith("hammerclient.")) continue; // the game's own keys use its font
+                    String text = e.getValue().getAsString();
+                    for (var a : atlases) {
+                        float[] missing = a.glyph(0xFFFF);
+                        text.codePoints().forEach(c -> assertTrue(c == '?' || a.glyph(c) != missing,
+                                () -> String.format("%s %s: U+%04X '%s' is not in %s – add it to CHARS in tools/gen_assets.py or use another character", lang, e.getKey(), c, Character.toString(c), a.texture)));
+                    }
+                }
+            }
+        }
+
+        // The main menu tips (it shows one at a time, changing every 9 s), drawn the same way at 2× and 4×.
+        int tips = 6;
+        float[] units = {2, 4};
+        Java2DGfx g = new Java2DGfx(1200, 8 + 2 * (tips * 11 + 8) * 6 + 8, 1);
+        g.fill(0, 0, g.width(), g.height(), 0xFF140E08);
+        pl.hammershop.client.ui.Draw d = new pl.hammershop.client.ui.Draw(g);
+        float y = 8;
+        try {
+            for (String lang : new String[] {"pl_pl", "en_us"}) {
+                platform.language = lang;
+                pl.hammershop.client.core.Lang.load(lang);
+                for (float u : units) {
+                    d.push();
+                    d.translate(8, y);
+                    d.scale(u);
+                    for (int i = 0; i < tips; i++) {
+                        String tip = Hammer.t("tip." + i);
+                        assertTrue(!tip.startsWith("tip."), lang + " tip." + i);
+                        d.text(tip, 0, i * 11, 8f, pl.hammershop.client.ui.Theme.MUTED, pl.hammershop.client.ui.Font.MEDIUM);
+                    }
+                    d.pop();
+                    y += (tips * 11 + 8) * u;
+                }
+            }
+        } finally {
+            platform.language = "pl_pl";
+            pl.hammershop.client.core.Lang.load("pl_pl");
+        }
+        g.save(new File(out, "26-tips.png"));
+    }
+
+    @Test
     void modulesHaveTextsAndIcons() {
         for (Module m : Modules.ALL) {
             assertTrue(!m.name().startsWith("module."), "name of " + m.id);
