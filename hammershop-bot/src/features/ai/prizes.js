@@ -87,6 +87,24 @@ function describePrize(prize) {
 /** Until when this winner can claim (48 h from the draw – a reroll counts from the reroll). */
 const claimDeadline = (gw, userId) => (gw.wonAt?.[userId] ?? gw.endsAt) + CLAIM_WINDOW_MS;
 
+/**
+ * Is this user one of the winners who can claim? → 'ok' | 'not-winner' | 'rerolled' (replaced by /giveaway
+ * losuj-ponownie) | 'unclear' (a reroll from before rerolls were written down – the team decides).
+ */
+function winnerState(gw, userId) {
+  if (!gw.winners.includes(userId)) return 'not-winner';
+  if (Array.isArray(gw.rerolledOut)) return gw.rerolledOut.includes(userId) ? 'rerolled' : 'ok';
+  if (gw.winners.length <= (gw.winnersCount ?? 1)) return 'ok'; // never rerolled
+  // An old reroll: when every winner's draw time is known and the last draw replaced all of them, it is clear.
+  const times = gw.winners.map((id) => gw.wonAt?.[id]);
+  if (times.every(Number.isFinite)) {
+    const latest = Math.max(...times);
+    const lastDraw = gw.winners.filter((id) => gw.wonAt[id] >= latest - 5000);
+    if (lastDraw.length === (gw.winnersCount ?? 1)) return lastDraw.includes(userId) ? 'ok' : 'rerolled';
+  }
+  return 'unclear';
+}
+
 const date = (ms) => new Date(ms).toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw', dateStyle: 'medium', timeStyle: 'short' });
 
 function claimStatus(gw, userId, now = Date.now()) {
@@ -100,7 +118,7 @@ function claimStatus(gw, userId, now = Date.now()) {
 /** The ticket owner's giveaways – what the moje_wygrane tool returns. */
 function winsOverview(guildId, userId, now = Date.now()) {
   const list = giveaways.all(guildId).sort((a, b) => b.endsAt - a.endsAt);
-  const won = list.filter((g) => g.ended && g.winners.includes(userId));
+  const won = list.filter((g) => g.ended && g.winners.includes(userId) && winnerState(g, userId) !== 'rerolled');
   return {
     wygrane: won.map((g) => ({
       id: g.id,
@@ -128,9 +146,9 @@ function recordClaim(gw, userId, claim) {
 /**
  * Hands out the prize of giveaway `giveawayId` to `userId` (the ticket owner). Never throws for the user's mistakes.
  * → { result, ... } where result is:
- *   'not-found' | 'not-ended' | 'not-winner' | 'already' (with claim) | 'busy' | 'need-nick' | 'bad-nick' (with error)
+ *   'not-found' | 'not-ended' | 'not-winner' | 'rerolled' | 'already' (with claim) | 'busy' | 'need-nick' | 'bad-nick'
  *   'granted'  – { code, record, days, gw } – a Hammer+ code was issued (the caller posts it and syncs the role)
- *   'reported' – { gw, why: 'other' | 'unknown-length' | 'late' | 'no-key' } – the team has to hand it out
+ *   'reported' – { gw, why: 'other' | 'unknown-length' | 'late' | 'no-key' | 'rerolled-unclear' } – the team hands it out
  * botId: who issued the code (the bot's own user ID – /hammerplus list shows it).
  */
 /**
@@ -145,7 +163,10 @@ function precheck({ guildId, userId, giveawayId, now = Date.now() }) {
   if (!gw.ended) return { result: 'not-ended', gw };
   if (!gw.winners.includes(userId)) return { result: 'not-winner', gw };
   if (gw.claims?.[userId]) return { result: 'already', gw, claim: gw.claims[userId] };
+  const state = winnerState(gw, userId);
+  if (state === 'rerolled') return { result: 'rerolled', gw };
   if (claiming.has(`${gw.id}:${userId}`)) return { result: 'busy', gw };
+  if (state === 'unclear') return { result: 'ok', gw, needsNick: false, unclear: true };
   const needsNick = now <= claimDeadline(gw, userId) && prizeOf(gw).kind === 'plus' && plus.ready();
   return { result: 'ok', gw, needsNick };
 }
@@ -154,7 +175,7 @@ function precheck({ guildId, userId, giveawayId, now = Date.now() }) {
 const claimable = (guildId, userId) =>
   giveaways
     .all(guildId)
-    .filter((g) => g.ended && g.winners.includes(userId) && !g.claims?.[userId])
+    .filter((g) => g.ended && g.winners.includes(userId) && !g.claims?.[userId] && winnerState(g, userId) !== 'rerolled')
     .sort((a, b) => b.endsAt - a.endsAt);
 
 async function claim({ guildId, userId, giveawayId, nick, botId = null, channelId = null, now = Date.now() }) {
@@ -168,6 +189,7 @@ async function claim({ guildId, userId, giveawayId, nick, botId = null, channelI
       recordClaim(gw, userId, { status: 'reported', at: now, ticket: channelId, reason: why });
       return { result: 'reported', gw, why };
     };
+    if (check.unclear) return report('rerolled-unclear');
     if (now > claimDeadline(gw, userId)) return report('late');
     const prize = prizeOf(gw);
     if (prize.kind === 'other') return report('other');
@@ -190,4 +212,4 @@ async function claim({ guildId, userId, giveawayId, nick, botId = null, channelI
   }
 }
 
-module.exports = { parsePrize, prizeOf, plusLength, describePrize, claimDeadline, claimStatus, winsOverview, precheck, claimable, claim, CLAIM_WINDOW_MS };
+module.exports = { parsePrize, prizeOf, plusLength, describePrize, claimDeadline, claimStatus, winsOverview, winnerState, precheck, claimable, claim, CLAIM_WINDOW_MS };

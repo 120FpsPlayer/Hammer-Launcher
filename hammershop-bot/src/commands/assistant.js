@@ -29,8 +29,11 @@ function ticketLine(s) {
   if (!s.ticket.open) return 'Ten ticket jest zamknięty.';
   if (s.ticket.mode === 'noai' && !s.ticket.stopped) return '⚪ otwarty bez AI – asystent odpowie na następną wiadomość autora, gdy AI będzie dostępne (nagrody przyciskami, „człowiek” woła zespół)';
   if (s.ticket.active) return `🟢 odpowiada · odpowiedzi: **${s.ticket.replies ?? 0}/${s.maxReplies}**`;
-  if (s.ticket.stopped) return `⚪ nie odpowiada – ${STOPPED[s.ticket.stopped] ?? s.ticket.stopped} · \`${slash('assistant ticket')}\` włącza go ponownie`;
-  return `⚪ nie działa w tym tickecie · \`${slash('assistant ticket')}\` go włącza`;
+  // /asystent ticket can't switch it on while the assistant has a break (or isn't set up) – don't suggest it then.
+  const hint = s.pause || s.problem ? '' : ` · \`${slash('assistant ticket')}\` ${s.ticket.stopped ? 'włącza go ponownie' : 'go włącza'}`;
+  if (s.ticket.stopped === 'break') return `⏸️ ${STOPPED.break}${s.pause ? '' : ' (przerwa już się skończyła – odpowie na następną wiadomość autora)'}`;
+  if (s.ticket.stopped) return `⚪ nie odpowiada – ${STOPPED[s.ticket.stopped] ?? s.ticket.stopped}${hint}`;
+  return `⚪ nie działa w tym tickecie${hint}`;
 }
 
 function statusEmbed(guild, channel) {

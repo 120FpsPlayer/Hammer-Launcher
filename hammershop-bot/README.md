@@ -401,7 +401,8 @@ Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenA
   i woła zespół z opisem: kto, który giveaway, jaka nagroda. Każdą nagrodę można odebrać tylko raz, tylko w ciągu 48 h od
   losowania i tylko dla siebie – bez względu na to, co ktoś napisze. Żeby bot wiedział, na ile dni jest Hammer+,
   ustaw w `/giveaway start` opcję `hammerplus-dni` (`0` = na zawsze); przy starszych giveawayach czyta to z nazwy nagrody
-  („Hammer+ 30 dni”, „Hammer+ na zawsze”), a gdy nie jest pewny – przekazuje sprawę zespołowi.
+  („Hammer+ 30 dni”, „Hammer+ na zawsze”), a gdy nie jest pewny – przekazuje sprawę zespołowi. Po `/giveaway losuj-ponownie`
+  nagrodę może odebrać już tylko nowy zwycięzca (kto zdążył odebrać wcześniej, zachowuje swoją).
 - **„Człowiek”, „admin”, „ktoś z zespołu”…** – na prośbę o człowieka bot sam pinguje zespół (👑 CEO, 🔱 Co-CEO, 🎧 Support)
   i pisze, że pomoc jest w drodze. To samo robi przy płatnościach, zwrotach, zgłoszeniach użytkowników, odwołaniach od kar
   i podaniach (tam tylko zbiera szczegóły – niczego nie ocenia).

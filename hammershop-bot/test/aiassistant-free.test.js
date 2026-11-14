@@ -13,7 +13,7 @@ const hammerplus = require('../src/features/hammerplus');
 const assistant = require('../src/features/aiassistant');
 const ai = require('../src/features/ai/client');
 const openai = require('../src/features/ai/openai');
-const { SYSTEM_PROMPT_FREE, GREETINGS } = require('../src/features/ai/prompt');
+const { SYSTEM_PROMPT_FREE, freePrompt, GREETINGS } = require('../src/features/ai/prompt');
 const assistantCommand = require('../src/commands/assistant');
 
 const { uid, role, sleep, useEnv, groq, chat, say, callTools, limited, notFound, open, write, aiOf, botMessages, botTexts, panelOf, ticketLog, toolMessages, countTexts, giveaway, click, LIMIT_TEXT } = fakes;
@@ -55,8 +55,11 @@ test('Groq by default: a fixed greeting when the ticket opens (no API call), a s
   for (const t of req.body.tools) assert.ok(t.function.description.length <= 140, t.function.name);
   const raw = JSON.stringify(req.body);
   for (const claudeOnly of CLAUDE_ONLY) assert.equal(raw.includes(claudeOnly), false, claudeOnly);
-  assert.deepEqual(req.body.messages[0], { role: 'system', content: SYSTEM_PROMPT_FREE });
-  assert.ok(SYSTEM_PROMPT_FREE.length <= 3500, `the free prompt has ${SYSTEM_PROMPT_FREE.length} characters`);
+  assert.deepEqual(req.body.messages[0], { role: 'system', content: freePrompt('support') });
+  for (const type of ['support', 'reward']) assert.ok(freePrompt(type).length <= 3500, `the free prompt has ${freePrompt(type).length} characters`);
+  assert.equal(SYSTEM_PROMPT_FREE, freePrompt('reward'));
+  assert.doesNotMatch(freePrompt('support'), /odbierz_nagrode|moje_wygrane/, 'no prize tools named where there are none');
+  assert.match(freePrompt('support'), /„Odbierz nagrodę”/);
   assert.match(req.body.messages[1].content, /Czarny ekran/);
   assert.equal(req.body.messages.at(-1).role, 'system');
   assert.match(req.body.messages.at(-1).content, /ticket typu support/);

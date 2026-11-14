@@ -27,6 +27,9 @@ function all(guildId) {
   return Object.values(db.guild(guildId).giveaways);
 }
 
+/** The winners who still count – without those replaced by a reroll. */
+const current = (gw) => gw.winners.filter((id) => !(gw.rerolledOut ?? []).includes(id));
+
 function card(guild, gw) {
   const ended = gw.ended;
   const c = container(ended ? COLORS.muted : COLORS.brand);
@@ -44,7 +47,7 @@ function card(guild, gw) {
   c.addSeparatorComponents(divider());
   if (ended) {
     c.addTextDisplayComponents(
-      text(gw.winners.length ? `### ${e(guild, 'trophy')} Zwycięzcy\n${gw.winners.map((id) => `<@${id}>`).join(', ')}` : '### 😢 Brak ważnych zgłoszeń – tym razem bez zwycięzcy.'),
+      text(current(gw).length ? `### ${e(guild, 'trophy')} Zwycięzcy\n${current(gw).map((id) => `<@${id}>`).join(', ')}` : '### 😢 Brak ważnych zgłoszeń – tym razem bez zwycięzcy.'),
     );
   } else {
     const recheck = gw.requiredRoleId || gw.buyersOnly || gw.minInvites ? ' – wtedy wymagania są sprawdzane ponownie' : '';
@@ -182,7 +185,10 @@ async function end(guild, gw, opts = {}) {
 
 async function draw(guild, gw, { reroll = false, count = null } = {}) {
   const winners = await drawWinners(guild, gw.entries, count ?? gw.winnersCount, reroll ? gw.winners : [], gw);
-  // A reroll adds the new winners (so they're excluded from the next reroll too).
+  // A reroll replaces the winners who haven't claimed their prize yet: they are remembered as rerolled out (they can't
+  // claim any more – src/features/ai/prizes.js), and stay in gw.winners so the next reroll skips them too.
+  if (reroll && winners.length) gw.rerolledOut = [...new Set([...(gw.rerolledOut ?? []), ...gw.winners.filter((id) => !gw.claims?.[id])])];
+  else gw.rerolledOut ??= [];
   gw.winners = reroll ? [...new Set([...gw.winners, ...winners])] : winners;
   // When each winner was drawn – the 48 hours to claim the prize count from here (a reroll from the reroll).
   gw.wonAt = { ...(gw.wonAt ?? {}), ...Object.fromEntries(winners.map((id) => [id, Date.now()])) };

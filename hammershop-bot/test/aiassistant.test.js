@@ -300,7 +300,7 @@ test('a prize that is not Hammer+ is reported to the team: ping, „help is comi
   for (const key of ['founder', 'coowner', 'support']) assert.match(text, new RegExp(`<@&${role(key)}>`), `${key} is pinged`);
   assert.deepEqual([...call.body.allowedMentions.roles].sort(), [role('founder'), role('coowner'), role('support')].sort());
   assert.match(text, /Discord Nitro/);
-  assert.match(text, /Zaraz ktoś z zespołu Ci pomoże – zwykle odpisujemy w ciągu kilku godzin/);
+  assert.match(text, /Zawołałem zespół – ktoś odpisze tutaj, gdy tylko będzie dostępny/);
   assert.deepEqual(customIds(call.body), ['ai:on']);
   assert.equal(aiOf(channel).active, false);
   assert.equal(aiOf(channel).stopped, 'escalated');

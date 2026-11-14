@@ -13,7 +13,8 @@
  *             the loop answers with an error tool_result and the model tries again) · finish_reason stop → end_turn,
  *             tool_calls → tool_use, length → max_tokens, content_filter → refusal
  * Errors are ProviderError with a kind the assistant acts on: 'rate-limit' (with retryAfterMs) · 'auth' · 'model' ·
- * 'server' · 'network' · 'timeout' · 'bad-request' · 'too-large'.
+ * 'server' · 'network' · 'timeout' · 'bad-request' · 'too-large' · 'tool-failed' (the model wrote a broken tool call) ·
+ * 'bad-response' (an answer that doesn't follow the format).
  *
  * Model rotation: the client gets a chain of models (AI_MODEL, or the provider's default list). A model the provider
  * doesn't know (404, retired, blocked) is marked unavailable and skipped; a 429 marks the model limited until its reset
@@ -28,6 +29,8 @@ const TIMEOUT_MS = 60_000;
 const MAX_OUTPUT = 1500; // a hard cap – the assistant asks for ~500 on the free providers
 const MAX_RETRY_AFTER_MS = 3_600_000;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
+const MIN_WAIT_MS = 1000; // a limit "free again in 0 ms" is still a limit – never retried in a busy loop
+const CORRECTION = 'Poprzednie wywołanie narzędzia było błędne. Używaj tylko narzędzi z listy, z argumentami jako jeden poprawny obiekt JSON – albo odpowiedz zwykłym tekstem.';
 
 class ProviderError extends Error {
   constructor(kind, message, { status = null, code = null, retryAfterMs = null, provider = null } = {}) {
@@ -148,6 +151,9 @@ function fromChat(json, model) {
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .replace(/^[\s\S]*<\/think>/, '') // an answer whose opening <think> was cut off
     .trim(); // models that write their reasoning into the answer (qwen)
+  if (msg.tool_calls != null && (!Array.isArray(msg.tool_calls) || msg.tool_calls.some((c) => !c || typeof c !== 'object'))) {
+    throw new ProviderError('bad-response', 'nieprawidłowe tool_calls w odpowiedzi');
+  }
   const content = [];
   if (text) content.push({ type: 'text', text });
   for (const call of msg.tool_calls ?? []) {
@@ -221,15 +227,19 @@ function toError(res, json, provider) {
   if (res.status === 404 || code === 'model_not_found' || code === 'model_decommissioned') return new ProviderError('model', message, meta);
   if (res.status === 413 || code === 'request_too_large') return new ProviderError('too-large', message, meta); // over this model's per-minute size
   if (res.status >= 500) return new ProviderError('server', message, meta);
-  if (code === 'tool_use_failed') return new ProviderError('server', message, meta); // Groq: the model wrote a broken tool call
+  if (code === 'tool_use_failed') return new ProviderError('tool-failed', message, meta); // Groq: the model wrote a broken tool call
   return new ProviderError('bad-request', message, meta);
 }
 
-/** Nothing left in the chain: a rate-limit error (until the first model frees up) or a model error (none works). */
-function exhausted(chain, provider, now = Date.now()) {
+/**
+ * Nothing left in the chain: a rate-limit error (until the first model frees up – also when a model was limited only
+ * for a moment during this request) or a model error (none of them works on this account).
+ */
+function exhausted(chain, provider, limitedNow, now = Date.now()) {
   const resets = chain.map((m) => models.limitedUntil(m, now)).filter(Boolean);
-  if (resets.length) {
-    return new ProviderError('rate-limit', `wszystkie modele mają wyczerpany limit (${chain.join(', ')})`, { provider, retryAfterMs: Math.min(...resets) - now, code: 'all_models_limited' });
+  if (resets.length || limitedNow.size) {
+    const wait = resets.length ? Math.min(...resets) - now : MIN_WAIT_MS;
+    return new ProviderError('rate-limit', `wszystkie modele mają wyczerpany limit (${chain.join(', ')})`, { provider, retryAfterMs: Math.max(MIN_WAIT_MS, wait), code: 'all_models_limited' });
   }
   return new ProviderError('model', `żaden model nie działa na tym koncie (${chain.join(', ')})`, { provider, code: 'no_model_available' });
 }
@@ -241,7 +251,7 @@ function exhausted(chain, provider, now = Date.now()) {
 function createClient({ provider, baseURL, apiKey, models: chain = [] }) {
   const url = `${String(baseURL).replace(/\/+$/, '')}/chat/completions`;
 
-  /** One model, one request – with one more try after a network error, a 5xx or a broken tool call. */
+  /** One model, one request – with one more try after a network error or a 5xx. */
   async function send(body) {
     for (let attempt = 0; ; attempt += 1) {
       let res;
@@ -276,19 +286,30 @@ function createClient({ provider, baseURL, apiKey, models: chain = [] }) {
 
   async function create(params) {
     const list = chain.length ? chain : [params.model].filter(Boolean);
-    let skipped = null; // a request this model can't take (400/413) – the next one may
+    let skipped = null; // a request this model can't take (400/413, a broken tool call twice) – the next one may
     let waited = false;
+    const limitedNow = new Set(); // models that answered 429 during this request
     for (;;) {
       for (const model of list) {
         if (!models.isReady(model)) continue;
-        try {
-          return await send(toChat({ ...params, model }));
-        } catch (err) {
-          if (!(err instanceof ProviderError)) throw err;
-          if (err.kind === 'model') models.markUnavailable(model, err.message);
-          else if (err.kind === 'rate-limit') models.markLimited(model, Date.now() + err.retryAfterMs);
-          else if (err.kind === 'bad-request' || err.kind === 'too-large') skipped ??= err;
-          else throw err; // a bad key, the network, the provider down – the same for every model
+        let body = toChat({ ...params, model });
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            return await send(body);
+          } catch (err) {
+            if (!(err instanceof ProviderError)) throw err;
+            if ((err.kind === 'tool-failed' || err.kind === 'bad-response') && attempt === 0) {
+              body = { ...body, messages: [...body.messages, { role: 'system', content: CORRECTION }] }; // once more, corrected
+              continue;
+            }
+            if (err.kind === 'model') models.markUnavailable(model, err.message);
+            else if (err.kind === 'rate-limit') {
+              limitedNow.add(model);
+              models.markLimited(model, Date.now() + Math.max(MIN_WAIT_MS, err.retryAfterMs ?? 0));
+            } else if (['bad-request', 'too-large', 'tool-failed', 'bad-response'].includes(err.kind)) skipped ??= err;
+            else throw err; // a bad key, the network, the provider down – the same for every model
+            break;
+          }
         }
       }
       const now = Date.now();
@@ -299,8 +320,8 @@ function createClient({ provider, baseURL, apiKey, models: chain = [] }) {
         await sleep(soonest);
         continue;
       }
-      if (skipped && !resets.length) throw skipped;
-      throw exhausted(list, provider);
+      if (skipped && !resets.length && !limitedNow.size) throw skipped;
+      throw exhausted(list, provider, limitedNow);
     }
   }
   return { provider, url, models: chain, beta: { messages: { create } } };

@@ -44,7 +44,7 @@ const hammerplus = require('./hammerplus');
 const ai = require('./ai/client');
 const prizes = require('./ai/prizes');
 const models = require('./ai/models');
-const { SYSTEM_PROMPT, SYSTEM_PROMPT_FREE, GREETINGS } = require('./ai/prompt');
+const { SYSTEM_PROMPT, freePrompt, GREETINGS } = require('./ai/prompt');
 const { TOOLS, toolsFor, runTool, brokenInput, REPORT_WHY } = require('./ai/tools');
 const { ProviderError } = require('./ai/openai');
 const { asksForHuman } = require('./ai/human');
@@ -134,11 +134,29 @@ function patchAi(channelId, patch) {
   return db.updateTicket(channelId, { ai: { ...(t.ai ?? {}), ...patch } });
 }
 
-/** A staff member answered (a message, or a /reply snippet) or claimed the ticket after the assistant was (re)started. */
+/**
+ * A staff member was active after the assistant was (re)started: wrote, sent a /reply snippet (the bot posts it on their
+ * behalf) or claimed the ticket – tickets.js keeps that time in ticket.staffActivityAt. The last two lines are for tickets
+ * from before that field existed.
+ */
 function humanTookOver(t) {
+  if (!t) return false;
+  // staffActivityAt only grows; switching the assistant on remembers the mark it saw – anything after it is new.
+  if (t.staffActivityAt !== undefined) return t.staffActivityAt > (t.ai?.resumedAfter ?? 0);
   const since = t.ai?.resumedAt ?? 0;
   if (t.firstResponseAt && t.firstResponseAt > since) return true;
   return Boolean(t.claimedBy && !t.ai?.resumedAt);
+}
+
+/** Staff have this ticket: they wrote, claimed it or switched the assistant off. */
+const staffHave = (t) => ['staff', 'manual'].includes(t?.ai?.stopped) || humanTookOver(t);
+
+/** The ticket as it is now, if the assistant may still post its own answer there – else null (closed, staff took over). */
+function stillAnswering(channel) {
+  const t = db.getTicket(channel.id);
+  if (!t || t.status !== 'open') return null;
+  if (humanTookOver(t) && !['staff', 'manual'].includes(t.ai?.stopped)) stop(channel, 'staff');
+  return t.ai?.active && !staffHave(t) ? db.getTicket(channel.id) : null;
 }
 
 const channels = new Map(); // channelId → { timer, running, again }
@@ -290,7 +308,7 @@ function request(messages, type = null) {
     fallbacks: 'default',
     output_config: { effort: EFFORT },
     cache_control: { type: 'ephemeral' }, // the growing conversation
-    system: [{ type: 'text', text: compact ? SYSTEM_PROMPT_FREE : SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }], // tools + system prompt
+    system: [{ type: 'text', text: compact ? freePrompt(type?.id) : SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }], // tools + system prompt
     tools: compact ? toolsFor(type?.id) : TOOLS,
     tool_choice: { type: 'auto' },
     messages,
@@ -399,31 +417,41 @@ async function answer(channel) {
   const ctx = { guild, channel, ticket, type, ownerId: ticket.ownerId, botId: guild.client?.user?.id ?? null, escalated: false };
   ctx.escalate = async (reason, opts = {}) => {
     ctx.escalated = true;
-    await escalate(channel, { reason, source: opts.prize ? 'prize' : 'ai' });
+    // A prize to hand out always reaches the team – each prize in its own notice, even right after another one.
+    await escalate(channel, { reason, source: opts.prize ? 'prize' : 'ai', force: Boolean(opts.prize) });
     if (opts.prize) await refreshPanel(channel);
   };
   ctx.deliverCode = async (granted) => {
-    await deliverCode(channel, ticket, granted);
+    const dm = await deliverCode(channel, ticket, granted);
     await refreshPanel(channel); // the claim buttons above follow
+    return dm;
   };
 
   let outcome;
-  const stopTyping = startTyping(channel);
+  const s = state(channel.id);
+  s.stopTyping = startTyping(channel);
   try {
     outcome = await converse(convo.messages, ctx);
   } catch (err) {
-    stopTyping();
+    s.stopTyping?.();
     return failed(channel, err);
   }
-  stopTyping();
+  s.stopTyping?.();
+  const answered = () => patchAi(channel.id, { answeredUpTo: convo.newestOwnerId ?? ticket.ai.answeredUpTo ?? null, greeted: true, failures: 0 });
   if (outcome.kind === 'cut') return failed(channel, null); // nothing usable – those messages stay unanswered
-  patchAi(channel.id, { answeredUpTo: convo.newestOwnerId ?? ticket.ai.answeredUpTo ?? null, greeted: true, failures: 0 });
-  if (outcome.kind === 'escalated') return;
-  if (outcome.kind === 'refusal') return escalate(channel, { reason: 'Asystent AI nie może pomóc w tej sprawie – potrzebny ktoś z zespołu.', source: 'refusal' });
-  if (outcome.kind === 'limit') return escalate(channel, { reason: 'Asystent AI nie poradził sobie z odpowiedzią.', source: 'error' });
-  const now = db.getTicket(channel.id);
-  if (!outcome.text || now?.status !== 'open' || !now.ai?.active) return; // e.g. staff wrote while it was answering
-  if (await sendReply(channel, outcome.text)) noteReply(ticket.ownerId);
+  if (outcome.kind === 'escalated') return answered(); // the team was called (and said so) from inside the tool loop
+  // Every other outcome posts something: only when the ticket is still open and no staff member took over meanwhile.
+  if (!stillAnswering(channel)) return;
+  if (outcome.kind === 'refusal' || outcome.kind === 'limit') {
+    answered();
+    const reason = outcome.kind === 'refusal' ? 'Asystent AI nie może pomóc w tej sprawie – potrzebny ktoś z zespołu.' : 'Asystent AI nie poradził sobie z odpowiedzią.';
+    return escalate(channel, { reason, source: outcome.kind === 'refusal' ? 'refusal' : 'error' });
+  }
+  if (!outcome.text) return answered(); // a tool already did the talking (e.g. posted the code)
+  if (await sendReply(channel, outcome.text)) {
+    answered(); // only now – a reply that never got out leaves the messages unanswered
+    noteReply(ticket.ownerId);
+  }
 }
 
 async function run(channel) {
@@ -435,6 +463,7 @@ async function run(channel) {
     console.error('[asystent]', err);
   } finally {
     s.running = false;
+    s.stopTyping?.();
     const ticket = db.getTicket(channel.id);
     if (ticket?.status !== 'open') channels.delete(channel.id); // closed or deleted meanwhile – nothing left to do here
     else if (s.again) {
@@ -497,7 +526,7 @@ const breakLength = (kind, err) => (kind === 'limit' ? err?.retryAfterMs ?? 60_0
 async function failed(channel, err) {
   const kind = err ? classify(err) : 'transient';
   const failures = (db.getTicket(channel.id)?.ai?.failures ?? 0) + 1;
-  patchAi(channel.id, { failures });
+  if (db.getTicket(channel.id)?.status === 'open') patchAi(channel.id, { failures });
   const breaks = ['limit', 'auth', 'model', 'config', 'billing'].includes(kind);
   const fresh = breaks && !paused(); // the first ticket that runs into it says so in the console
   if (breaks) pauseFor(kind, breakLength(kind, err));
@@ -515,6 +544,8 @@ async function failed(channel, err) {
       ),
     ],
   });
+  // The break is for every ticket; what is said here only if the ticket is still open and no staff member took over.
+  if (!stillAnswering(channel)) return;
   if (breaks) return takeBreak(channel, kind);
   if (kind === 'transient' && failures < MAX_FAILURES) {
     await channel
@@ -535,6 +566,7 @@ async function takeBreak(channel, kind = paused()?.reason) {
   const p = paused();
   const stopped = ticket?.ai?.stopped;
   if (!ticket || ticket.status !== 'open' || (stopped && stopped !== 'break')) return;
+  if (humanTookOver(ticket)) return stop(channel, 'staff'); // staff are here – they don't need the break notice
   if (stopped === 'break' && p && ticket.ai.breakSince === p.since) return; // told already about this break
   patchAi(channel.id, { breakSince: p?.since ?? Date.now() });
   await escalate(channel, {
@@ -573,15 +605,29 @@ function pingRoles(guild, type) {
  * stopAs: 'escalated' (the team takes it from here) or 'break' (the assistant comes back after its break).
  * lead: the notice's own text instead of the usual one (the break notice). force: post even if the team was just called.
  */
-async function escalate(channel, { reason = '', source = 'ai', force = false, stopAs = 'escalated', lead = null } = {}) {
+async function escalate(channel, { reason = '', source = 'ai', force = false, stopAs = 'escalated', lead = null, quiet = false } = {}) {
   const guild = channel.guild;
   const ticket = db.getTicket(channel.id);
   if (!ticket) return false;
   clearTimer(channel.id);
+  const handOff = source === 'prize'; // a prize to hand out must reach the team whatever else happened
+  const asked = source === 'keyword' || source === 'button'; // the author asked for a person themselves
+  if (ticket.status !== 'open') {
+    if (handOff) await logEscalation(channel, ticket, source, reason); // closed meanwhile – at least the log knows
+    return false;
+  }
+  // Staff took over (wrote, claimed, switched the assistant off): the assistant's own calls stay silent and never
+  // overwrite that – only a prize hand-off or the author's own request still gets through.
+  const staffHere = staffHave(ticket);
+  if (staffHere && !handOff && !asked) return false;
   const before = ticket.ai ?? {};
   const again = before.escalatedAt && Date.now() - before.escalatedAt < ESCALATE_AGAIN_MS;
-  patchAi(channel.id, { active: false, stopped: stopAs, escalatedAt: again ? before.escalatedAt : Date.now() });
-  if (again && !force) return false; // force: a second prize to hand out (or a new break) is a new matter
+  patchAi(channel.id, { ...(!staffHere && { active: false, stopped: stopAs }), escalatedAt: again && !force ? before.escalatedAt : Date.now() });
+  if (again && !force) {
+    // The team was called a moment ago – no second ping, but the author still gets an answer.
+    if (!quiet) await channel.send(notice(COLORS.muted, '🙋 Zespół jest już powiadomiony – ktoś zaraz tu odpisze.')).catch(() => null);
+    return false;
+  }
 
   const type = config.getType(ticket.typeId);
   const roles = pingRoles(guild, type);
@@ -592,44 +638,58 @@ async function escalate(channel, { reason = '', source = 'ai', force = false, st
   const canResume = aiWasHere && stopAs !== 'break' && !unavailableText();
   const body = lead
     ? `### ⏸️ Przerwa asystenta AI\n${lead}\n-# 🔔 ${who}`
-    : `### 🙋 Wołam zespół\n${who} – <@${ticket.ownerId}> potrzebuje pomocy.\n${why ? `> ${why}\n` : ''}Zaraz ktoś z zespołu Ci pomoże – zwykle odpisujemy w ciągu kilku godzin. 🧡` +
+    : `### 🙋 Wołam zespół\n${who} – <@${ticket.ownerId}> potrzebuje pomocy.\n${why ? `> ${why}\n` : ''}Zawołałem zespół – ktoś odpisze tutaj, gdy tylko będzie dostępny. 🧡` +
       (aiWasHere ? '\n-# 🤖 Asystent AI nie odpowiada już w tym tickecie.' : '');
   await channel
     .send(notice(lead ? COLORS.muted : COLORS.warning, body, { mentions: { roles, users }, buttons: canResume ? [btn('ai:on', 'Włącz asystenta ponownie', '🤖')] : [] }))
     .catch((err) => console.warn('[asystent] nie udało się zawołać zespołu:', err.message));
-  const owner = await guild.client.users.fetch(ticket.ownerId).catch(() => null);
-  await sendTicketLog(guild, {
+  await logEscalation(channel, ticket, source, why);
+  return true;
+}
+
+async function logEscalation(channel, ticket, source, reason) {
+  const owner = await channel.guild.client.users.fetch(ticket.ownerId).catch(() => null);
+  await sendTicketLog(channel.guild, {
     embeds: [
       logEmbed(COLORS.warning, '🙋 Asystent AI wezwał zespół', owner).addFields(
         { name: 'Ticket', value: `${channel} (\`#${pad(ticket.number)}\`)`, inline: true },
         { name: 'Autor', value: `<@${ticket.ownerId}>`, inline: true },
         { name: 'Dlaczego', value: SOURCES[source] ?? source, inline: true },
-        { name: 'Powód', value: why || '—' },
+        { name: 'Powód', value: truncate(clean(reason).replace(/\n+/g, ' '), 300) || '—' },
       ),
     ],
   });
-  return true;
 }
 
 // ───────────── Prizes ─────────────
 
-/** A Hammer+ code from a giveaway: in the ticket, by DM, the 💎 role, and a line in the ticket log (never the code). */
+/**
+ * A Hammer+ code from a giveaway: by DM, in the ticket (saying whether the DM got through), the 💎 role, and a line in
+ * the ticket log (never the code). → true when the DM got through.
+ */
 async function deliverCode(channel, ticket, { code, record, days, gw }) {
   const guild = channel.guild;
   const howTo = 'Wpisz go w Hammer Launcherze: **Hammer+ → „Mam kod”** → wklej → **Aktywuj**.';
   const where = `-# Kod działa tylko na koncie Minecraft \`${record.nick}\` · ważny ${hammerplus.validity(record.exp)}`;
+  const owner = await guild.client.users.fetch(ticket.ownerId).catch(() => null);
+  const dm = Boolean(
+    await owner
+      ?.send?.(notice(COLORS.success, `## 🎁 Hammer+ z giveawayu na ${guild.name}\nGratulacje! Nagroda z giveawayu **${gw.prize}** – Twój kod:\n\`\`\`\n${code}\n\`\`\`\n${howTo}\n${where}`))
+      ?.then?.(() => true, () => false),
+  );
+  if (gw.claims?.[ticket.ownerId]) {
+    gw.claims[ticket.ownerId].dm = dm; // „where is my code?” later says where it really went
+    db.save();
+  }
+  const copy = dm ? ' · wysłaliśmy go też w wiadomości prywatnej.' : '\n⚠️ Nie udało się wysłać kodu w wiadomości prywatnej (masz zamknięte DM) – **zachowaj go z tego ticketu**.';
   // The prize is already written down as claimed – a failed post must not look like "nothing happened" to the model.
   await channel
     .send(
-      notice(COLORS.success, `## 🎁 Twoja nagroda: Hammer+ ${prizes.plusLength(days)}\n<@${ticket.ownerId}>, gratulacje wygranej w giveawayu **${gw.prize}**! Oto Twój kod:\n\`\`\`\n${code}\n\`\`\`\n${howTo}\n${where} · wysłaliśmy go też w wiadomości prywatnej.`, {
+      notice(COLORS.success, `## 🎁 Twoja nagroda: Hammer+ ${prizes.plusLength(days)}\n<@${ticket.ownerId}>, gratulacje wygranej w giveawayu **${gw.prize}**! Oto Twój kod:\n\`\`\`\n${code}\n\`\`\`\n${howTo}\n${where}${copy}`, {
         mentions: { users: [ticket.ownerId] },
       }),
     )
     .catch((err) => console.warn('[asystent] nie udało się wysłać kodu Hammer+ w tickecie:', err.message));
-  const owner = await guild.client.users.fetch(ticket.ownerId).catch(() => null);
-  await owner
-    ?.send?.(notice(COLORS.success, `## 🎁 Hammer+ z giveawayu na ${guild.name}\nGratulacje! Nagroda z giveawayu **${gw.prize}** – Twój kod:\n\`\`\`\n${code}\n\`\`\`\n${howTo}\n${where}`))
-    ?.catch?.(() => null);
   const role = await require('./plusrole').sync(guild, ticket.ownerId).catch(() => 'failed');
   await sendTicketLog(guild, {
     embeds: [
@@ -639,9 +699,11 @@ async function deliverCode(channel, ticket, { code, record, days, gw }) {
         { name: 'Giveaway', value: truncate(`${gw.prize} (\`${gw.id}\`)`, 1024), inline: true },
         { name: 'Hammer+', value: `\`${record.nick}\` · ${hammerplus.validity(record.exp)} · ID \`${record.id}\``, inline: true },
         { name: 'Ranga 💎', value: role === 'added' || role === 'kept' ? 'nadana' : role === 'not-member' ? 'nie ma go na serwerze' : '—', inline: true },
+        { name: 'DM z kodem', value: dm ? 'wysłany' : 'nie doszedł (zamknięte DM) – kod jest tylko w tickecie', inline: true },
       ),
     ],
   });
+  return dm;
 }
 
 // ───────────── No-AI mode: prizes with buttons ─────────────
@@ -651,13 +713,15 @@ const PRIZE_ERRORS = {
   'not-ended': 'Ten giveaway jeszcze trwa – zwycięzców bot wylosuje, gdy skończy się czas.',
   'not-winner': 'Nie wygrałeś/aś tego giveawayu, więc nie możesz odebrać tej nagrody.',
   busy: 'Ta nagroda jest właśnie wydawana – poczekaj chwilę.',
+  rerolled: 'Po ponownym losowaniu ta nagroda przeszła na inną osobę, więc nie możesz już jej odebrać. Jeśli to pomyłka, kliknij „Zawołaj zespół”.',
 };
 
-function prizeError(r) {
+/** channelId: the ticket asking – so „where is the code” points to the right place. */
+function prizeError(r, channelId = null) {
   if (r.result !== 'already') return PRIZE_ERRORS[r.result] ?? 'Nie udało się odebrać nagrody.';
-  return r.claim.status === 'granted'
-    ? `Ta nagroda została już odebrana – kod Hammer+ dla konta \`${r.claim.nick}\` jest wyżej w tickecie i w Twoich wiadomościach prywatnych.`
-    : 'Ta nagroda jest już zgłoszona zespołowi – wyda ją ręcznie.';
+  if (r.claim.status !== 'granted') return 'Ta nagroda jest już zgłoszona zespołowi – wyda ją ręcznie.';
+  const where = !r.claim.ticket ? 'w tickecie, w którym ją odebrano' : r.claim.ticket === channelId ? 'wyżej w tym tickecie' : `w tickecie <#${r.claim.ticket}>`;
+  return `Ta nagroda została już odebrana – kod Hammer+ dla konta \`${r.claim.nick}\` jest ${where}${r.claim.dm ? ' i w Twoich wiadomościach prywatnych' : ''}.`;
 }
 
 /** The author's unclaimed wins, a claim button each (prizes.js decides what can be claimed). after: right after a claim. */
@@ -724,7 +788,7 @@ function nickForm(gwId, ticket) {
 async function claimButton(interaction, gwId) {
   const ticket = claimTicket(interaction);
   const check = prizes.precheck({ guildId: interaction.guild.id, userId: ticket.ownerId, giveawayId: gwId });
-  if (check.result !== 'ok') throw new UserError(prizeError(check));
+  if (check.result !== 'ok') throw new UserError(prizeError(check, interaction.channel?.id));
   if (check.needsNick) return interaction.showModal(nickForm(check.gw.id, ticket));
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   return finishClaim(interaction, ticket, check.gw.id, null);
@@ -743,9 +807,9 @@ async function finishClaim(interaction, ticket, gwId, nick) {
   const channel = interaction.channel;
   const r = await prizes.claim({ guildId: interaction.guild.id, userId: ticket.ownerId, giveawayId: gwId, nick, botId: interaction.client?.user?.id ?? null, channelId: channel.id });
   if (r.result === 'granted') {
-    await deliverCode(channel, ticket, r);
+    const dm = await deliverCode(channel, ticket, r);
     await refreshPanel(channel);
-    return reply(interaction, `Gotowe! Kod Hammer+ dla konta \`${r.record.nick}\` jest w tickecie i w Twoich wiadomościach prywatnych.`);
+    return reply(interaction, dm ? `Gotowe! Kod Hammer+ dla konta \`${r.record.nick}\` jest w tickecie i w Twoich wiadomościach prywatnych.` : `Gotowe! Kod Hammer+ dla konta \`${r.record.nick}\` jest w tickecie – wiadomość prywatna nie doszła, więc zachowaj go stamtąd.`);
   }
   if (r.result === 'reported') {
     await escalate(channel, { reason: `Nagroda do wydania ręcznie: „${r.gw.prize}” (giveaway ${r.gw.id}) – ${REPORT_WHY[r.why] ?? r.why}.`, source: 'prize', force: true });
@@ -754,7 +818,7 @@ async function finishClaim(interaction, ticket, gwId, nick) {
   }
   if (r.result === 'bad-nick') throw new UserError(r.error);
   if (r.result === 'need-nick') throw new UserError('Do tej nagrody potrzebny jest nick Minecraft – kliknij przycisk jeszcze raz.');
-  throw new UserError(prizeError(r));
+  throw new UserError(prizeError(r, channel.id));
 }
 
 // ───────────── Staff switches ─────────────
@@ -773,7 +837,7 @@ async function setTicket(channel, on, actor) {
     if (ticket.ai?.active) throw new UserError('Asystent już odpowiada w tym tickecie.');
     // Only what the author writes from now on is new – older messages were answered by the team.
     const latest = await channel.messages.fetch({ limit: 1 }).catch(() => null);
-    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, resumedAt: Date.now(), escalatedAt: null, greeted: true, answeredUpTo: latest?.first?.()?.id ?? ticket.ai?.answeredUpTo ?? null, replies: 0 });
+    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, resumedAt: Date.now(), resumedAfter: ticket.staffActivityAt ?? 0, escalatedAt: null, greeted: true, answeredUpTo: latest?.first?.()?.id ?? ticket.ai?.answeredUpTo ?? null, replies: 0 });
   } else {
     // Off also while it has a break or waits for the AI to come back – otherwise it would start answering by itself.
     const couldAnswer = ticket.ai?.active || ticket.ai?.stopped === 'break' || (ticket.ai?.mode === 'noai' && !ticket.ai?.stopped);
@@ -839,21 +903,31 @@ async function onMessage(message) {
   }
   if (humanTookOver(ticket)) return stop(channel, 'staff');
   if (asksForHuman(message.content)) {
-    const called = await escalate(channel, { reason: 'Autor ticketu prosi o rozmowę z kimś z zespołu.', source: 'keyword' }); // with or without AI
-    // The team was called a moment ago (e.g. by the break notice) – no second ping, but an answer.
-    if (!called) await channel.send(notice(COLORS.muted, '🙋 Zespół jest już powiadomiony – ktoś zaraz tu odpisze.')).catch(() => null);
+    // With or without AI; called a moment ago (e.g. by the break notice) → no second ping, but an answer.
+    await escalate(channel, { reason: 'Autor ticketu prosi o rozmowę z kimś z zespołu.', source: 'keyword' });
     return;
   }
   if (!ticket.ai.active) {
     if (!activeIn(message.guild.id)) return; // no AI (yet), or the break goes on – the team was told already
     // The break is over, or the AI came back (a ticket opened without it): answer from here on.
-    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, greeted: true });
+    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, failures: 0, greeted: true, escalatedAt: null }); // a fresh start: the break's ping doesn't count against the next call
     return schedule(channel, timing.debounce);
   }
   if (activeIn(message.guild.id)) return schedule(channel, timing.debounce);
   if (paused() && globallyOn(message.guild.id)) await takeBreak(channel); // it answered here before – say why it doesn't now
 }
 hooks.on('messageCreate', (message) => onMessage(message).catch((err) => console.warn('[asystent]', err.message)));
+
+// A closed or deleted ticket: no waiting answer, no "typing…"; an answer already on its way is dropped (stillAnswering).
+hooks.on('ticketClosed', ({ channel, ticket }) => {
+  const s = channels.get(channel?.id);
+  if (s) {
+    clearTimer(channel.id);
+    s.stopTyping?.();
+    if (!s.running) channels.delete(channel.id);
+  }
+  if (ticket?.ownerId && !recentReplies(ticket.ownerId)) repliesTo.delete(ticket.ownerId); // nothing left to count
+});
 
 hooks.route('ai', {
   async button(interaction, action, args = []) {
@@ -865,7 +939,7 @@ hooks.route('ai', {
       if (interaction.user.id !== ticket.ownerId && !staff) throw new UserError('Ten przycisk jest dla autora ticketu.');
       if (ticket.status !== 'open') throw new UserError('Ten ticket jest zamknięty.');
       if (ticket.ai?.stopped === 'staff') return reply(interaction, 'Ktoś z zespołu już zajmuje się Twoim ticketem – odpowie tutaj.');
-      const called = await escalate(interaction.channel, { reason: 'Autor ticketu kliknął „Zawołaj zespół”.', source: 'button' });
+      const called = await escalate(interaction.channel, { reason: 'Autor ticketu kliknął „Zawołaj zespół”.', source: 'button', quiet: true });
       return reply(interaction, called ? 'Zespół został zawołany – zaraz ktoś Ci pomoże.' : 'Zespół jest już powiadomiony – zaraz ktoś Ci pomoże.');
     }
     if (action !== 'on' && action !== 'off') return null;
@@ -901,6 +975,9 @@ async function settle() {
   }
 }
 
+/** Tests: how many tickets have an answer waiting or running. */
+const _waiting = () => [...channels.values()].filter((s) => s.timer || s.running).length;
+
 function _reset() {
   for (const id of channels.keys()) clearTimer(id);
   channels.clear();
@@ -929,6 +1006,7 @@ module.exports = {
   settle,
   timing,
   _reset,
+  _waiting,
   MAX_REPLIES,
   HOURLY_CAP,
 };

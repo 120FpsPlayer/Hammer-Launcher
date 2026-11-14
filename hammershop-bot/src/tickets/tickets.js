@@ -333,6 +333,7 @@ async function closeTicket(channel, actor, reason = null) {
 
   const settings = db.settings(channel.guild.id);
   db.updateTicket(channel.id, { status: 'closed', closedAt: Date.now(), closedBy: actor.id, closeReason: reason, closeRequest: null });
+  hooks.emit('ticketClosed', { channel, ticket }).catch(() => null); // e.g. the AI assistant drops its timers
   schedulePanelRefresh(channel.guild);
 
   let transcript = null;
@@ -469,6 +470,7 @@ async function deleteTicket(channel, actor) {
     await archiveTranscript(channel, ticket, actor).catch((err) => console.error('[transcript]', err));
   }
   db.updateTicket(channel.id, { status: 'deleted', deletedAt: Date.now(), deletedBy: actor.id });
+  hooks.emit('ticketClosed', { channel, ticket }).catch(() => null);
   schedulePanelRefresh(channel.guild);
 
   const delay = D.deleteDelaySeconds ?? 5;
@@ -488,6 +490,9 @@ async function deleteTicket(channel, actor) {
   setTimeout(() => channel.delete(`Ticket usunięty przez ${actor.user?.tag ?? actor.tag ?? actor.id}`).catch(() => null), delay * 1000);
 }
 
+/** When staff were last active in the ticket – always later than the previous mark, even within one millisecond. */
+const staffMark = (ticket) => Math.max(Date.now(), (ticket.staffActivityAt ?? 0) + 1);
+
 /**
  * A message in an open ticket: activity for auto-close, who spoke last, the first staff answer.
  * A pending close request stays valid – a customer often writes "thanks, all good!" and then clicks Yes.
@@ -498,6 +503,7 @@ function trackMessage(message) {
   const fromStaff = message.author.id !== ticket.ownerId && isStaff(message.member, config.getType(ticket.typeId));
   const patch = { lastActivity: Date.now(), lastMessageBy: fromStaff ? 'staff' : 'owner', warned: false };
   if (!fromStaff && ticket.lastMessageBy === 'staff') patch.waitingSince = Date.now(); // the customer waits from here
+  if (fromStaff) patch.staffActivityAt = staffMark(ticket); // the AI assistant goes quiet once staff are active (features/aiassistant.js)
   if (fromStaff && !ticket.firstResponseAt) {
     patch.firstResponseAt = Date.now();
     schedulePanelRefresh(message.guild);
@@ -531,7 +537,7 @@ async function claimTicket(channel, member) {
   if (ticket.claimedBy === member.id) throw new UserError('Już obsługujesz ten ticket.');
   if (ticket.claimedBy && !isAdmin(member)) throw new UserError(`Ten ticket obsługuje już <@${ticket.claimedBy}>.`);
   const previous = ticket.claimedBy;
-  db.updateTicket(channel.id, { claimedBy: member.id });
+  db.updateTicket(channel.id, { claimedBy: member.id, staffActivityAt: staffMark(ticket) });
   await refreshControlMessage(channel, ticket);
   await channel.send(
     ui.notice(
@@ -678,7 +684,7 @@ async function sendSnippet(channel, snippet, staff) {
       mentions: { users: [ticket.ownerId] },
     }),
   );
-  const patch = { lastActivity: Date.now(), lastMessageBy: 'staff', warned: false };
+  const patch = { lastActivity: Date.now(), lastMessageBy: 'staff', warned: false, staffActivityAt: staffMark(ticket) };
   if (!ticket.firstResponseAt) {
     patch.firstResponseAt = Date.now();
     schedulePanelRefresh(channel.guild);

@@ -145,7 +145,10 @@ async function infoLauncher(ctx, input) {
     else {
       try {
         const account = await hammerplus.lookup(nick);
-        out.hammer_plus_nicku = { nick: account.nick, status: untilText(hammerplus.runningUntil(ctx.guild.id, account.mc)) ?? 'brak aktywnego Hammer+' };
+        const until = hammerplus.runningUntil(ctx.guild.id, account.mc);
+        // The end date only for the author's own account – for anyone else just whether it runs (nobody's business when).
+        const own = hammerplus.codes(ctx.guild.id).some((c) => c.mc === account.mc && c.discordId === ctx.ownerId);
+        out.hammer_plus_nicku = { nick: account.nick, status: until === null ? 'brak aktywnego Hammer+' : own ? untilText(until) : 'Hammer+ aktywny' };
       } catch (err) {
         out.hammer_plus_nicku = err.message;
       }
@@ -162,6 +165,7 @@ const REPORT_WHY = {
   other: 'to nie jest Hammer+',
   'unknown-length': 'to Hammer+, ale z nagrody nie wynika, na ile dni',
   late: 'minęło 48 godzin na odbiór',
+  'rerolled-unclear': 'giveaway był losowany ponownie i nie wiadomo, kto jest teraz zwycięzcą',
   'no-key': 'bot nie może teraz wystawiać kodów Hammer+ (brak klucza)',
 };
 
@@ -176,6 +180,8 @@ async function claimPrize(ctx, input) {
       return fail(`Giveaway „${r.gw.prize}” jeszcze trwa – zwycięzców bot wylosuje, gdy skończy się czas.`);
     case 'not-winner':
       return fail(`Autor ticketu nie jest zwycięzcą giveawayu „${r.gw.prize}”. Nagrody nie można wydać.`);
+    case 'rerolled':
+      return fail(`Po ponownym losowaniu nagroda z giveawayu „${r.gw.prize}” przeszła na inną osobę – autor nie może jej odebrać. Jeśli uważa, że to pomyłka, wezwij zespół.`);
     case 'already':
       return fail(`Nagroda z giveawayu „${r.gw.prize}” została już ${r.claim.status === 'granted' ? `odebrana (kod Hammer+ dla konta ${r.claim.nick})` : 'zgłoszona zespołowi'} – drugi raz nie można jej wydać.`);
     case 'busy':
@@ -184,12 +190,13 @@ async function claimPrize(ctx, input) {
       return fail('Nagrodą jest Hammer+ – potrzebny jest nick Minecraft (Java Edition), na który ma trafić kod. Zapytaj autora o nick i wywołaj narzędzie jeszcze raz.');
     case 'bad-nick':
       return fail(`Nie udało się sprawdzić nicku: ${r.error}`);
-    case 'granted':
-      await ctx.deliverCode(r);
+    case 'granted': {
+      const dm = await ctx.deliverCode(r);
       return done({
-        wydano: `Kod Hammer+ (${prizes.plusLength(r.days)}) dla konta Minecraft ${r.record.nick} – bot wysłał go w tickecie i w wiadomości prywatnej.`,
+        wydano: `Kod Hammer+ (${prizes.plusLength(r.days)}) dla konta Minecraft ${r.record.nick} – bot wysłał go w tickecie${dm ? ' i w wiadomości prywatnej' : '; wiadomość prywatna nie doszła (zamknięte DM), więc autor musi zachować kod z ticketu'}.`,
         dalej: 'Potwierdź krótko i przypomnij: launcher → Hammer+ → „Mam kod” → wklej → Aktywuj, na koncie, dla którego jest kod. Nie przepisuj kodu.',
       });
+    }
     case 'reported':
       await ctx.escalate(`Nagroda do wydania ręcznie: „${r.gw.prize}” (giveaway ${r.gw.id}) – ${REPORT_WHY[r.why] ?? r.why}.`, { prize: r });
       return done({ zgloszono: 'Nagrodę zgłoszono zespołowi, który wyda ją ręcznie; zespół został zawołany do ticketu.' });
