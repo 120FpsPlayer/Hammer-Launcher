@@ -565,6 +565,20 @@ test('the launcher page and the panel are their own pages; sign-in brings people
       assert.equal((await call('GET', `/assets/${asset}?v=${stamp}`)).status, 200);
     }
   }
+  // The page's short clips: video types, and parts of a file on request (Safari plays a video only that way).
+  const clip = path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher', 'clips', 'graj.mp4');
+  const size = fs.statSync(clip).size;
+  const whole = await call('GET', '/assets/launcher/clips/graj.mp4');
+  assert.deepEqual([whole.status, whole.headers.get('content-type'), whole.headers.get('accept-ranges'), whole.bytes.length], [200, 'video/mp4', 'bytes', size]);
+  assert.equal((await call('GET', '/assets/launcher/clips/graj.webm')).headers.get('content-type'), 'video/webm');
+  const part = await call('GET', '/assets/launcher/clips/graj.mp4', { headers: { range: 'bytes=0-99' } });
+  assert.deepEqual([part.status, part.headers.get('content-range'), part.bytes.length], [206, `bytes 0-99/${size}`, 100]);
+  assert.deepEqual(part.bytes, fs.readFileSync(clip).subarray(0, 100));
+  const tail = await call('GET', '/assets/launcher/clips/graj.mp4', { headers: { range: 'bytes=-10' } });
+  assert.deepEqual([tail.status, tail.headers.get('content-range'), tail.bytes.length], [206, `bytes ${size - 10}-${size - 1}/${size}`, 10]);
+  const beyond = await call('GET', '/assets/launcher/clips/graj.mp4', { headers: { range: `bytes=${size + 5}-` } });
+  assert.deepEqual([beyond.status, beyond.headers.get('content-range')], [416, `bytes */${size}`]);
+  assert.equal((await call('GET', '/assets/launcher/clips/nie-ma.mp4', { headers: { range: 'bytes=0-9' } })).status, 404);
   await signIn(MEMBER, 'launcher');
   assert.equal(signIn.landed, '/launcher?connected=1');
   await signIn(MEMBER, 'admin');

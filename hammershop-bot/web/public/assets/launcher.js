@@ -319,8 +319,10 @@
     if (plan && params.get('connected')) { location.hash = '#plus'; choose(plan); }
   });
 
-  // ── The look: the header, the menu on small screens, the section in view, scroll reveal, tabs, themes ──
+  // ── The look: the header, the menu on small screens, the section in view, scroll reveal, tabs, 3D, themes, clips ──
   var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var mouse = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var each = function (selector, fn) { Array.prototype.forEach.call(document.querySelectorAll(selector), fn); };
   var bar = $('top');
   var onScroll = function () { bar.classList.toggle('scrolled', window.scrollY > 8); };
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -340,7 +342,8 @@
   });
   document.addEventListener('click', function (event) { if (bar.classList.contains('menu-open') && !bar.contains(event.target)) menu(false); });
 
-  if ('IntersectionObserver' in window) {
+  var watch = 'IntersectionObserver' in window;
+  if (watch) {
     // The link of the section in the middle of the screen is lit.
     var links = {};
     Array.prototype.forEach.call(nav.querySelectorAll('a[href^="#"]'), function (a) { if (a.getAttribute('href').length > 1) links[a.getAttribute('href').slice(1)] = a; });
@@ -350,22 +353,58 @@
       Object.keys(links).forEach(function (id) { links[id].classList.toggle('is-active', Boolean(inView[id])); });
     }, { rootMargin: '-45% 0px -50% 0px' });
     Object.keys(links).forEach(function (id) { if ($(id)) spy.observe($(id)); });
-    // Sections ease in as they come into view.
+    // Sections ease in as they come into view; once settled, the classes go (so they never fight hover or tilt).
     if (!calm) {
       document.documentElement.classList.add('reveal-on');
       var shown = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
           if (!entry.isIntersecting) return;
-          entry.target.classList.add('in');
-          shown.unobserve(entry.target);
+          var node = entry.target;
+          node.classList.add('in');
+          shown.unobserve(node);
+          setTimeout(function () { node.classList.remove('reveal', 'in'); }, 1200);
         });
-      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-      Array.prototype.forEach.call(document.querySelectorAll('.reveal'), function (node) { shown.observe(node); });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+      each('.reveal', function (node) { shown.observe(node); });
     }
   }
 
+  // ── The clips: muted looping videos that play only while on screen (and in the open tab), never with less motion ──
+  var clips = Array.prototype.slice.call(document.querySelectorAll('video.clip'));
+  var seen = new Map();
+  function syncClips() {
+    clips.forEach(function (video) {
+      var panel = video.closest('.tabpanel');
+      var hiddenTab = panel && document.querySelector('[data-tabs].tabs-ready') && !panel.classList.contains('is-active');
+      var go = !calm && !document.hidden && seen.get(video) && !hiddenTab && !video.userPaused;
+      if (go && video.paused) {
+        var playing = video.play();
+        if (playing && playing.catch) playing.catch(function () { /* autoplay refused – the poster stays */ });
+      } else if (!go && !video.paused) video.pause();
+    });
+  }
+  clips.forEach(function (video) {
+    var button = video.parentNode.querySelector('.clip-toggle');
+    if (!button || calm) return;
+    button.hidden = false;
+    button.addEventListener('click', function () {
+      video.userPaused = !video.userPaused;
+      button.classList.toggle('paused', video.userPaused);
+      button.querySelector('.sr-only').textContent = video.userPaused ? 'Odtwórz nagranie' : 'Zatrzymaj nagranie';
+      syncClips();
+    });
+  });
+  if (watch) {
+    var onScreen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { seen.set(entry.target, entry.isIntersecting); });
+      syncClips();
+    }, { threshold: 0.3 });
+    clips.forEach(function (video) { onScreen.observe(video); });
+    document.addEventListener('visibilitychange', syncClips);
+  }
+
   // Tabs (the features): arrows, Home and End move between them, as in any tab list.
-  Array.prototype.forEach.call(document.querySelectorAll('[data-tabs]'), function (box) {
+  each('[data-tabs]', function (box) {
     var tabs = Array.prototype.slice.call(box.querySelectorAll('[role="tab"]'));
     function select(tab, focus) {
       tabs.forEach(function (t) {
@@ -375,6 +414,7 @@
         $(t.getAttribute('aria-controls')).classList.toggle('is-active', on);
       });
       if (focus) tab.focus();
+      syncClips();
     }
     tabs.forEach(function (tab, i) {
       tab.addEventListener('click', function () { select(tab, false); });
@@ -386,9 +426,88 @@
       });
     });
     box.classList.add('tabs-ready');
+    syncClips();
   });
 
-  // „Wygląd po Twojemu”: the launcher's themes, one screenshot each.
+  // ── 3D: the app in the hero follows the mouse and lifts with the scroll; cards tilt toward the mouse ──
+  var stage = $('stage-3d');
+  var hero = stage && stage.closest('.hero');
+  if (stage && !calm) {
+    var frame = 0;
+    var shot = stage.querySelector('.stage-shot');
+    var aim = function (x, y) {
+      var r = stage.getBoundingClientRect();
+      var dx = Math.max(-1, Math.min(1, (x - (r.left + r.width / 2)) / (r.width / 1.2)));
+      var dy = Math.max(-1, Math.min(1, (y - (r.top + r.height / 2)) / (r.height / 1.2)));
+      stage.style.setProperty('--ty', (dx * 9).toFixed(2) + 'deg');
+      stage.style.setProperty('--tx', (-dy * 6).toFixed(2) + 'deg');
+      var s = shot.getBoundingClientRect();
+      shot.style.setProperty('--mx', ((x - s.left) / s.width * 100).toFixed(1) + '%');
+      shot.style.setProperty('--my', ((y - s.top) / s.height * 100).toFixed(1) + '%');
+      shot.style.setProperty('--shine', '1');
+    };
+    if (mouse) {
+      hero.addEventListener('pointermove', function (event) {
+        var x = event.clientX;
+        var y = event.clientY;
+        stage.classList.add('live');
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(function () { aim(x, y); });
+      });
+      hero.addEventListener('pointerleave', function () {
+        cancelAnimationFrame(frame);
+        stage.classList.remove('live');
+        stage.style.setProperty('--ty', '0deg');
+        stage.style.setProperty('--tx', '0deg');
+        shot.style.setProperty('--shine', '.5');
+      });
+    }
+    // The scroll lifts the app and lets the blocks float up at their own speeds (only while the hero is on screen).
+    var ticking = false;
+    var lift = function () {
+      ticking = false;
+      var h = hero.offsetHeight || 1;
+      var p = Math.max(0, Math.min(1, window.scrollY / h));
+      hero.style.setProperty('--sp', p.toFixed(3));
+    };
+    window.addEventListener('scroll', function () {
+      if (ticking || window.scrollY > hero.offsetHeight * 1.2) return;
+      ticking = true;
+      requestAnimationFrame(lift);
+    }, { passive: true });
+    lift();
+  }
+  if (mouse && !calm) {
+    var tiltOn = function (node, max) {
+      node.classList.add('tilt');
+      var frame = 0;
+      node.addEventListener('pointermove', function (event) {
+        var x = event.clientX;
+        var y = event.clientY;
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(function () {
+          var r = node.getBoundingClientRect();
+          var px = (x - r.left) / r.width;
+          var py = (y - r.top) / r.height;
+          node.classList.add('tilting');
+          node.style.setProperty('--ry', ((px - 0.5) * max).toFixed(2) + 'deg');
+          node.style.setProperty('--rx', ((0.5 - py) * max).toFixed(2) + 'deg');
+          node.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+          node.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+        });
+      });
+      node.addEventListener('pointerleave', function () {
+        cancelAnimationFrame(frame);
+        node.classList.remove('tilting');
+        node.style.setProperty('--ry', '0deg');
+        node.style.setProperty('--rx', '0deg');
+      });
+    };
+    each('.tile, .client-list li, .step, .cosm-card, .collab-cards .card', function (node) { tiltOn(node, 9); });
+    each('.tabpanel .shot, .live-card .shot, .client-shot', function (node) { tiltOn(node, 5); });
+  }
+
+  // ── „Wygląd po Twojemu”: a 3D deck of the launcher's themes – the chosen one in front, the rest turned away ──
   var THEMES = {
     domyslny: ['Domyślny', 'Ciepły pomarańcz Hammera – za darmo dla każdego.'],
     nether: ['Nether', 'Lawa, żar i popiół w ruchomym tle.'],
@@ -398,32 +517,39 @@
     mrok: ['Głęboki mrok', 'Pulsujący sculk prosto z głębin.'],
   };
   var picks = Array.prototype.slice.call(document.querySelectorAll('.theme-pick'));
-  var themeImg = $('theme-img');
-  function showTheme(pick) {
-    var id = pick.getAttribute('data-theme');
+  var deck = $('theme-deck');
+  var cards = deck ? Array.prototype.slice.call(deck.querySelectorAll('.theme-card')) : [];
+  function showTheme(id) {
     var info = THEMES[id];
     if (!info) return;
-    picks.forEach(function (p) { p.setAttribute('aria-pressed', String(p === pick)); });
-    var frame = themeImg.parentNode;
-    frame.classList.add('swapping');
-    var next = new Image();
-    var done = function () {
-      themeImg.src = next.src;
-      themeImg.alt = 'Hammer Launcher w motywie ' + info[0];
-      $('theme-stage').setAttribute('data-theme', id);
-      var caption = $('theme-caption');
-      caption.textContent = '';
-      caption.appendChild(el('b', { text: info[0] }));
-      caption.appendChild(document.createTextNode(' ' + info[1]));
-      frame.classList.remove('swapping');
-    };
-    next.onload = done;
-    next.onerror = function () { frame.classList.remove('swapping'); };
-    next.src = '/assets/launcher/motyw-' + id + '.webp';
+    var at = cards.map(function (c) { return c.getAttribute('data-theme'); }).indexOf(id);
+    var narrow = window.innerWidth < 640;
+    var n = cards.length;
+    cards.forEach(function (card, i) {
+      var d = (((i - at) % n) + n) % n; // the deck goes round: there are always themes on both sides
+      if (d > n / 2) d -= n;
+      var far = Math.abs(d);
+      card.style.setProperty('--tx', (d * (narrow ? 62 : 46)) + '%');
+      card.style.setProperty('--tz', (-far * (narrow ? 260 : 210)) + 'px');
+      card.style.setProperty('--ry', (Math.sign(d) * Math.min(far, 2) * -24) + 'deg');
+      card.style.setProperty('--o', far > 2 ? '0' : String(1 - far * 0.18));
+      card.style.setProperty('--dim', String(Math.min(0.6, far * 0.32)));
+      card.style.setProperty('--z', String(10 - far));
+      card.setAttribute('aria-hidden', String(d !== 0));
+    });
+    picks.forEach(function (p) { p.setAttribute('aria-pressed', String(p.getAttribute('data-theme') === id)); });
+    $('theme-stage').setAttribute('data-theme', id);
+    var caption = $('theme-caption');
+    caption.textContent = '';
+    caption.appendChild(el('b', { text: info[0] }));
+    caption.appendChild(document.createTextNode(' ' + info[1]));
   }
-  picks.forEach(function (pick) {
-    pick.addEventListener('click', function () { showTheme(pick); });
-    // A light warm-up: the picture is fetched when the pointer comes near.
-    pick.addEventListener('pointerenter', function () { new Image().src = '/assets/launcher/motyw-' + pick.getAttribute('data-theme') + '.webp'; }, { once: true });
-  });
+  if (deck) {
+    deck.classList.add('deck-ready');
+    picks.forEach(function (pick) { pick.addEventListener('click', function () { showTheme(pick.getAttribute('data-theme')); }); });
+    cards.forEach(function (card) { card.addEventListener('click', function () { showTheme(card.getAttribute('data-theme')); }); });
+    var current = function () { return (picks.filter(function (p) { return p.getAttribute('aria-pressed') === 'true'; })[0] || picks[0]).getAttribute('data-theme'); };
+    window.addEventListener('resize', function () { showTheme(current()); });
+    showTheme('domyslny');
+  }
 })();

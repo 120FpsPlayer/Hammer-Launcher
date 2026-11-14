@@ -2576,8 +2576,13 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
-  console.error(err);
-  await whenStepFails?.().catch(() => {});
-  process.exit(1);
-});
+// The fake launcher is also used by the website's clip recorder (hammershop-bot/tools/record-launcher-clips.js).
+module.exports = { mock, PAGE };
+
+if (require.main === module) {
+  main().catch(async (err) => {
+    console.error(err);
+    await whenStepFails?.().catch(() => {});
+    process.exit(1);
+  });
+}

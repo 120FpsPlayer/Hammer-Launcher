@@ -436,7 +436,7 @@ function download(req, res) {
 }
 
 // ───────────── Static files ─────────────
-const TYPES = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.css': 'text/css', '.js': 'text/javascript' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webm': 'video/webm', '.mp4': 'video/mp4', '.css': 'text/css', '.js': 'text/javascript' };
 /** The launcher page and the admin panel load nothing but their own files (and pictures over https). */
 const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; media-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 // (also under their file names – never the raw file, which has both sites' parts and no CSP)
@@ -488,7 +488,17 @@ function serveStatic(req, res, pathname) {
   }
   const ext = path.extname(file);
   const cache = ['.html', '.js', '.css'].includes(ext) ? 'no-cache' : 'public, max-age=604800, immutable'; // pages and their code are always fresh, pictures keep
-  res.writeHead(200, { ...HEADERS, 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': cache });
+  const head = { ...HEADERS, 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': cache, 'accept-ranges': 'bytes' };
+  // The page's short clips (.webm/.mp4): browsers ask for parts of a video (Safari only plays a video it can ask that way).
+  const size = fs.statSync(file).size;
+  const range = releases.parseRange(req.headers.range, size);
+  if (range === false) return send(res, 416, '', { ...head, 'content-range': `bytes */${size}` });
+  if (range) {
+    res.writeHead(206, { ...head, 'content-range': `bytes ${range.start}-${range.end}/${size}`, 'content-length': range.end - range.start + 1 });
+    if (req.method === 'HEAD') return res.end();
+    return fs.createReadStream(file, { start: range.start, end: range.end }).pipe(res);
+  }
+  res.writeHead(200, { ...head, 'content-length': size });
   if (req.method === 'HEAD') return res.end();
   fs.createReadStream(file).pipe(res);
 }
