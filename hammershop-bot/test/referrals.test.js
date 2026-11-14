@@ -195,8 +195,10 @@ test('a personal link: stable per account, remembered for 30 days, counted only 
   // Somebody who signed in before cannot be claimed later.
   await signIn(OLD, { ref });
   assert.equal(webStore.referralOf(OLD.id).by, null);
-  // A Discord account younger than 7 days does not count.
+  // A Discord account younger than 30 days does not count – also one of 29 days.
   await signIn(YOUNG, { ref });
+  assert.equal(webStore.referralOf(YOUNG.id)?.by ?? null, null);
+  assert.equal(referrals.onFirstSignIn(person(madeAgo(29), 'Prawie'), code), 'young');
   assert.equal(webStore.referralOf(YOUNG.id)?.by ?? null, null);
   // Not yourself (the rule itself – your own link only exists once you have signed in).
   assert.equal(referrals.onFirstSignIn(REFERRER, code), 'self');

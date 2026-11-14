@@ -11,7 +11,7 @@
  *
  * A referral is recorded when somebody signs in with Discord on the site for the very first time with the cookie set
  * (onFirstSignIn). Against abuse: not yourself; only accounts that never signed in here before (nobody can be claimed
- * later); the friend's Discord account is at least 7 days old (read from its ID); one referrer per friend, for good.
+ * later); the friend's Discord account is at least 30 days old (read from its ID); one referrer per friend, for good.
  */
 
 const store = require('./store');
@@ -20,7 +20,7 @@ const plusLib = require('../lib/plus');
 const COOKIE = 'hs_ref';
 const COOKIE_DAYS = 30;
 const REWARD_DAYS = 7;
-const MIN_ACCOUNT_DAYS = 7;
+const MIN_ACCOUNT_DAYS = 30; // a fresh alt account can't be used to farm the reward
 const DAY_MS = 86_400_000;
 const DISCORD_EPOCH = 1_420_070_400_000n;
 
@@ -32,7 +32,7 @@ function accountCreatedAt(id) {
 
 /**
  * The very first sign-in of user on the site, with the hs_ref cookie's code → 'recorded', or why not: 'none' (no
- * known link), 'self', 'young' (the Discord account is less than 7 days old), 'taken' (already referred).
+ * known link), 'self', 'young' (the Discord account is less than 30 days old), 'taken' (already referred).
  */
 function onFirstSignIn(user, code, now = Date.now()) {
   const referrer = store.referrerOf(code);
