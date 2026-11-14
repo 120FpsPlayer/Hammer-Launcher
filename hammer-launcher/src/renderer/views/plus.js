@@ -276,7 +276,7 @@
     { icon: 'crown', title: 'Peleryny Hammer+', text: `${capeCount ? `${fmt.count(capeCount, 'peleryna', 'peleryny', 'peleryn')} do wyboru` : 'Peleryny do wyboru'}. Widzą je gracze z Hammer Client – w zwykłym Minecrafcie ich nie widać.`, go: ['skin', 'Peleryny'] },
     { icon: 'sparkles', title: 'Ruchome peleryny i dodatki', text: 'Ruchome peleryny Płomień, Iskry i Fale, a do tego skrzydła, aureola i czapki. Widzą je gracze z Hammer Client.', go: ['skin', 'Dodatki'] },
     { icon: 'discord', title: 'Ranga na Discordzie', text: 'Ranga 💎 Hammer+ na naszym serwerze Discord – dopóki masz Hammer+.', go: null },
-    { icon: 'star', title: 'Znaczek H+ w grze', text: 'Na liście graczy (Tab) przed Twoim nickiem widać H+ zamiast zwykłego H. Widzą go gracze z Hammer Client.', go: null },
+    { icon: 'star', title: 'Znaczek Hammer+ w grze', text: 'Na liście graczy (Tab) przed Twoim nickiem widać młotek z plusem zamiast zwykłego młotka. Widzą go gracze z Hammer Client.', go: null },
     { icon: 'cloud', title: 'Chmura', text: 'Wygląd launchera, listy serwerów i układ HUD na każdym Twoim komputerze. Zacznie działać, gdy sklep HammerShop będzie online.', go: null },
   ];
 

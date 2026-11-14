@@ -69,7 +69,7 @@ Hammer Client
 
 Hammer+
 - Dodatek za wygląd i wygodę, bez przewagi w grze. Wszystko, co darmowe, zostaje darmowe.
-- Daje: motywy launchera z ruchomym tłem, własne kolory i tła, własne tło menu w grze, ruchome peleryny, skrzydła, aureolę i czapki, znaczek H+ przed nickiem w Tab, rangę 💎 Hammer+ na Discordzie, automatyczne kopie światów, chmurę ustawień launchera, bibliotekę na 200 skórek.
+- Daje: motywy launchera z ruchomym tłem, własne kolory i tła, własne tło menu w grze, ruchome peleryny, skrzydła, aureolę i czapki, znaczek Hammer+ (młotek z plusem) przed nickiem w Tab, rangę 💎 Hammer+ na Discordzie, automatyczne kopie światów, chmurę ustawień launchera, bibliotekę na 200 skórek.
 - Zakup: strona launchera → plan → logowanie przez Discorda → nick Minecraft → płatność przez Stripe (karta, Apple Pay, Google Pay). Kod pojawia się od razu na stronie i w wiadomości prywatnej od bota.
 - Aktywacja: w launcherze Hammer+ → „Mam kod” → wklej kod → Aktywuj. Kod działa tylko na koncie Minecraft, dla którego go wystawiono – to konto musi być wybrane w launcherze. Ranga 💎 przychodzi sama.
 - Kod nie działa: sprawdź wybrane konto i czy wklejony jest cały kod; jeśli dalej nie działa – zespół.
@@ -114,7 +114,7 @@ const FREE_FACTS = `Wiedza:
 - Gra nie startuje albo crashuje: poproś o log (Konsola → Udostępnij log), wersję launchera (lewy dolny róg), wersję Minecrafta i mody. Pomaga: aktualizacja (Ustawienia → Aktualizacje launchera → Sprawdź teraz), Optymalizacja → Zoptymalizuj wszystko, wyłączenie nowych modów, czysta instancja.
 - Słabe FPS: Optymalizacja → Zoptymalizuj wszystko, potem Test FPS.
 - Linków, logów i obrazków nie otworzysz – zespół je obejrzy.
-- Hammer+: wygląd i wygoda bez przewagi w grze (motywy, peleryny, znaczek H+, kopie światów, chmura, ranga 💎). Kupno na stronie launchera (Stripe), kod przychodzi w DM. Aktywacja: Hammer+ → „Mam kod” → wklej → Aktywuj; kod działa tylko na koncie Minecraft, dla którego go wystawiono. Ceny i aktualna wersja: info_launchera (jeśli masz to narzędzie), inaczej strona launchera.
+- Hammer+: wygląd i wygoda bez przewagi w grze (motywy, peleryny, znaczek Hammer+, kopie światów, chmura, ranga 💎). Kupno na stronie launchera (Stripe), kod przychodzi w DM. Aktywacja: Hammer+ → „Mam kod” → wklej → Aktywuj; kod działa tylko na koncie Minecraft, dla którego go wystawiono. Ceny i aktualna wersja: info_launchera (jeśli masz to narzędzie), inaczej strona launchera.
 - Zaproś znajomego: +7 dni Hammer+ za każdego, kto z Twojego linku kupi Hammer+.
 - Hammer Client: klient w grze (HUD, waypointy, zoom), bez cheatów.
 - Rekrutacja: 16+, dobry polski, kilka godzin w tygodniu; decyduje zespół.`;

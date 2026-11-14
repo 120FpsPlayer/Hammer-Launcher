@@ -59,7 +59,7 @@ function patch({ version, icon }) {
   window.__feed({
     news: [
       { id: 'w3', title: 'Hammer Launcher wystartował – wersja beta już dostępna!', body: 'Pobierz, zagraj i daj znać, co sądzisz. Każdą opinię czytamy na naszym Discordzie.', tag: 'Nowość', date: date(now - day), at: now - day, url: null, image: null, pinned: true },
-      { id: 'w2', title: 'Hammer Client: znaczek H w Tab', body: 'Na serwerach widać, kto gra na Hammer Client. Do tego nowe moduły HUD.', tag: 'Aktualizacja', date: date(now - day), at: now - day - 3600e3, url: null, image: null, pinned: false },
+      { id: 'w2', title: 'Hammer Client: znaczek Hammer w Tab', body: 'Na serwerach widać, kto gra na Hammer Client – młotek przed nickiem. Do tego nowe moduły HUD.', tag: 'Aktualizacja', date: date(now - day), at: now - day - 3600e3, url: null, image: null, pinned: false },
       { id: 'w1', title: 'Optymalizacja jednym kliknięciem', body: 'Zakładka Optymalizacja dobierze RAM, flagi Javy i mody wydajnościowe pod Twój komputer.', tag: 'Porada', date: date(now - 2 * day), at: now - 2 * day, url: null, image: null, pinned: false },
     ],
   });
