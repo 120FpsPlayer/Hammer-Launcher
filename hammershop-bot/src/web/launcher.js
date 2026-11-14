@@ -416,7 +416,9 @@ const JOIN_SCRIPT =
 
 const sha256 = (text) => `'sha256-${crypto.createHash('sha256').update(text, 'utf8').digest('base64')}'`;
 /** Only this page's own style and script run, whatever a link puts in the address. */
-const JOIN_CSP = `default-src 'none'; img-src 'self'; style-src ${sha256(JOIN_STYLE)}; script-src ${sha256(JOIN_SCRIPT)}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+/** The style carries the stamps of the pictures it names (src/web/stamp.js), so its hash is taken from the stamped text. */
+const joinStyle = () => stampAssets(JOIN_STYLE);
+const joinCsp = () => `default-src 'none'; img-src 'self'; style-src ${sha256(joinStyle())}; script-src ${sha256(JOIN_SCRIPT)}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
 
 /** The page's HTML for this address – everything taken from the query is escaped. */
 function joinHtml(url) {
@@ -433,7 +435,7 @@ function joinHtml(url) {
     '<!doctype html>\n<html lang="pl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta name="robots" content="noindex"><meta name="theme-color" content="#0e0b09"><meta name="color-scheme" content="dark">' +
     // The launcher's tab icon: hand-drawn pixel art at 16 and 32 px (sharp in a browser tab), the 256 px icon for the rest.
-    `<title>${esc(title)}</title>${stampAssets(own ? '<link rel="icon" href="/assets/launcher/favicon-32.png" sizes="32x32"><link rel="icon" href="/assets/launcher/favicon-16.png" sizes="16x16"><link rel="icon" href="/assets/launcher-icon.png" sizes="256x256">' : '<link rel="icon" href="/assets/hammershop-icon.png">')}<style>${stampAssets(JOIN_STYLE)}</style></head>` +
+    `<title>${esc(title)}</title>${stampAssets(own ? '<link rel="icon" href="/assets/launcher/favicon-32.png" sizes="32x32"><link rel="icon" href="/assets/launcher/favicon-16.png" sizes="16x16"><link rel="icon" href="/assets/launcher-icon.png" sizes="256x256">' : '<link rel="icon" href="/assets/hammershop-icon.png">')}<style>${joinStyle()}</style></head>` +
     '<body><main class="card">' +
     (own ? '<a class="logo h" href="/" aria-label="Hammer Launcher – strona główna"><i aria-hidden="true"></i>Hammer<b>Launcher</b></a>' : '<a class="logo" href="/" aria-label="HammerShop – strona główna"><i aria-hidden="true"></i>Hammer<b>Shop</b></a>') +
     '<p class="eyebrow">HAMMER LAUNCHER</p>' +
@@ -449,7 +451,7 @@ function joinHtml(url) {
 
 /** GET /join – h: { send } (adds the website's security headers). */
 function join(req, res, url, { send }) {
-  return send(res, 200, joinHtml(url), { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': JOIN_CSP });
+  return send(res, 200, joinHtml(url), { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': joinCsp() });
 }
 
 module.exports = { api, join, joinHtml, feed, launcherVersion, onlineNow, setProfileFetch, CAPES, FREE_CAPES, MOVING_CAPES, COSMETICS, CLOUD_LIMIT, MAX_UUIDS, PRESENCE_MS, PREFIX };
