@@ -94,6 +94,68 @@ class PreviewTest {
     }
 
     @Test
+    void logo() throws Exception {
+        // The player list badges: 8 pixels tall – one per GUI pixel, like the game's font next to them – and the
+        // Hammer+ one clearly wider (the game checks the same once its fonts are loaded).
+        var hammer = javax.imageio.ImageIO.read(getClass().getResource("/assets/hammerclient/textures/font/badge_hammer.png"));
+        var plus = javax.imageio.ImageIO.read(getClass().getResource("/assets/hammerclient/textures/font/badge_plus.png"));
+        assertEquals(8, hammer.getHeight());
+        assertEquals(8, plus.getHeight());
+        assertTrue(hammer.getWidth() >= 6 && hammer.getWidth() <= 10, "hammer badge " + hammer.getWidth() + " px wide");
+        assertTrue(plus.getWidth() >= hammer.getWidth() + 3, "Hammer+ badge " + plus.getWidth() + " px wide");
+
+        // The logo at the sizes the client uses (HUD 14, editor 24, panels 28, main menu 60) at every real scale the
+        // game can pick: each row is one scale (1×, 1.5×, 2× … 6× real pixels per unit). Every rendering logo.json
+        // names gets drawn here, and Java2DGfx checks the texture sizes.
+        float[] units = {1, 1.5f, 2, 2.5f, 3, 4, 5, 6};
+        int width = 0;
+        int height = 8;
+        for (float u : units) {
+            width = Math.max(width, Math.round((14 + 24 + 28 + 60 + 14 + 6 * 8) * u));
+            height += Math.round(64 * u) + 8;
+        }
+        Java2DGfx g = new Java2DGfx(width, height, 1);
+        g.fill(0, 0, width, height, 0xFF140E08);
+        pl.hammershop.client.ui.Draw d = new pl.hammershop.client.ui.Draw(g);
+        float y = 8;
+        for (float u : units) {
+            d.push();
+            d.translate(8, y);
+            d.scale(u);
+            float x = 0;
+            d.pixelLogo(x, 0, 14, 0xFFFFFFFF, true);
+            x += 14 + 8;
+            for (int size : new int[] {14, 24, 28, 60}) {
+                d.logo(x, 0, size, 0xFFFFFFFF);
+                x += size + 8;
+            }
+            d.pop();
+            y += Math.round(64 * u) + 8;
+        }
+        g.save(new File(out, "25-logo.png"));
+
+        // Small, it is pixel art drawn at whole real pixels: no colour but the hammer's own (nothing blurred).
+        var sprites = javax.imageio.ImageIO.read(getClass().getResource("/assets/hammerclient/textures/logo_pixel.png"));
+        java.util.Set<Integer> palette = new java.util.HashSet<>();
+        for (int py = 0; py < sprites.getHeight(); py++) for (int px = 0; px < sprites.getWidth(); px++) palette.add(sprites.getRGB(px, py));
+        for (float u : new float[] {1, 1.5f, 2, 3}) {
+            for (boolean blocky : new boolean[] {true, false}) {
+                Java2DGfx small = new Java2DGfx(120, 120, 1);
+                pl.hammershop.client.ui.Draw sd = new pl.hammershop.client.ui.Draw(small);
+                sd.translate(3.3f, 7.7f);
+                sd.scale(u);
+                sd.pixelLogo(1.2f, 0.6f, blocky ? 14 : 30 / u, 0xFFFFFFFF, blocky);
+                for (int py = 0; py < 120; py++) {
+                    for (int px = 0; px < 120; px++) {
+                        int c = small.image.getRGB(px, py);
+                        assertTrue((c >>> 24) == 0 || palette.contains(c), "a blended pixel at " + u + "× (" + px + ", " + py + ")");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void modulesHaveTextsAndIcons() {
         for (Module m : Modules.ALL) {
             assertTrue(!m.name().startsWith("module."), "name of " + m.id);
@@ -114,7 +176,7 @@ class PreviewTest {
         String nobody = "33333333333343338333333333333333";
         pl.hammershop.client.core.Presence.clear();
         try {
-            // Your own name: H, or H+ with Hammer+ – also without any server.
+            // Your own name: the hammer, with a + for Hammer+ – also without any server.
             assertEquals(1, Hammer.tabBadge(me, true));
             cfg.plusActive = true;
             assertEquals(2, Hammer.tabBadge(me, true));

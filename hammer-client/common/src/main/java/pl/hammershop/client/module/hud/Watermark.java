@@ -15,7 +15,7 @@ public final class Watermark extends HudModule {
 
     @Override
     protected void draw(HudCanvas c) {
-        c.d.image("logo", 256, 256, 1, 1, 14, 14, 0xFFFFFFFF);
+        c.d.pixelLogo(1, 1, 14, 0xFFFFFFFF, true); // pixel art like the game's own font next to it
         float w = 16;
         if (name.on()) {
             w = c.text("Hammer Client", 18, 4, text.argb(), true);

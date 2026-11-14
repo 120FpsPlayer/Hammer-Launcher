@@ -327,6 +327,8 @@ npm run dist:win
 W folderze `dist/` powstaną `Hammer-Launcher-Setup-<wersja>.exe` (instalator po polsku) oraz `Hammer-Launcher-<wersja>-portable.exe` (bez instalacji).
 Instalator buduje się też automatycznie w GitHub Actions (workflow **Hammer Launcher**, artefakt *Hammer-Launcher-Windows*).
 
+**Ikony.** Logo launchera to młot z wokseli. Plik `.exe`, instalator i skróty biorą ikonę z `build/icon.ico` (rozmiary 16, 24 i 32 px to pixel-art, do tego 48–256 px), Linux i macOS z `build/icon.png` (1024 px). W samym oknie: `src/renderer/assets/icon.ico` / `icon.png` (okno i okno logowania), `tray.ico` / `tray.png` (+ `tray@1.5x.png`, `tray@2x.png`) w zasobniku, `hammer-mark-24.png` / `-48.png` (pixel-art na pasku tytułu) i `hammer-mark.png` (duży znak na ekranie Graj i w „O launcherze”). Status w Discordzie pokazuje `<website>/assets/launcher-icon.png` ze strony.
+
 W `dist/` są też `latest.yml` i pliki `.blockmap` – potrzebne do [aktualizacji launchera](#aktualizacje-launchera) (wgrywasz instalator i `.blockmap` w panelu admina strony; nic nie jest publikowane automatycznie).
 
 **Zabezpieczenia spakowanej aplikacji.** Kod launchera jest spakowany w `app.asar`, a Electron ma włączone „bezpieczniki” (`build.electronFuses` w `package.json`): sprawdzanie integralności `app.asar`, ładowanie kodu tylko z niego, wyłączone uruchamianie launchera jako zwykłego Node.js (`ELECTRON_RUN_AS_NODE`), `NODE_OPTIONS` i `--inspect`, szyfrowane ciasteczka. Zwykła podmiana plików w folderze launchera przestaje działać. To utrudnia grzebanie w programie, ale nie robi z niego sejfu: w launcherze nie ma żadnych sekretów (tylko klucze publiczne), a wszystko, co ważne – płatności, kody Hammer+, aktualizacje – jest sprawdzane na serwerze albo podpisem. GitHub Actions po zbudowaniu instalatora odczytuje bezpieczniki i uruchamia spakowaną aplikację, żeby potwierdzić, że po zabezpieczeniu normalnie startuje.
@@ -346,7 +348,7 @@ Pliki nie są podpisane certyfikatem, więc Windows SmartScreen pokaże ostrzeż
 | `channel` | `"beta"` pokazuje znaczek **BETA** obok nazwy launchera. `""` albo `"stable"` = bez znaczka. |
 | `updateUrl` | Folder z aktualizacjami launchera (`latest.yml` + instalator). Puste = `<shopApi albo website>/updates`. Tylko `https://` (albo `http://localhost` do testów); bez żadnego adresu aktualizacje są wyłączone. |
 | `updatePublicKey` | Klucz publiczny do [podpisanych wydań](#podpisane-wydania-zalecane): base64 z 32 bajtów klucza Ed25519. Puste = podpis nie jest wymagany (launcher sprawdza tylko sumę sha512). |
-| `discordClientId` | ID aplikacji z Discord Developer Portal do statusu „Gra w…” (obraz `logo` w Rich Presence). |
+| `discordClientId` | ID aplikacji z Discord Developer Portal do statusu „Gra w…”. Obrazek statusu to `<website>/assets/launcher-icon.png`; bez `website` (https) – obraz `logo` wgrany w Rich Presence → Art Assets aplikacji. |
 | `plusPublicKey` | Klucz publiczny sklepu do sprawdzania kodów Hammer+: base64 z 32 bajtów klucza Ed25519. Puste = Hammer+ nie da się aktywować. Klucz prywatny ma tylko bot. |
 | `microsoft.clientId` | Własna aplikacja Azure do logowania (patrz niżej). Puste = domyślne okno logowania. |
 | `defaultInstance` | Instancja tworzona przy pierwszym uruchomieniu (Fabric, optymalizacja włączona). Launcher wybiera najnowszą wersję Minecrafta, którą obsługuje dołączony Hammer Client; `mcVersion` jest używane, gdy moda nie ma w launcherze. |

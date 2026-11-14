@@ -238,7 +238,7 @@ function bannerHtml(title, icon, opts = {}) {
 .pill .mark{width:24px;height:22px;filter:drop-shadow(0 0 6px rgba(${THEME.glow},.9))}
 .pill .mark svg{width:100%;height:100%}
 .pill b{font-weight:900;font-size:18px;letter-spacing:.08em}
-.pill .mark-h{height:28px;width:auto;margin:0 2px 0 -2px;filter:drop-shadow(0 0 6px rgba(255,200,40,.75))}
+.pill .mark-l{height:34px;width:34px;margin:-2px 0 0 -4px;filter:drop-shadow(0 0 6px rgba(255,170,60,.6))}
 .pill .wa{color:#fff}.pill .wb{color:${THEME.iconMid}}`;
 
   const badge = opts.badge
@@ -249,7 +249,7 @@ function bannerHtml(title, icon, opts = {}) {
   ${sparkle(905, 60, 18, 0.55)}${sparkle(960, 95, 9, 0.4)}${sparkle(150, 70, 12, 0.35)}${sparkle(995, 300, 14, 0.3, THEME.accent)}${sparkle(470, 330, 8, 0.25)}
   <div class="vig"></div><div class="line"></div>
   <div class="content"><div class="icon">${svg(icon, { fill: 'url(#ig)' })}${badge}</div><div class="title">${title}</div></div>
-  ${opts.brand === 'launcher' ? `<div class="pill"><img class="mark-h" src="${hLogo()}" alt=""><b><span class="wa">HAMMER</span> <span class="wb">LAUNCHER</span></b></div>` : `<div class="pill">${hammerMark()}<b>${wordHtml()}</b></div>`}
+  ${opts.brand === 'launcher' ? `<div class="pill"><img class="mark-l" src="${launcherMark()}" alt=""><b><span class="wa">HAMMER</span> <span class="wb">LAUNCHER</span></b></div>` : `<div class="pill">${hammerMark()}<b>${wordHtml()}</b></div>`}
 </div>
 <script>
   // Fit icon + title into the safe area (after the font has loaded, so widths are real).
@@ -571,10 +571,11 @@ function serverBannerHtml() {
 }
 
 // ───────────── The Hammer Launcher server (BOT_PROFILE=launcher) ─────────────
-// Its own pictures: the big H instead of the hammer, "HAMMER LAUNCHER" instead of HammerShop. The emojis are shared.
+// Its own pictures: the launcher's voxel hammer instead of the shop's hammer, "HAMMER LAUNCHER" instead of HammerShop.
+// The emojis are shared. (assets/brand/logo-h.png – the gold H – is HammerShop's own mark now: render-promo-banner.js.)
 
-/** The launcher's H (assets/brand/logo-h.png – the launcher's own logo) as a data URI. */
-const hLogo = () => `data:image/png;base64,${fs.readFileSync(path.join(OUT, 'brand', 'logo-h.png')).toString('base64')}`;
+/** The launcher's mark (assets/brand/logo-launcher-mark.png – the voxel hammer from the logo kit, 1024 px, transparent) as a data URI. */
+const launcherMark = () => `data:image/png;base64,${fs.readFileSync(path.join(OUT, 'brand', 'logo-launcher-mark.png')).toString('base64')}`;
 
 /** Banners of the launcher server's channels – the same look, with the launcher's mark in the corner. */
 const LAUNCHER_BANNERS = [
@@ -606,28 +607,28 @@ const LAUNCHER_BANNERS = [
 
 const LAUNCHER_BG = `radial-gradient(ellipse 75% 70% at 50% 46%, #4a2a0c 0%, #1a0f07 52%, #080503 100%)`;
 
-/** The server icon: the H on a dark, warm background (1024 × 1024 – Discord rounds it itself). */
+/** The server icon: the voxel hammer on a dark, warm background (1024 × 1024 – Discord rounds it itself). */
 function launcherLogoHtml(size = 1024) {
   const css = `.lg{position:relative;width:${size}px;height:${size}px;background:${LAUNCHER_BG};overflow:hidden}
 .lg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 108%, rgba(255,150,40,.55), rgba(0,0,0,0) 70%)}
-.lg img{position:absolute;left:50%;top:50%;width:70%;transform:translate(-50%,-50%);filter:drop-shadow(0 ${size * 0.02}px ${size * 0.05}px rgba(0,0,0,.7)) drop-shadow(0 0 ${size * 0.06}px rgba(255,190,40,.45))}`;
-  return page(`<div class="lg"><img src="${hLogo()}" alt=""></div>`, css, { width: size, height: size });
+.lg img{position:absolute;left:50%;top:50%;width:68%;transform:translate(-50%,-50%);filter:drop-shadow(0 ${size * 0.02}px ${size * 0.04}px rgba(0,0,0,.7)) drop-shadow(0 0 ${size * 0.05}px rgba(255,150,40,.35))}`;
+  return page(`<div class="lg"><img src="${launcherMark()}" alt=""></div>`, css, { width: size, height: size });
 }
 
 /** The server banner (960 × 540). */
 function launcherServerBannerHtml() {
   const css = `.sb{position:relative;width:960px;height:540px;background:${LAUNCHER_BG};overflow:hidden;font-family:Montserrat}
 .sb::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 70% 45% at 50% 112%, rgba(255,138,43,.7), rgba(0,0,0,0) 72%)}
-.sb img{position:absolute;left:92px;top:50%;height:300px;transform:translateY(-52%);filter:drop-shadow(0 14px 30px rgba(0,0,0,.7)) drop-shadow(0 0 40px rgba(255,190,40,.4));z-index:1}
+.sb img{position:absolute;left:84px;top:50%;height:300px;transform:translateY(-52%);filter:drop-shadow(0 14px 30px rgba(0,0,0,.7)) drop-shadow(0 0 40px rgba(255,150,40,.35));z-index:1}
 .sb .t{position:absolute;left:410px;top:176px;z-index:1;line-height:.95;font-weight:900;font-size:86px;letter-spacing:-.01em}
 .sb .t .a{display:block;color:#fff}.sb .t .b{display:block;color:${THEME.iconMid}}
 .sb .s{position:absolute;left:414px;top:372px;z-index:1;font-weight:600;font-size:17px;letter-spacing:6px;color:#ffc27e;opacity:.9}`;
-  return page(`<div class="sb"><img src="${hLogo()}" alt=""><div class="t"><span class="a">HAMMER</span><span class="b">LAUNCHER</span></div><div class="s">MINECRAFT · MODY · FPS BOOST</div></div>`, css, { width: 960, height: 540 });
+  return page(`<div class="sb"><img src="${launcherMark()}" alt=""><div class="t"><span class="a">HAMMER</span><span class="b">LAUNCHER</span></div><div class="s">MINECRAFT · MODY · FPS BOOST</div></div>`, css, { width: 960, height: 540 });
 }
 
-/** The :hs_logo: emoji of the launcher server – the H alone, on nothing. */
-function launcherEmojiHtml() {
-  return page(`<div class="em"><img src="${hLogo()}" alt=""></div>`, `.em{width:128px;height:128px;display:flex;align-items:center;justify-content:center}.em img{height:122px;width:auto}`, { width: 128, height: 128 });
+/** The :hs_logo: emoji of the launcher server – the hammer alone, on nothing. Also the website's small mark (size 128). */
+function launcherEmojiHtml(size = 128) {
+  return page(`<div class="em"><img src="${launcherMark()}" alt=""></div>`, `.em{width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center}.em img{height:${size}px;width:${size}px}`, { width: size, height: size });
 }
 
 // ───────────── Website pictures (web/public/assets) ─────────────
@@ -747,7 +748,7 @@ async function main() {
       await render(launcherEmojiHtml(), path.join(OUT, 'emojis-launcher', 'logo.png'), { width: 128, height: 128, transparent: true });
       fs.mkdirSync(WEB_OUT, { recursive: true });
       await render(launcherLogoHtml(256), path.join(WEB_OUT, 'launcher-icon.png'), { width: 256, height: 256 });
-      fs.copyFileSync(path.join(OUT, 'brand', 'logo-h.png'), path.join(WEB_OUT, 'launcher-h.png'));
+      await render(launcherEmojiHtml(128), path.join(WEB_OUT, 'launcher-mark.png'), { width: 128, height: 128, transparent: true });
       process.stdout.write('launcher logo, server banner, emoji, website icon\n');
     }
   }

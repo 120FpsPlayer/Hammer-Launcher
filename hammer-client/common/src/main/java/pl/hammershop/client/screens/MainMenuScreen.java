@@ -38,7 +38,7 @@ public class MainMenuScreen extends UiScreen {
 
         // Logo and name.
         d.glow(left + 30, top + 30, 62, Draw.alpha(Theme.accent(), 0.22f * in));
-        d.image("logo", 256, 256, left, top, 60, 60, (fade << 24) | 0xFFFFFF);
+        d.logo(left, top, 60, (fade << 24) | 0xFFFFFF);
         d.text("HAMMER", left + 72, top + 6, 30, Draw.alpha(Theme.TEXT, in), Font.BOLD);
         d.text("CLIENT", left + 73, top + 37, 15, Draw.alpha(Theme.accent(), in), Font.BOLD);
         float cw = d.textWidth("CLIENT", 15, Font.BOLD);

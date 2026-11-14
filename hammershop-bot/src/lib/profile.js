@@ -6,7 +6,7 @@
  *   shop      (default) HammerShop: the shop server – products, orders, payments, vouches.
  *   launcher  Hammer Launcher: the launcher's own community – download, new versions, news, Hammer+, bug reports
  *             and ideas. The same engine (tickets, verification, giveaways, logs, the website and its admin panel)
- *             and the same emojis, with its own name, logo (the big H), banners, channels, roles and rules; the
+ *             and the same emojis, with its own name, logo (the voxel hammer), banners, channels, roles and rules; the
  *             shop's channels and commands are left out, and the website's front page is the launcher's page.
  *
  * What differs: config.launcher.json (laid over config.json – src/lib/config.js), src/builder/layout.launcher.js,

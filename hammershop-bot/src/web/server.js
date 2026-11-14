@@ -444,7 +444,7 @@ const PAGES = { '/launcher': 'launcher.html', '/admin': 'admin.html', '/launcher
 /**
  * A page as this site shows it. The same files serve both sites: what is between <!--shop--> … <!--/shop--> is only
  * for HammerShop's site, <!--launcher--> … <!--/launcher--> only for Hammer Launcher's own (BOT_PROFILE=launcher) –
- * its name, the big H, no link to a shop.
+ * its name, its voxel-hammer mark, no link to a shop.
  */
 function pageHtml(file) {
   const [mine, other] = profile.launcher ? ['launcher', 'shop'] : ['shop', 'launcher'];

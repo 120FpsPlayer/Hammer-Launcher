@@ -23,6 +23,7 @@ import java.util.Map;
 public final class Java2DGfx implements Gfx {
     private static final Map<String, BufferedImage> TEXTURES = new HashMap<>();
     private static final Map<String, BufferedImage> TINTED = new HashMap<>();
+    private static final Map<String, Boolean> BLUR = new HashMap<>();
 
     public final BufferedImage image;
     private final Graphics2D g;
@@ -88,6 +89,17 @@ public final class Java2DGfx implements Gfx {
         });
     }
 
+    /** Like the game: a texture is filtered smoothly only when its .mcmeta says "blur", otherwise point-sampled. */
+    private static boolean blur(String name) {
+        return BLUR.computeIfAbsent(name, n -> {
+            try (InputStream in = Java2DGfx.class.getResourceAsStream("/assets/hammerclient/textures/" + n + ".png.mcmeta")) {
+                return in != null && new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).replace(" ", "").contains("\"blur\":true");
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
     private static BufferedImage tinted(String name, int rgb) {
         if ((rgb & 0xFFFFFF) == 0xFFFFFF) return texture(name);
         if (TINTED.size() > 400) TINTED.clear();
@@ -118,6 +130,7 @@ public final class Java2DGfx implements Gfx {
         if (alpha <= 0 || w <= 0 || h <= 0) return;
         java.awt.Composite old = g.getComposite();
         if (alpha < 1f) g.setComposite(AlphaComposite.SrcOver.derive(alpha));
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, blur(texture) ? RenderingHints.VALUE_INTERPOLATION_BILINEAR : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         g.drawImage(tex, x, y, x + w, y + h, Math.round(u), Math.round(v), Math.round(u + uw), Math.round(v + vh), null);
         g.setComposite(old);
     }

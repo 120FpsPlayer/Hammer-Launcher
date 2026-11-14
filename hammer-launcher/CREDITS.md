@@ -7,4 +7,4 @@
 - **msmc** (MIT) – logowanie kontem Microsoft.
 - **undici** (MIT), **adm-zip** (MIT).
 - **Modrinth API** – wyszukiwarka i pobieranie modów, paczek tekstur, shaderów i paczek modów.
-- Logo HammerShop – własne.
+- Logo Hammer Launchera (młot z wokseli) i logo HammerShop – własne.

@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Who else plays on Hammer Client – for the badge in front of names in the player list (Tab): H, or H+ with Hammer+.
+ * Who else plays on Hammer Client – for the badge in front of names in the player list (Tab): the hammer, with a + for Hammer+.
  * The client tells the shop's server "this account is playing now" and asks about the accounts on the list, in small
  * batches, in the background, remembered for a while. The server only keeps that in memory for a few minutes.
  * Nothing here can stall or break the game: every failure just means "no badge".

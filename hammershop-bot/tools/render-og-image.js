@@ -3,7 +3,7 @@
 
 /**
  * Draws the picture a link to the website shows on Discord, Messenger, X… (web/public/assets/launcher/og.jpg,
- * 1200×630) from the page's own font, logo (assets/launcher/logo-h-big.webp) and launcher screenshot – run it again
+ * 1200×630) from the page's own font, logo (assets/launcher/logo-mark-big.webp) and launcher screenshot – run it again
  * after a new logo or a new screenshot:  node tools/render-og-image.js
  * Needs Playwright with Chromium (the launcher's devDependency is enough, or a global one).
  */
@@ -38,7 +38,7 @@ body{width:1200px;height:630px;overflow:hidden;background:#0b0806;font-family:M;
 .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,196,140,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,196,140,.06) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(70% 70% at 30% 40%,#000,transparent 80%)}
 .copy{position:absolute;left:72px;top:92px;width:560px}
 .brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px;letter-spacing:-1px}
-.brand img{width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(255,194,51,.55))}
+.brand img{width:58px;height:58px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(255,150,40,.45))}
 .brand b{color:#ff9a3c}
 .beta{font-size:14px;letter-spacing:.1em;padding:4px 10px;border-radius:99px;background:linear-gradient(110deg,#ffd58f,#ffa94d);color:#2b1c00;margin-left:4px}
 h1{margin-top:40px;font-size:66px;white-space:nowrap;line-height:1.02;letter-spacing:-3px;font-weight:800}
@@ -47,7 +47,7 @@ p{margin-top:26px;font-size:22px;font-weight:600;color:#dcc7b4;line-height:1.45}
 .shot{position:absolute;left:640px;top:120px;width:700px;border-radius:14px;padding:1px;background:linear-gradient(180deg,rgba(255,214,170,.5),rgba(255,170,90,.1));box-shadow:0 40px 100px -20px #000,0 0 80px -20px rgba(255,140,40,.5);transform:perspective(1600px) rotateY(-16deg) rotateX(4deg);transform-origin:0 50%}
 .shot img{display:block;width:100%;border-radius:13px}
 </style></head><body><div class="glow"></div><div class="grid"></div>
-<div class="copy"><div class="brand"><img src="${file('launcher/logo-h-big.webp')}"><span>Hammer<b>Launcher</b></span><span class="beta">BETA</span></div>
+<div class="copy"><div class="brand"><img src="${file('launcher/logo-mark-big.webp')}"><span>Hammer<b>Launcher</b></span><span class="beta">BETA</span></div>
 <h1>Graj więcej.<br><span>Kombinuj mniej.</span></h1><p>Instancje, 1000+ modów z Modrinth, FPS&nbsp;boost i&nbsp;Hammer Client w&nbsp;grze.<br>Za darmo na Windows.</p></div>
 <div class="shot"><img src="${file('launcher/hero-1400.webp')}"></div></body></html>`;
 

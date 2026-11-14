@@ -9,6 +9,7 @@
  *   node tools/record-launcher-clips.js                      all clips
  *   node tools/record-launcher-clips.js graj mody            only these
  *   node tools/record-launcher-clips.js --launcher=../hammer-launcher --out=web/public/assets/launcher/clips --keep
+ *   node tools/record-launcher-clips.js --stills             the still pictures of the page instead (see STILLS below)
  *
  * Each clip becomes <out>/<name>.webm (VP9), <name>.mp4 (H.264) and <name>-poster.webp (the first frame), 1280×800,
  * 30 fps, looping seamlessly (the last moments fade into the first frame). After a change in the launcher (a new logo,
@@ -28,6 +29,8 @@ const opt = (name, fallback) => (ARGS.find((a) => a.startsWith(`--${name}=`)) ??
 const LAUNCHER = path.resolve(opt('launcher', path.join(__dirname, '..', '..', 'hammer-launcher')));
 const OUT = path.resolve(opt('out', path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher', 'clips')));
 const KEEP = ARGS.includes('--keep'); // keep the raw frames (in the system's temp folder) for a look
+const STILLS_ONLY = ARGS.includes('--stills'); // the still screenshots of the page (into --shots=, default: the folder above the clips)
+const SHOTS = path.resolve(opt('shots', path.dirname(OUT)));
 const WIDTH = 1280;
 const HEIGHT = 800;
 const FPS = 30;
@@ -47,8 +50,9 @@ function playwright() {
 
 /* ───────────── In the page: the launcher's own data made fit for a public website ───────────── */
 
-/** Runs after the launcher's mock, before its scripts: real-looking news, no invented member counts, the current version. */
-function patch({ version }) {
+/** Runs after the launcher's mock, before its scripts: real-looking news, no invented member counts, the current version,
+ *  and our Discord server's real icon (the website's launcher-icon.png – the same picture the bot sets on the server). */
+function patch({ version, icon }) {
   const day = 864e5;
   const now = Date.now();
   const date = (ms) => new Date(ms).toLocaleDateString('pl-PL');
@@ -62,7 +66,7 @@ function patch({ version }) {
   window.__self({ current: version });
   const hs = window.hs;
   const discord = hs.community.discord;
-  hs.community.discord = async () => ({ ...(await discord()), name: 'Hammer Launcher', members: null, online: null, live: false });
+  hs.community.discord = async () => ({ ...(await discord()), name: 'Hammer Launcher', ...(icon ? { iconUrl: icon } : {}), members: null, online: null, live: false });
   // No sample FPS-test results on the Optymalizacja page – they would read as measured numbers.
   const bench = hs.benchmark.info;
   hs.benchmark.info = async (id) => ({ ...(await bench(id)), history: [] });
@@ -301,6 +305,12 @@ const CLIPS = {
   },
 };
 
+/** The Discord server's icon as a data URL (web/public/assets/launcher-icon.png), or null when the file is missing. */
+function serverIcon() {
+  const file = path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher-icon.png');
+  return fs.existsSync(file) ? `data:image/png;base64,${fs.readFileSync(file).toString('base64')}` : null;
+}
+
 /* ───────────── Recording and encoding ───────────── */
 
 function ffmpeg(args) {
@@ -314,7 +324,7 @@ async function record(browser, mock, page0, name, clip, version) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.addInitScript((list) => (window.__cosmetics = list), JSON.parse(fs.readFileSync(path.join(LAUNCHER, 'src', 'renderer', 'assets', 'cosmetics', 'cosmetics.json'), 'utf8')));
   await page.addInitScript(mock);
-  await page.addInitScript(patch, { version });
+  await page.addInitScript(patch, { version, icon: serverIcon() });
   await page.goto(page0);
   await page.waitForTimeout(900);
   await page.evaluate(cursorOverlay);
@@ -377,6 +387,76 @@ async function record(browser, mock, page0, name, clip, version) {
   console.log(`✓ ${name}: ${length.toFixed(1)} s, ${frames.length} klatek – webm ${kb(webm)}, mp4 ${kb(mp4)}, plakat ${kb(poster)}`);
 }
 
+/* ───────────── Still pictures for the page ───────────── */
+
+/**
+ * The page's screenshots of the launcher, from the same interface and data as the clips (1240×780 window, drawn at 2×):
+ * the hero (hero-1400.webp, hero-820.webp, graj.jpg), the feature tabs (instancje / mody / optymalizacja – .webp + .jpg,
+ * 1100 px) and the theme deck (motyw-*.webp – the top 372 px of Graj in every theme, Hammer+ on).
+ */
+const STILLS = [
+  { name: 'graj', files: [['hero-1400.webp', 1400], ['hero-820.webp', 820], ['graj.jpg', 1400]], async before() {} },
+  { name: 'instancje', files: [['instancje.webp', 1100], ['instancje.jpg', 1100]], before: (page) => nav(page, 'Instancje') },
+  { name: 'mody', files: [['mody.webp', 1100], ['mody.jpg', 1100]], before: (page) => nav(page, 'Mody') },
+  { name: 'optymalizacja', files: [['optymalizacja.webp', 1100], ['optymalizacja.jpg', 1100]], before: (page) => nav(page, 'Optymalizacja') },
+];
+const THEME_STILLS = [['default', 'motyw-domyslny'], ['nether', 'motyw-nether'], ['end', 'motyw-end'], ['ocean', 'motyw-ocean'], ['cherry', 'motyw-wisnia'], ['deepdark', 'motyw-mrok']];
+
+/** One PNG → the page's files: WebP (quality 78) or JPEG, scaled to the width given. */
+function encodeStill(png, file, width) {
+  const out = path.join(SHOTS, file);
+  const scale = `scale=${width}:-2:flags=lanczos`;
+  if (file.endsWith('.webp')) ffmpeg(['-i', png, '-vf', scale, '-c:v', 'libwebp', '-quality', '78', '-compression_level', '6', out]);
+  else ffmpeg(['-i', png, '-vf', scale, '-q:v', '4', out]);
+  return `${file} ${Math.round(fs.statSync(out).size / 1024)} KB`;
+}
+
+async function stills(browser, mock, page0, version) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stills-'));
+  const open = async () => {
+    const context = await browser.newContext({ viewport: { width: 1240, height: 780 }, deviceScaleFactor: 2 });
+    const page = await context.newPage();
+    await page.addInitScript((list) => (window.__cosmetics = list), JSON.parse(fs.readFileSync(path.join(LAUNCHER, 'src', 'renderer', 'assets', 'cosmetics', 'cosmetics.json'), 'utf8')));
+    await page.addInitScript(mock);
+    await page.addInitScript(patch, { version, icon: serverIcon() });
+    await page.goto(page0);
+    await page.waitForTimeout(1200);
+    return { context, page };
+  };
+  fs.mkdirSync(SHOTS, { recursive: true });
+  try {
+    for (const still of STILLS) {
+      const { context, page } = await open();
+      await still.before(page);
+      await sleep(1400);
+      await noToasts(page);
+      const png = path.join(dir, `${still.name}.png`);
+      await page.screenshot({ path: png });
+      await context.close();
+      console.log(`✓ ${still.files.map(([file, width]) => encodeStill(png, file, width)).join(', ')}`);
+    }
+    const { context, page } = await open();
+    await page.evaluate(() => window.__plus(true));
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    for (const [id, file] of THEME_STILLS) {
+      await nav(page, 'Ustawienia');
+      await sleep(500);
+      await viewTo(page, 'h2', 'Wygląd', 70);
+      await page.locator(`.theme-tile[data-theme="${id}"]`).first().click();
+      await sleep(400);
+      await nav(page, 'Graj');
+      await sleep(1600);
+      await noToasts(page);
+      const png = path.join(dir, `${file}.png`);
+      await page.screenshot({ path: png, clip: { x: 0, y: 0, width: 1240, height: 372 } });
+      console.log(`✓ ${encodeStill(png, `${file}.webp`, 1240)}`);
+    }
+    await context.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   try {
     execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
@@ -391,12 +471,14 @@ async function main() {
   if (unknown.length) throw new Error(`Nie ma takiego klipu: ${unknown.join(', ')} (są: ${Object.keys(CLIPS).join(', ')})`);
   const { chromium } = playwright();
   const browser = await chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
+  const where = STILLS_ONLY ? SHOTS : OUT;
   try {
-    for (const name of names) await record(browser, mock, PAGE, name, CLIPS[name], version);
+    if (STILLS_ONLY) await stills(browser, mock, PAGE, version);
+    else for (const name of names) await record(browser, mock, PAGE, name, CLIPS[name], version);
   } finally {
     await browser.close();
   }
-  console.log(`Gotowe – pliki w ${path.relative(process.cwd(), OUT) || OUT}`);
+  console.log(`Gotowe – pliki w ${path.relative(process.cwd(), where) || where}`);
 }
 
 main().catch((err) => {

@@ -18,10 +18,10 @@
 @property --ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 :root {
   /* The logo – swap the files (or these four lines) and every place on the page follows. */
-  --logo: url(/assets/launcher/logo-h.png); /* the H mark on a dark background: header, badge, the 3D blocks, footer */
-  --logo-big: url(/assets/launcher/logo-h-big.webp); /* the big H of the last section */
-  --logo-app: url(/assets/launcher/logo-app.png); /* the app icon (the H on a rounded tile) */
-  --logo-partner: url(/assets/launcher/logo-hammershop.png); /* HammerShop's mark (the partner) */
+  --logo: url(/assets/launcher/logo-mark.png); /* the mark (the voxel hammer, transparent): header, badge, the 3D blocks, footer */
+  --logo-big: url(/assets/launcher/logo-mark-big.webp); /* the big mark of the last section */
+  --logo-app: url(/assets/launcher/logo-app.png); /* the app icon (the hammer on a rounded tile) */
+  --logo-partner: url(/assets/launcher/logo-hammershop.png); /* HammerShop's mark (the partner): its gold H, transparent – no tile behind it */
 
   --bg: #0b0806; --bg-2: #100b08; --surface: #16100c; --surface-2: #1c1510; --surface-3: #251b14; --card: #16100c; --card-2: #1c1510;
   --line: rgba(255, 196, 140, .09); --line-2: rgba(255, 196, 140, .17); --line-3: rgba(255, 196, 140, .3);
@@ -102,7 +102,7 @@ a:hover { color: var(--gold); }
 .menu-open .nav-toggle i::after { transform: translateY(-6px) rotate(-45deg); }
 .collab { display: inline-flex; align-items: center; gap: 6px; margin-left: -4px; font-size: 13px; font-weight: 800; letter-spacing: -0.4px; color: var(--muted); text-decoration: none; white-space: nowrap; }
 .collab > span { font-weight: 600; margin-right: 1px; }
-.collab .logo-partner { width: 18px; height: 18px; border-radius: 5px; }
+.collab .logo-partner { width: 18px; height: 18px; }
 .collab em, .collab-head .mark em { font-style: normal; }
 .collab b { color: var(--accent); font-weight: 800; }
 .collab:hover { color: var(--text); }
@@ -177,7 +177,7 @@ a:hover { color: var(--gold); }
 .ticks li { display: inline-flex; align-items: center; gap: 6px; }
 .ticks .ico { width: 17px; height: 17px; padding: 3px; border-radius: 50%; background: rgba(255, 154, 60, .16); color: var(--accent); stroke-width: 2.6; }
 .partner-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 5px 12px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, .02); color: var(--muted); font-size: 12.5px; font-weight: 600; text-decoration: none; transition: color .2s, border-color .2s; }
-.partner-chip .logo-partner { width: 22px; height: 22px; border-radius: 6px; }
+.partner-chip .logo-partner { width: 22px; height: 22px; }
 .partner-chip b { color: var(--soft); }
 .partner-chip:hover { color: var(--text); border-color: var(--line-3); }
 
@@ -458,6 +458,7 @@ a:hover { color: var(--gold); }
 .collab-head { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
 .collab-head .mark { display: inline-flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 800; letter-spacing: -0.8px; }
 .collab-head .mark i { width: 40px; height: 40px; border-radius: 11px; box-shadow: 0 10px 30px rgba(255, 138, 43, .3); }
+.collab-head .mark .logo-partner { border-radius: 0; box-shadow: none; filter: drop-shadow(0 6px 14px rgba(255, 170, 40, .35)); } /* the H stands alone, without a square */
 .collab-head .mark b { color: var(--accent); }
 .collab-head .x { font-size: 28px; font-weight: 400; color: var(--muted); }
 .collab-box h2 { margin: 18px 0 10px; }

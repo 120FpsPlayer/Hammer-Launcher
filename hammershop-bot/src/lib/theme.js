@@ -78,7 +78,7 @@ function ce(guild, name) {
   return id ? { id, name: emojiName(name) } : (FALLBACK[name] ?? '▫️');
 }
 
-/** The Hammer Launcher server has its own banners (assets/banners-launcher/, the H in the corner) – the rest are shared. */
+/** The Hammer Launcher server has its own banners (assets/banners-launcher/, the launcher's mark in the corner) – the rest are shared. */
 function bannerPath(key) {
   const own = profile.launcher ? path.join(ASSETS, 'banners-launcher', `${key}.png`) : null;
   return own && fs.existsSync(own) ? own : path.join(ASSETS, 'banners', `${key}.png`);

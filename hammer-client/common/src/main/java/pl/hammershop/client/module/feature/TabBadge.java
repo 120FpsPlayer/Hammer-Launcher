@@ -4,8 +4,8 @@ import pl.hammershop.client.module.Module;
 import pl.hammershop.client.module.Setting;
 
 /**
- * The player list (Tab) shows who plays on Hammer Client: the H of the logo in front of their name, H+ for players
- * with Hammer+. Others see yours the same way – unless you switch that off.
+ * The player list (Tab) shows who plays on Hammer Client: the logo's little hammer in front of their name, the hammer
+ * with a + for players with Hammer+. Others see yours the same way – unless you switch that off.
  */
 public final class TabBadge extends Module {
     private final Setting.Bool announce = bool("announce", true);

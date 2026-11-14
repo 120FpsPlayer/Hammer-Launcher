@@ -40,7 +40,7 @@ public final class WelcomeHint {
         float y = h * 0.2f - (1 - a) * 8;
         d.shadow(x, y, cw, 44, 12, Draw.alpha(0xFF000000, 0.45f * a));
         d.panel(x, y, cw, 44, 10, Draw.alpha(0xFF140E08, 0.92f * a), Draw.alpha(Theme.accent(), 0.7f * a));
-        d.image("logo", 256, 256, x + 9, y + 8, 28, 28, (Math.round(a * 255) << 24) | 0xFFFFFF);
+        d.logo(x + 9, y + 8, 28, (Math.round(a * 255) << 24) | 0xFFFFFF);
         d.text(title, x + 46, y + 8.5f, 11, Draw.alpha(Theme.TEXT, a), Font.BOLD);
         d.text(text, x + 46, y + 25, 8.5f, Draw.alpha(Theme.MUTED, a), Font.MEDIUM);
         // a thin bar that runs out with the time left

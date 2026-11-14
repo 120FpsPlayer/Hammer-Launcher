@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Draws the Hammer+ capes (the standard Minecraft cape layout, 8× the usual 64×32 so the logo stays sharp).
 
-    python3 tools/gen_capes.py
+    python3 tools/gen_capes.py [--mod-only]
 
 Writes the textures and the list (id, Polish and English name, free = for everybody) for the mod and for the
-launcher's cape picker:
+launcher's cape picker (--mod-only: just the mod's):
     common/src/main/resources/assets/hammerclient/textures/capes/<id>.png + assets/hammerclient/capes.json
     ../hammer-launcher/src/renderer/assets/capes/<id>.png + capes.json
 The lists also name the moving capes of gen_cosmetics.py (frames, fps: their textures are strips of frames).
+The logo comes from gen_logo.py (tools/brand/mark.svg).
 """
 import json
 import os
@@ -21,10 +22,10 @@ sys.dont_write_bytecode = True  # the two generators import each other – no __
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 MOD = os.path.join(ROOT, 'common/src/main/resources/assets/hammerclient')
 LAUNCHER = os.path.join(ROOT, '..', 'hammer-launcher', 'src', 'renderer', 'assets', 'capes')
-LOGO = os.path.join(MOD, 'textures', 'logo.png')
+MOD_ONLY = '--mod-only' in sys.argv  # leave the launcher's copies alone
 S = 8  # pixels per texel of the 64×32 layout
 
-# id: (Polish name, English name, top colour, bottom colour, logo tint or None = the logo's own gold, trim colour)
+# id: (Polish name, English name, top colour, bottom colour, logo tint or None = the logo's own colours, trim colour)
 CAPES = {
     'hammer': ('Hammer', 'Hammer', (16, 13, 9), (34, 24, 10), None, (255, 196, 0)),
     'gold': ('Złota', 'Gold', (255, 214, 60), (224, 132, 0), (38, 22, 0), (70, 40, 0)),
@@ -52,16 +53,23 @@ def gradient(w, h, top, bottom):
 
 
 def logo(width, tint):
-    src = Image.open(LOGO).convert('RGBA')
-    box = src.getbbox()
-    src = src.crop(box)
-    h = round(src.height * width / src.width)
-    src = src.resize((width, h), Image.LANCZOS)
-    if tint is not None:
-        solid = Image.new('RGBA', src.size, (*tint, 255))
-        solid.putalpha(src.getchannel('A'))
-        src = solid
-    return src
+    """The logo `width` pixels wide; with a tint, in that one colour – its faces still lighter and darker, so the
+    voxels show (a light tint gets darker on the shaded faces, a dark one lighter on the lit ones)."""
+    import gen_logo  # the same folder
+    src = gen_logo.mark_cropped(width)
+    if tint is None:
+        return src
+    px = src.load()
+    lum = {(x, y): (0.299 * px[x, y][0] + 0.587 * px[x, y][1] + 0.114 * px[x, y][2]) / 255 for y in range(src.height) for x in range(src.width)}
+    top = max(v for (x, y), v in lum.items() if px[x, y][3] > 128)
+    dark = sum(tint) < 300
+    out = Image.new('RGBA', src.size)
+    o = out.load()
+    for (x, y), v in lum.items():
+        shade = 1 - min(1.0, v / top)  # 0 on the brightest face
+        c = lerp(tint, (255, 255, 255), 0.2 * (1 - shade)) if dark else lerp(tint, (0, 0, 0), 0.4 * shade)
+        o[x, y] = (*c, px[x, y][3])
+    return out
 
 
 def cape(cid):
@@ -111,19 +119,19 @@ def write_lists():
     import gen_cosmetics  # the same folder
     listing = [{'id': cid, 'name': CAPES[cid][0], 'nameEn': CAPES[cid][1], **({'free': True} if cid in FREE else {})} for cid in CAPES]
     listing += [{'id': cid, 'name': pl, 'nameEn': en, 'frames': gen_cosmetics.FRAMES, 'fps': gen_cosmetics.FPS} for cid, (pl, en, _) in gen_cosmetics.ANIMATED.items()]
-    for index in (os.path.join(MOD, 'capes.json'), os.path.join(LAUNCHER, 'capes.json')):
+    for index in [os.path.join(MOD, 'capes.json')] + ([] if MOD_ONLY else [os.path.join(LAUNCHER, 'capes.json')]):
         with open(index, 'w', encoding='utf-8') as f:
             json.dump(listing, f, ensure_ascii=False, indent=2)
             f.write('\n')
 
 
 def main():
-    for out in (os.path.join(MOD, 'textures', 'capes'), LAUNCHER):
+    for out in [os.path.join(MOD, 'textures', 'capes')] + ([] if MOD_ONLY else [LAUNCHER]):
         os.makedirs(out, exist_ok=True)
         for cid in CAPES:
             cape(cid).save(os.path.join(out, cid + '.png'), optimize=True)
     write_lists()
-    print(f'{len(CAPES)} capes → mod and launcher')
+    print(f'{len(CAPES)} capes → mod' + ('' if MOD_ONLY else ' and launcher'))
 
 
 if __name__ == '__main__':

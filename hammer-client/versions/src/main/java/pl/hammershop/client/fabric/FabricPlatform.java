@@ -240,7 +240,7 @@ public final class FabricPlatform implements Platform, Game {
 
     private static final Component[] BADGES = new Component[3];
 
-    /** The H (1) or H+ (2) of the player list: a glyph of our own font, followed by a small gap. */
+    /** The hammer (1) or the hammer with a + (2) of the player list: a glyph of our own font, followed by a small gap. */
     private static Component badge(int kind) {
         if (BADGES[kind] == null) {
             Identifier font = Identifier.fromNamespaceAndPath("hammerclient", "badge");
@@ -255,7 +255,7 @@ public final class FabricPlatform implements Platform, Game {
     }
 
     /**
-     * A name on the player list (Tab): players on Hammer Client get the H in front of it, players with Hammer+ the H+.
+     * A name on the player list (Tab): players on Hammer Client get the logo's hammer in front of it, players with Hammer+ the hammer with a +.
      * Null = leave the name as it is. The game measures and draws the name it gets here, so the column widths fit.
      */
     public static Component tabName(PlayerInfo info, Component name) {
@@ -451,7 +451,7 @@ public final class FabricPlatform implements Platform, Game {
             int plus = mc().font.width(badge(2));
             // A font that did not load draws the same "missing" box for both.
             boolean fine = h >= 9 && h <= 13 && plus >= h + 3;
-            Log.info("Znaczki listy graczy: " + (fine ? "OK" : "BŁĄD") + " (H " + h + " px, H+ " + plus + " px)");
+            Log.info("Znaczki listy graczy: " + (fine ? "OK" : "BŁĄD") + " (Hammer " + h + " px, Hammer+ " + plus + " px)");
         } catch (RuntimeException e) {
             Log.warn("Znaczki listy graczy: BŁĄD", e);
         }

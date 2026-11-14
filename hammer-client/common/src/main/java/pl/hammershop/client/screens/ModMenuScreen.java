@@ -105,7 +105,7 @@ public class ModMenuScreen extends UiScreen {
     private void sidebar(Ui ui, float px, float py, float side, float ph) {
         Draw d = ui.d;
         Config cfg = Hammer.config();
-        d.image("logo", 256, 256, px + 14, py + 14, 28, 28, 0xFFFFFFFF);
+        d.logo(px + 14, py + 14, 28, 0xFFFFFFFF);
         d.text("Hammer Client", px + 48, py + 15, 10.5f, Theme.TEXT, Font.BOLD);
         float vx = px + 48;
         if (Hammer.plus()) vx += PlusBadge.draw(d, vx, py + 28.5f, 10, 1f) + 5;

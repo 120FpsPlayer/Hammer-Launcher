@@ -93,7 +93,7 @@ test('the profile: its own name, logo, rules and ticket types laid over the shop
   assert.deepEqual(config.overlay({ a: { b: 1, c: [1, 2] }, d: 1 }, { a: { c: [3] }, e: 2 }), { a: { b: 1, c: [3] }, d: 1, e: 2 });
 });
 
-test('/build makes the Hammer Launcher server: its name, the H as the icon, its own channels and roles – no shop', () => {
+test('/build makes the Hammer Launcher server: its name, its mark as the icon, its own channels and roles – no shop', () => {
   assert.equal(guild.name, 'Hammer Launcher');
   assert.equal(path.basename(guild.iconSet), 'logo-launcher.png');
   for (const key of ['verify', 'rules', 'welcome', 'information', 'announcements', 'roles', 'launcher', 'updates', 'news', 'plus', 'faq', 'tickets', 'bugs', 'suggestions', 'chat', 'servers', 'giveaways', 'leaderboard', 'boosters', 'statMembers', 'statVersion', 'statDownloads', 'ticketLogs', 'backups']) {
@@ -126,7 +126,7 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
   assert.deepEqual(files('launcher'), ['hammerlauncher-launcher.png']);
   assert.deepEqual(files('plus'), ['hammerlauncher-plus.png']);
   assert.deepEqual(files('bugs'), ['hammerlauncher-bugs.png']);
-  // The banners with the H in the corner come from assets/banners-launcher/.
+  // The banners with the launcher's mark in the corner come from assets/banners-launcher/.
   assert.match(require('../src/lib/theme').bannerPath('launcher'), /banners-launcher[\\/]launcher\.png$/);
   assert.match(require('../src/lib/theme').bannerPath('tickets'), /banners[\\/]tickets\.png$/, 'a banner the launcher server has no own version of is shared');
 
@@ -190,7 +190,7 @@ test('tickets: a bug report opens like any ticket; the shop\'s commands are gone
   assert.ok(buttons.includes(`"${base}/"`) && buttons.includes(`${base}/#plus`), 'on the launcher\'s own site the page is the front page');
 });
 
-test('the website: the front page is the launcher\'s, with the H and the name Hammer Launcher – no shop page', async () => {
+test('the website: the front page is the launcher\'s, with its mark and the name Hammer Launcher – no shop page', async () => {
   for (const page of ['/', '/launcher', '/cokolwiek', '/launcher.html', '/index.html']) {
     const res = await fetch(base + page);
     const html = await res.text();
@@ -209,12 +209,12 @@ test('the website: the front page is the launcher\'s, with the H and the name Ha
     assert.match(adminPage, /<title>Panel admina – Hammer Launcher<\/title>/, page);
     assert.doesNotMatch(adminPage, /HammerShop|<!--shop|<!--launcher/, page);
   }
-  // „Join this server” links go out to people: the launcher's own name and H there too.
+  // „Join this server” links go out to people: the launcher's own name and mark there too.
   const join = await (await fetch(`${base}/join?server=mc.example.pl&name=Serwer`)).text();
   assert.match(join, /class="logo h"[^>]*>.*Hammer<b>Launcher<\/b>/);
   assert.match(join, /launcher-icon\.png/);
   assert.doesNotMatch(join, /HammerShop|Hammer<b>Shop/);
-  assert.equal((await fetch(`${base}/assets/launcher-h.png`)).status, 200);
+  assert.equal((await fetch(`${base}/assets/launcher-mark.png`)).status, 200);
   assert.equal((await fetch(`${base}/assets/nie-ma.png`)).status, 404);
   assert.deepEqual((await (await fetch(`${base}/api/shop/store`)).json()).products, [], 'nothing is sold as a shop product');
 });

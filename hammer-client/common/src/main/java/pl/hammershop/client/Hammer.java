@@ -306,8 +306,8 @@ public final class Hammer {
     }
 
     /**
-     * The badge in front of a name in the player list (Tab): 0 = none, 1 = H (plays on Hammer Client), 2 = H+ (with
-     * Hammer+). `uuid` is the account id without dashes.
+     * The badge in front of a name in the player list (Tab): 0 = none, 1 = the hammer (plays on Hammer Client), 2 = the
+     * hammer with a + (with Hammer+). `uuid` is the account id without dashes.
      */
     public static int tabBadge(String uuid, boolean self) {
         return Presence.of(uuid, self);

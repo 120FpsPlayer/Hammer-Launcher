@@ -32,7 +32,12 @@ if (!app.requestSingleInstanceLock()) {
   let presence = null;
   let gpu = null;
   let tray = null;
-  const ICON = path.join(__dirname, '..', 'renderer', 'assets', 'icon.png');
+  // The app icon (the voxel hammer on a dark tile). Windows gets the .ico: its 16/24/32 px sizes are hand-drawn pixel art,
+  // so the taskbar and Alt+Tab stay sharp instead of a blurred 256 px picture.
+  const ASSETS = path.join(__dirname, '..', 'renderer', 'assets');
+  const ICON = path.join(ASSETS, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  // The tray: the hammer alone, pixel art. tray.ico on Windows; elsewhere tray.png + tray@1.5x/@2x.png (Electron picks by scale).
+  const TRAY_ICON = path.join(ASSETS, process.platform === 'win32' ? 'tray.ico' : 'tray.png');
   // „BETA” next to the name (launcher.config.json → channel); the product itself keeps its name.
   const beta = String(config.channel ?? '').trim().toLowerCase() === 'beta';
   const windowTitle = beta ? `${config.name} (beta)` : config.name;
@@ -75,7 +80,7 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     if (!tray) {
-      tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: process.platform === 'darwin' ? 18 : 32 }));
+      tray = new Tray(nativeImage.createFromPath(TRAY_ICON));
       tray.on('click', showWindow);
     }
     tray.setToolTip(gameRunning() ? `${config.name} – ${T('gra działa')}` : config.name);
@@ -277,7 +282,7 @@ if (!app.requestSingleInstanceLock()) {
         get title() {
           return T('Logowanie Microsoft');
         },
-        icon: path.join(__dirname, '..', 'renderer', 'assets', 'icon.png'),
+        icon: ICON,
         get parent() {
           return win && !win.isDestroyed() ? win : undefined;
         },

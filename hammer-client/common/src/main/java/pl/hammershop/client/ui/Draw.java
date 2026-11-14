@@ -43,6 +43,38 @@ public final class Draw {
         }
     }
 
+    // The logo (tools/gen_logo.py): smooth renderings {size, u, v} smallest first, and pixel-art hammers {grid, u, v, w, h}.
+    private static final float PIXEL_LOGO_BELOW = 36; // real pixels: smaller than this, the pixel-art hammer reads better
+    private static final int[][] LOGO;
+    private static final int[][] LOGO_PIXEL;
+    private static final int[] LOGO_TEX = new int[4]; // logo.png width, height; logo_pixel.png width, height
+
+    static {
+        try (InputStream in = Draw.class.getResourceAsStream("/assets/hammerclient/logo.json")) {
+            JsonObject o = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject smooth = o.getAsJsonObject("smooth");
+            JsonObject pixel = o.getAsJsonObject("pixel");
+            LOGO = ints(smooth.getAsJsonArray("levels"));
+            LOGO_PIXEL = ints(pixel.getAsJsonArray("sprites"));
+            LOGO_TEX[0] = smooth.get("width").getAsInt();
+            LOGO_TEX[1] = smooth.get("height").getAsInt();
+            LOGO_TEX[2] = pixel.get("width").getAsInt();
+            LOGO_TEX[3] = pixel.get("height").getAsInt();
+        } catch (Exception e) {
+            throw new IllegalStateException("logo.json", e);
+        }
+    }
+
+    private static int[][] ints(com.google.gson.JsonArray rows) {
+        int[][] out = new int[rows.size()][];
+        for (int i = 0; i < out.length; i++) {
+            com.google.gson.JsonArray row = rows.get(i).getAsJsonArray();
+            out[i] = new int[row.size()];
+            for (int j = 0; j < out[i].length; j++) out[i][j] = row.get(j).getAsInt();
+        }
+        return out;
+    }
+
     public final Gfx g;
     private float scale = 1f;
     private float tx;
@@ -271,6 +303,65 @@ public final class Draw {
 
     public static boolean hasIcon(String name) {
         return ICONS.containsKey(name);
+    }
+
+    // ───────────── logo ─────────────
+
+    /**
+     * The Hammer logo (the voxel hammer with its sparks) centred in a size × size square. Smooth, from the rendering
+     * closest to the real pixel size (never scaled down more than 1.33×); so small that the voxels would blur into each
+     * other, the pixel-art hammer instead.
+     */
+    public void logo(float x, float y, float size, int argb) {
+        if ((argb >>> 24) == 0 || size <= 0) return;
+        float real = size * unit();
+        if (real < PIXEL_LOGO_BELOW) {
+            pixelLogo(x, y, size, argb, false);
+            return;
+        }
+        int[] level = LOGO[LOGO.length - 1];
+        for (int[] l : LOGO) {
+            if (l[0] >= real * 0.98f) {
+                level = l;
+                break;
+            }
+        }
+        g.image("logo", Math.round(x), Math.round(y), Math.round(size), Math.round(size), level[1], level[2], level[0], level[0], LOGO_TEX[0], LOGO_TEX[1], argb);
+    }
+
+    /**
+     * The pixel-art hammer centred in a size × size square, every pixel of it a whole number of real pixels, so it is
+     * crisp at any scale. blocky: one pixel of the 16-pixel hammer per pixel of the current space, like the game's own
+     * font and items (for the HUD); otherwise the biggest hammer that fits, the more detailed one when it is nearly as big.
+     */
+    public void pixelLogo(float x, float y, float size, int argb, boolean blocky) {
+        if ((argb >>> 24) == 0 || size <= 0) return;
+        float unit = unit();
+        float real = size * unit;
+        int[] sprite = LOGO_PIXEL[0];
+        int k = Math.max(1, Math.round(unit));
+        if (!blocky) {
+            int biggest = 0;
+            for (int[] s : LOGO_PIXEL) biggest = Math.max(biggest, Math.max(s[3], s[4]) * (int) (real / Math.max(s[3], s[4])));
+            k = 1;
+            for (int[] s : LOGO_PIXEL) {
+                int side = Math.max(s[3], s[4]);
+                int f = (int) (real / side);
+                if (f >= 1 && side * f >= biggest * 0.9f) {
+                    sprite = s; // the list goes from the plainest hammer to the most detailed
+                    k = f;
+                }
+            }
+        }
+        // the corner of the hammer on whole real pixels, then one unit = k real pixels
+        float gs = (float) g.guiScale();
+        float rx = Math.round((tx + x * scale) * gs + (real - sprite[3] * k) / 2f);
+        float ry = Math.round((ty + y * scale) * gs + (real - sprite[4] * k) / 2f);
+        push();
+        translate((rx / gs - tx) / scale, (ry / gs - ty) / scale);
+        scale(k / unit);
+        g.image("logo_pixel", 0, 0, sprite[3], sprite[4], sprite[1], sprite[2], sprite[3], sprite[4], LOGO_TEX[2], LOGO_TEX[3], argb);
+        pop();
     }
 
     /** A whole texture stretched into the rectangle. */

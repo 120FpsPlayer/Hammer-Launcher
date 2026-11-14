@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draws the moving Hammer+ capes and the cosmetics Hammer Client puts on players (wings, a halo, hats).
 
-    python3 tools/gen_cosmetics.py
+    python3 tools/gen_cosmetics.py [--mod-only]
 
 Moving capes are vertical strips: FRAMES pictures of the standard cape layout (64×32 at 4×, so 256×128 each), one
 under the other, the first one at the top, played FPS frames per second in a loop. The mod cuts a strip into one
@@ -18,6 +18,8 @@ side by side). This script places those areas in the texture, paints them and wr
 The launcher gets flat pictures of the same things for its tiles and its skin preview (front and back view, placed in
 skin pixels: the head is x 4–12, y 0–8, the figure is 16×32):
     ../hammer-launcher/src/renderer/assets/cosmetics/cosmetics.json + <id>-front.png / <id>-back.png
+--mod-only writes just the mod's files and leaves the launcher's alone. The logo on the capes is the pixel-art hammer
+of gen_logo.py.
 """
 import json
 import math
@@ -30,7 +32,7 @@ from PIL import Image, ImageDraw, ImageFilter
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOD = os.path.join(ROOT, 'common/src/main/resources/assets/hammerclient')
 LAUNCHER = os.path.join(ROOT, '..', 'hammer-launcher', 'src', 'renderer', 'assets')
-LOGO = os.path.join(MOD, 'textures', 'logo.png')
+MOD_ONLY = '--mod-only' in sys.argv
 
 # ───────────────────────────── moving capes ─────────────────────────────
 S = 4  # pixels per texel of the 64×32 cape layout
@@ -82,16 +84,22 @@ def palette(stops, t):
     return best
 
 
-def logo_mark(width, tint):
-    src = Image.open(LOGO).convert('RGBA')
+def logo_mark(n, tint, shade):
+    """The logo's pixel-art hammer (gen_logo.py, the n × n one without sparks) in the tint, its darker pixels a step or
+    two towards `shade` – so the head and the handle still read."""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gen_logo  # noqa: E402 – the same folder
+    src = gen_logo.sprite(n, sparks=False)
     src = src.crop(src.getbbox())
-    h = round(src.height * width / src.width)
-    src = src.resize((width, h), Image.LANCZOS)
-    # pixel art: hard edges
-    a = src.getchannel('A').point(lambda v: 255 if v > 110 else 0)
-    solid = Image.new('RGBA', src.size, (*tint, 255))
-    solid.putalpha(a)
-    return solid
+    out = Image.new('RGBA', src.size, (0, 0, 0, 0))
+    for y in range(src.height):
+        for x in range(src.width):
+            r, g, b, a = src.getpixel((x, y))
+            if a:
+                lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+                out.putpixel((x, y), (*lerp(tint, shade, 0 if lum >= 0.68 else 0.2 if lum >= 0.5 else 0.4), 255))
+    return out
 
 
 def outline(mark, color):
@@ -116,7 +124,7 @@ class Flame:
         self.n2 = Noise('flame-2', 16, 16)
         rnd = random.Random('flame-embers')
         self.embers = [(rnd.random(), rnd.random(), 1 + rnd.randrange(2)) for _ in range(12)]
-        self.mark = outline(logo_mark(16, (255, 214, 140)), (120, 28, 6))
+        self.mark = outline(logo_mark(24, (255, 214, 140), (120, 28, 6)), (120, 28, 6))
 
     def back(self, y, h):
         return lerp((22, 9, 7), (52, 15, 6), y / h)
@@ -162,11 +170,11 @@ class Sparks:
     def __init__(self):
         rnd = random.Random('sparks')
         spots = [(rnd.randrange(3, 37), rnd.randrange(3, 61)) for _ in range(60)]
-        spots = [(x, y) for x, y in spots if not (y < 21 and 9 < x < 31)][:22]  # none over the logo
+        spots = [(x, y) for x, y in spots if not (y < 28 and 8 < x < 32)][:22]  # none over the logo
         self.stars = [(x, y, rnd.random(), rnd.choice([(255, 255, 255), (255, 226, 140), (170, 230, 255), (255, 190, 250)])) for x, y in spots]
         self.dust = [(rnd.random(), rnd.random(), rnd.choice([1, 2])) for _ in range(18)]
         self.n = Noise('sparks-sky', 8, 12)
-        self.mark = outline(logo_mark(14, (255, 230, 160)), (60, 24, 110))
+        self.mark = outline(logo_mark(24, (255, 230, 160), (60, 24, 110)), (60, 24, 110))
 
     def back(self, x, y, w, h):
         g = int(y / h * 7) / 6  # in bands, like pixel art
@@ -225,7 +233,7 @@ class Waves:
     water = [(52, 170, 212), (34, 136, 192), (24, 106, 168), (16, 80, 142), (10, 56, 112), (6, 36, 84)]
 
     def __init__(self):
-        self.mark = outline(logo_mark(14, (255, 255, 255)), (16, 90, 140))
+        self.mark = outline(logo_mark(24, (255, 255, 255), (16, 90, 140)), (16, 90, 140))
         rnd = random.Random('waves')
         # rows of waves, in cells of two pixels: (top row, phase, wave length, height, direction)
         self.bands = [(10.5 + i * 4.6, rnd.random() * 6.28, 8 + rnd.random() * 5, 1.1 + rnd.random() * 0.6, 1 if i % 2 else -1) for i in range(5)]
@@ -657,16 +665,20 @@ def wings_picture(iid, tex, areas, item, under):
 
 def main():
     # moving capes
-    for out in (os.path.join(MOD, 'textures', 'capes'), os.path.join(LAUNCHER, 'capes')):
+    cape_dirs = [os.path.join(MOD, 'textures', 'capes')] + ([] if MOD_ONLY else [os.path.join(LAUNCHER, 'capes')])
+    for out in cape_dirs:
         os.makedirs(out, exist_ok=True)
     for cid in ANIMATED:
         strip = cape_strip(cid)
-        for out in (os.path.join(MOD, 'textures', 'capes'), os.path.join(LAUNCHER, 'capes')):
+        for out in cape_dirs:
             save_small(strip, os.path.join(out, cid + '.png'))
 
     # cosmetics: textures and boxes for the mod, flat pictures for the launcher
     tex_dir = os.path.join(MOD, 'textures', 'cosmetics')
     ui_dir = os.path.join(LAUNCHER, 'cosmetics')
+    if MOD_ONLY:  # the launcher's pictures are made all the same, just not saved
+        import tempfile
+        ui_dir = tempfile.mkdtemp()
     os.makedirs(tex_dir, exist_ok=True)
     os.makedirs(ui_dir, exist_ok=True)
     mod_items, ui_items = [], []
@@ -708,7 +720,10 @@ def main():
     with open(os.path.join(ui_dir, 'cosmetics.json'), 'w', encoding='utf-8') as f:
         json.dump(ui_items, f, ensure_ascii=False, indent=2)
         f.write('\n')
-    print(f'{len(ANIMATED)} moving capes ({FRAMES} frames, {FPS} fps), {len(ITEMS)} cosmetics → mod and launcher')
+    if MOD_ONLY:
+        import shutil
+        shutil.rmtree(ui_dir)
+    print(f'{len(ANIMATED)} moving capes ({FRAMES} frames, {FPS} fps), {len(ITEMS)} cosmetics → mod' + ('' if MOD_ONLY else ' and launcher'))
 
     # the cape lists (still and moving) for the mod and the launcher
     sys.dont_write_bytecode = True  # the two generators import each other – no __pycache__ in the repository

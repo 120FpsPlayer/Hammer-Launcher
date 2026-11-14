@@ -231,7 +231,7 @@ public class HudEditorScreen extends UiScreen {
         if (show > 0.05f) {
             d.shadow(px, py, pw, ph, 16, Draw.alpha(0xFF000000, 0.5f * show));
             d.panel(px, py, pw, ph, 12, Draw.alpha(Theme.PANEL_SOLID, 0.94f * show), Draw.alpha(Theme.LINE_STRONG, show));
-            d.image("logo", 256, 256, px + 14, py + 12, 24, 24, Draw.alpha(0xFFFFFFFF, show));
+            d.logo(px + 14, py + 12, 24, Draw.alpha(0xFFFFFFFF, show));
             d.text(Hammer.t("editor.title"), px + 46, py + 12, 12, Draw.alpha(Theme.TEXT, show), Font.BOLD);
             d.text(Hammer.t("editor.hint"), px + 46, py + 28, 7.5f, Draw.alpha(Theme.MUTED, show), Font.MEDIUM);
             List<String> more = d.wrap(Hammer.t("editor.hint2"), pw - 28, 7.5f, Font.MEDIUM, 2);

@@ -37,7 +37,8 @@ svg.i{width:1em;height:1em;fill:currentColor;flex:none}
 #app{display:flex;flex-direction:column;height:100vh}
 .titlebar{height:38px;display:flex;align-items:center;background:var(--side);border-bottom:1px solid var(--line);-webkit-app-region:drag;user-select:none;flex:none}
 .tb-brand{display:flex;align-items:center;gap:9px;padding:0 16px;font-weight:800;letter-spacing:-.2px;font-size:13px}
-.tb-brand img{width:22px;height:22px;filter:drop-shadow(0 0 8px rgba(var(--glow),.45))}
+/* the logo: hand-drawn pixel art at 24 px (nearest-neighbour, so it stays sharp at any zoom) */
+.tb-brand img{width:24px;height:24px;image-rendering:pixelated;filter:drop-shadow(0 0 8px rgba(var(--glow),.4))}
 .tb-brand b{color:var(--accent)}
 .tb-brand em{font-style:normal;font-weight:600;color:var(--dim);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-left:2px}
 /* "developed by 120FpsPlayer": the name in the gold of the logo, with a glint that runs across it now and then */
