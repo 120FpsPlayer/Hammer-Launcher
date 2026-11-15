@@ -4,8 +4,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// Each test file gets its own empty database folder.
+// Each test file gets its own empty database folder – removed again when the file is done (thousands of runs left
+// over 1 GB of them in the temp folder before).
 process.env.HS_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'hammershop-test-'));
+const dataDir = process.env.HS_DATA_DIR;
+process.on('exit', () => {
+  try {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  } catch {
+    // a file still open on Windows – the system cleans the temp folder eventually
+  }
+});
 process.env.DISCORD_TOKEN ??= 'test.token.value';
 // The tests are written for the shop server – whatever BOT_PROFILE this computer's .env has. The Hammer Launcher
 // server's own test (profile-launcher.test.js) asks for its profile with HS_TEST_PROFILE.
