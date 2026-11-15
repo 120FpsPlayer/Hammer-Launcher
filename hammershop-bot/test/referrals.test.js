@@ -383,7 +383,8 @@ test('the real page: signed out it asks for Discord to download; signed in it do
       await tab.locator('#ref-nick').fill('Jeb');
       await tab.locator('#ref-claim-btn').click();
       await tab.locator('#ref-result .pill', { hasText: 'Odebrane z poleceń' }).waitFor();
-      assert.equal(await tab.locator('#ref-claim').isHidden(), true);
+      // The form hides only after the card's numbers are fetched again, a moment after the code shows up.
+      await tab.locator('#ref-claim').waitFor({ state: 'hidden' });
       assert.equal(plus.verify(await tab.locator('#ref-result .code').textContent()).mc, MC.Jeb);
       if (shots) await tab.locator('#polecaj').screenshot({ path: `${shots}/polecaj-odebrane-${w}.png` });
       assert.deepEqual(problems, []);

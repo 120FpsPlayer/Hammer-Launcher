@@ -39,7 +39,15 @@ async function setup() {
 }
 
 const alerts = (guild) => guild.channels.cache.get(db.channelId(guild.id, 'automodLogs')).messageList;
-const lastAlert = (guild) => Object.values(imp.store(guild.id).alerts).sort((a, b) => a.at - b.at).at(-1);
+/**
+ * The newest alert: the one whose card was posted last in #automod-logs. Sorting by `at` can't tell: alerts raised
+ * in the same millisecond tie, and the store's key order doesn't break the tie – a random id made only of digits
+ * (about 1 in 50) is an integer-like key, which JavaScript lists before all the others.
+ */
+const lastAlert = (guild) => {
+  const byMessage = new Map(Object.values(imp.store(guild.id).alerts).map((a) => [a.messageId, a]));
+  return alerts(guild).map((m) => byMessage.get(m.id)).filter(Boolean).at(-1);
+};
 const press = async (guild, who, action, alert) => {
   const message = alerts(guild).find((m) => m.id === alert.messageId);
   const i = createInteraction({ guild, member: who, kind: 'button', customId: `imp:${action}:${alert.id}`, message });

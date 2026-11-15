@@ -135,8 +135,13 @@ test('a deal: one eligible product (number price, in stock, not on sale), 25–5
 
 test('the timer starts the planned deal once at its time, waits for a running deal, skips when nothing is eligible, marks passed days missed', async () => {
   const { guild, eligible } = await shopGuild();
-  const now = Date.now();
+  // The plan below is for this week and the ticks run up to 2 hours ahead. Late on Sunday (in the shop's time zone)
+  // that is next week already, which rightly rolls a new plan – so "now" stays 3 hours or more before the week ends.
+  const sunday = deals.weekOf(Date.now()).days[6];
+  const weekEnds = hours.wallTime(sunday.y, sunday.m, sunday.d, 24 * 60, config.workingHours.timezone ?? 'UTC').getTime();
+  const now = Math.min(Date.now(), weekEnds - 3 * HOUR);
   const today = deals.weekOf(now);
+  assert.equal(deals.weekOf(now + 2 * HOUR).key, today.key, 'the last tick is still this week');
   const g = db.guild(guild.id);
   const setPlan = (slots) => Object.assign(g.deals, { week: today.key, days: Object.keys(slots), slots });
 
