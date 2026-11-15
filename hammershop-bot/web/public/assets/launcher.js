@@ -458,13 +458,13 @@
       hero.addEventListener('pointermove', function (event) {
         var x = event.clientX;
         var y = event.clientY;
-        stage.classList.add('live');
+        stage.classList.add('tilting');
         cancelAnimationFrame(frame);
         frame = requestAnimationFrame(function () { aim(x, y); });
       });
       hero.addEventListener('pointerleave', function () {
         cancelAnimationFrame(frame);
-        stage.classList.remove('live');
+        stage.classList.remove('tilting');
         stage.style.setProperty('--ty', '0deg');
         stage.style.setProperty('--tx', '0deg');
         shot.style.setProperty('--shine', '.5');

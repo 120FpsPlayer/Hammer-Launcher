@@ -185,7 +185,7 @@ a:hover { color: var(--gold); }
    and lifts it with the scroll (--sp); without the script it just stands at an angle. */
 .stage { position: relative; perspective: 1700px; perspective-origin: 40% 40%; }
 .stage-3d { position: relative; transform-style: preserve-3d; transform: rotateY(calc(-13deg + var(--ty, 0deg))) rotateX(calc(6deg + var(--tx, 0deg) + var(--sp, 0) * 8deg)); transition: transform .9s var(--ease); }
-.stage-3d.live { transition: transform .18s linear; }
+.stage-3d.tilting { transition: transform .18s linear; }
 .stage-glow { position: absolute; inset: 6% -4% -6%; background: radial-gradient(50% 50% at 50% 50%, rgba(255, 130, 40, .42), transparent 70%); filter: blur(46px); transform: translateZ(-90px); pointer-events: none; }
 .shot { position: relative; margin: 0; padding: 1px; border-radius: var(--r2); background: linear-gradient(180deg, rgba(255, 214, 170, .42), rgba(255, 170, 90, .1) 35%, rgba(255, 255, 255, .05)); box-shadow: 0 26px 70px -24px rgba(0, 0, 0, .85), 0 0 0 1px rgba(0, 0, 0, .55); }
 .shot img, .shot video { display: block; width: 100%; height: auto; border-radius: calc(var(--r2) - 1px); background: #0e0b09; }
