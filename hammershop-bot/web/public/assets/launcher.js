@@ -664,10 +664,13 @@
      * just been swapped (and gets cut short by it).
      */
     var jumpTo = function (target) {
-      root.style.scrollBehavior = 'auto';
-      if (target) target.scrollIntoView();
-      else window.scrollTo(0, 0);
-      root.style.scrollBehavior = '';
+      try {
+        if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' });
+        else window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch (e) { // a browser that does not know these options
+        if (target) target.scrollIntoView();
+        else window.scrollTo(0, 0);
+      }
     };
     /** The address of a part (the first one is the page itself) or of something inside one. */
     var addressOf = function (part, id) { return location.pathname + location.search + (id === part.id && part === parts[0] ? '' : '#' + id); };
@@ -706,23 +709,20 @@
       jumpTo(null); // from further down the page: up to the switcher and the start of the part
       partTabs[parts.indexOf(part)].focus({ preventScroll: true });
     });
-    // Back, Forward, or a # typed into the address: the part the address names now.
-    var follow = function (scroll) {
+    // Back, Forward, or a # typed into the address (a browser tells about each with popstate, hashchange or both): the
+    // part the address names now. Where the page stands is the browser's business – it restores the place on Back and
+    // Forward and goes to what a new # names – except for something inside a part that was closed until now: it was
+    // not on the screen for the browser to go to.
+    var follow = function () {
       var id = location.hash.slice(1);
       var target = id ? $(id) : null;
       var part = partOf(id);
       var changed = root.getAttribute('data-part') !== part.id;
       showPart(part);
-      if (!scroll || !changed) return;
-      jumpTo(target && target !== part ? target : null);
+      if (changed && target && target !== part) jumpTo(target);
     };
-    var viaHistory = false; // Back and Forward restore their own scroll position – only a new address scrolls
-    window.addEventListener('popstate', function () {
-      viaHistory = true;
-      follow(false);
-      setTimeout(function () { viaHistory = false; }, 0);
-    });
-    window.addEventListener('hashchange', function () { if (!viaHistory) follow(true); });
+    window.addEventListener('popstate', follow);
+    window.addEventListener('hashchange', follow);
     // The start: what the head script chose (it knows the three parts), or the part that holds what the # names.
     var startId = location.hash.slice(1);
     var startPart = startId ? partOf(startId) : $(root.getAttribute('data-part')) || parts[0];
