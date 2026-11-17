@@ -12,6 +12,7 @@ const { readJson, writeJson } = require('./store');
 const { download, safeName, sha1File } = require('./net');
 const { pickVersion, primaryFile, loadersFor } = require('./modrinth');
 const { readJarMeta } = require('./jarmeta');
+const { fileReason } = require('./fsutil');
 
 const DIRS = { mod: 'mods', resourcepack: 'resourcepacks', shader: 'shaderpacks' };
 const EXT = { mod: ['.jar'], resourcepack: ['.zip'], shader: ['.zip'] };
@@ -126,9 +127,24 @@ function createContent({ modrinth, fetchFn }) {
     else removeFile(instance, old.type, old.file);
   }
 
+  /**
+   * One change to a content file. On Windows a running game keeps its mods' .jar files open, so switching one off or
+   * removing it is refused – said in Polish with what to do, instead of a raw EBUSY / EPERM.
+   */
+  function onFile(what, name, fn) {
+    try {
+      return fn();
+    } catch (err) {
+      if (typeof err?.code !== 'string') throw err;
+      throw new Error(`${what} „${name}”: ${fileReason(err)}. Jeśli gra jest włączona, zamknij ją i spróbuj ponownie.`, { cause: err });
+    }
+  }
+
   function removeFile(instance, type, name) {
     const dir = folder(instance, type);
-    for (const f of [name, `${name}.disabled`]) fs.rmSync(path.join(dir, safeName(f)), { force: true });
+    onFile('Nie udało się usunąć pliku', name, () => {
+      for (const f of [name, `${name}.disabled`]) fs.rmSync(path.join(dir, safeName(f)), { force: true });
+    });
     const idx = loadIndex(instance);
     delete idx[type][name];
     saveIndex(instance, idx);
@@ -183,8 +199,10 @@ function createContent({ modrinth, fetchFn }) {
     const dir = folder(instance, type);
     const on = path.join(dir, safeName(name));
     const off = `${on}.disabled`;
-    if (enabled && fs.existsSync(off)) fs.renameSync(off, on);
-    if (!enabled && fs.existsSync(on)) fs.renameSync(on, off);
+    onFile(enabled ? 'Nie udało się włączyć pliku' : 'Nie udało się wyłączyć pliku', name, () => {
+      if (enabled && fs.existsSync(off)) fs.renameSync(off, on);
+      if (!enabled && fs.existsSync(on)) fs.renameSync(on, off);
+    });
     return true;
   }
 

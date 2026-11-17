@@ -511,7 +511,7 @@ async function deliverPlus(order) {
     setDelivery(order, {
       plus: { ...p, grantDays: days, grantedAt: now, exp: record.exp, codeId: record.id }, // the website shows this same code again
       delivered: true,
-      delivery: `Kod Hammer+ dla konta ${record.nick} jest gotowy – znajdziesz go na stronie launchera (sekcja Hammer+) i w wiadomości prywatnej na Discordzie. Wpisz go w Hammer Launcherze: Hammer+ → „Mam kod”.`,
+      delivery: `Kod Hammer+ dla konta ${record.nick} jest gotowy – znajdziesz go na stronie launchera (strona Hammer+) i w wiadomości prywatnej na Discordzie. Wpisz go w Hammer Launcherze: Hammer+ → „Mam kod”.`,
     });
     const roleState = guild ? await require('./plusrole').sync(guild, order.userId).catch(() => 'failed') : null; // 💎 Hammer+ role
     const user = await client?.users?.fetch?.(order.userId).catch(() => null);

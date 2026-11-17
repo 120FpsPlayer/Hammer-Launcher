@@ -1708,6 +1708,7 @@
     { "re": "^Nie ma takiej wersji Minecrafta: (.*?)$", "en": "No such Minecraft version: $1" },
     { "re": "^Ścieżka poza folderem instancji: (.*?)$", "en": "Path outside the instance folder: $1" },
     { "re": "^Nie udało się skopiować świata „(.*?)”$", "en": "Could not copy the world “$1”" },
+    { "re": "^Nie udało się skopiować świata „(.*?)”: (.+)$", "en": "Could not copy the world “$1”: $2", "as": { "2": "t" } },
     { "re": "^Nie ma już pliku (.*?) – odśwież listę\\.$", "en": "The file $1 no longer exists – refresh the list." },
     { "re": "^Plik (.+) trafi do kosza systemowego\\.$", "en": "The file $1 goes to the system trash." },
     { "re": "^„(.*?)” zostanie usunięty z instancji\\.$", "en": "“$1” will be removed from the instance." },

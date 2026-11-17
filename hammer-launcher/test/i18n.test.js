@@ -208,6 +208,46 @@ test('texts put together from parts: " · ", sentences, a name with a dash, quot
   for (const text of ['Survival z ekipą', 'HammerShop – survival, skyblock i eventy co weekend!', '[12:41:02] [main/INFO]: Loading 38 mods:', 'C:\\Users\\Gracz\\AppData\\Roaming\\.hammer-launcher', '1.21.1', '41%', 'sodium-fabric-0.6.5+mc1.21.4.jar']) assert.equal(en.t(text), null, text);
 });
 
+test('a file operation that failed: the reason that ends the sentence is translated too – every operation, every reason', async () => {
+  const { explained, fileReason } = require('../src/main/fsutil');
+  const CODES = ['ENOSPC', 'EACCES', 'EPERM', 'EBUSY', 'ENOENT', 'EEXIST', 'EROFS', 'EMFILE', 'Z_DATA_ERROR'];
+  const said = (what, code) => explained(what, () => Promise.reject(Object.assign(new Error('x'), { code }))).then(() => assert.fail('explained() passes the error on'), (err) => err.message);
+  // The sentence as the main process makes it, and as the English window shows it.
+  const full = await said('Nie udało się zrobić kopii zapasowej', 'ENOSPC');
+  assert.equal(full, 'Nie udało się zrobić kopii zapasowej: na dysku zabrakło miejsca.');
+  assert.equal(en.t(full), 'Could not make the backup: the disk is full.');
+  assert.equal(en.t('Nie udało się skopiować instancji: plik jest używany przez inny program.'), 'Could not copy the instance: the file is in use by another program.');
+  // (a long folder name in front of the reason)
+  assert.equal(en.t('Nie udało się skopiować świata „Nowy świat z oficjalnego Minecrafta (2)”: taki plik już istnieje.'), 'Could not copy the world “Nowy świat z oficjalnego Minecrafta (2)”: such a file already exists.');
+  // Every operation the main process explains this way – read from its code, so a new one is checked as well.
+  const operations = new Set();
+  for (const file of jsFiles(path.join(ROOT, 'src', 'main'))) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const m of source.matchAll(/\bexplained\(\s*(['`])((?:(?!\1).)+)\1/g)) operations.add(m[2]);
+    for (const m of source.matchAll(/`([^`$]+): \$\{fileReason\([^)]*\)\}\.`/g)) operations.add(m[1]);
+  }
+  assert.ok(operations.size >= 7 && operations.has('Nie udało się skopiować instancji') && operations.has('Nie udało się przywrócić świata'), [...operations].join(' | '));
+  for (const operation of operations) {
+    for (const code of CODES) {
+      const text = `${operation.replace(/\$\{[^}]+\}/g, 'New World')}: ${fileReason({ code })}.`;
+      const english = en.t(text);
+      assert.ok(english != null && !POLISH.test(english), `"${text}" → ${english}`);
+    }
+  }
+  // The same reasons inside the two sentences about mod updates.
+  for (const code of CODES) {
+    for (const text of [`Sodium zostaje w starej wersji: nie udało się podmienić pliku – ${fileReason({ code })}.`, `Nie udało się cofnąć całej aktualizacji: ${fileReason({ code })}. Zamknij programy, które mogą używać tych plików, i spróbuj ponownie.`]) {
+      const english = en.t(text);
+      assert.ok(english != null && !POLISH.test(english), `"${text}" → ${english}`);
+    }
+  }
+  // A system message the launcher has no words for stays as the system said it.
+  assert.equal(en.t('Nie udało się usunąć świata: EIO: i/o error, unlink.'), 'Could not delete the world: EIO: i/o error, unlink.');
+  // The full stop is only set aside inside the launcher's own sentences – a text of its own is never touched.
+  assert.equal(en.t('Graj.'), null);
+  assert.equal(en.t('Świat „Graj.” jest w koszu.'), 'The world “Graj.” is in the trash.');
+});
+
 test('a text that reads differently in another place has a context', () => {
   assert.equal(en.t('Zestawy'), 'Bundles');
   assert.equal(en.t('Zestawy', '.skin-page'), 'Outfits');

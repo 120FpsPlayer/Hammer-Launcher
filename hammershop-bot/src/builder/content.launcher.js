@@ -190,7 +190,7 @@ function faq(x) {
     ['Gra nie startuje albo się wysypuje', `Otwórz w launcherze **Konsola → Udostępnij log** i wyślij nam link w tickecie **Pomoc z launcherem** na ${x.ch('tickets')}. Podaj wersję Minecrafta i listę modów.`],
     ['Jak zwiększyć FPS?', 'Zakładka **Optymalizacja** → **Zoptymalizuj wszystko**. Launcher dobierze pamięć, ustawienia Javy i mody wydajnościowe. Wynik sprawdzisz **Testem FPS**.'],
     ['Co daje Hammer+ i jak go aktywować?', `Wygląd i wygodę – bez przewagi w grze. Wszystko opisaliśmy na ${x.ch('plus')}. Kod wpisujesz w launcherze: **Hammer+ → „Mam kod”**.`],
-    ['Jak dostać Hammer+ za darmo?', 'Zaproś znajomych: na stronie launchera (sekcja **Zaproś znajomego**) masz swój link. Za każdego znajomego, który pobierze z niego launcher i kupi Hammer+, dostajesz **+7 dni Hammer+**.'],
+    ['Jak dostać Hammer+ za darmo?', 'Zaproś znajomych: na stronie launchera (strona **Polecaj**) masz swój link. Za każdego znajomego, który pobierze z niego launcher i kupi Hammer+, dostajesz **+7 dni Hammer+**.'],
     ['Mam pomysł na nową funkcję', `Super – napisz go na ${x.ch('suggestions')}. Czytamy wszystkie.`],
     require('../tickets/typestate').isOff(x.guild.id, config.getType('apply'))
       ? ['Czy mogę dołączyć do zespołu?', `Teraz nie prowadzimy rekrutacji. Gdy ruszy, ogłosimy to na ${x.ch('announcements')}.`]

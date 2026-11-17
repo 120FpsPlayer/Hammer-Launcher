@@ -18,6 +18,7 @@ const { fromDataUrl } = require('./skins');
 const { useSystemProxy } = require('./proxy');
 const { officialMinecraftDir } = require('./official');
 const { inviteFromArgs } = require('./invite');
+const { loginItemChange } = require('./autostart');
 const { tr, bootInfo, resolveLanguage } = require('./i18n');
 const { updateSupport, updatesBase } = require('./selfupdate');
 
@@ -95,11 +96,13 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   /** Ustawienia → „Uruchamiaj razem z Windows”: the launcher starts in the tray (--background), with no window. */
-  function applyLoginItem() {
+  function applyLoginItem({ asked = false } = {}) {
     if (!loginItems() || !services) return;
     try {
-      // (The name is the uninstaller's too: build/installer.nsh removes this entry when the launcher is uninstalled.)
-      app.setLoginItemSettings({ openAtLogin: services.settings.get().startWithSystem !== false, path: process.execPath, args: ['--background'], name: 'Hammer Launcher' });
+      // An entry the player switched off in Task Manager stays off – only the launcher's own switch writes it (autostart.js).
+      const item = { path: process.execPath, args: ['--background'] };
+      const change = loginItemChange({ want: services.settings.get().startWithSystem !== false, asked, state: asked ? null : app.getLoginItemSettings(item), execPath: process.execPath });
+      if (change) app.setLoginItemSettings(change);
     } catch {
       // not allowed on this system – the launcher simply starts when the player opens it
     }
@@ -418,7 +421,7 @@ if (!app.requestSingleInstanceLock()) {
     handle('settings:get', () => s().settings.get());
     handle('settings:set', (patch) => {
       const saved = s().settings.set(patch);
-      if (patch && 'startWithSystem' in patch) applyLoginItem();
+      if (patch && 'startWithSystem' in patch) applyLoginItem({ asked: true });
       if (patch && ('closeToTray' in patch || 'language' in patch)) syncTray(); // (the tray menu follows the language at once)
       return saved;
     });
