@@ -35,13 +35,14 @@ jobs:
           cache: npm
           cache-dependency-path: hammer-launcher/package-lock.json
       - run: npm ci
+      # Przed testami: test/renderer.test.js klika po prawdziwym interfejsie w Chromium (bez niego te testy są pomijane).
+      - name: Chromium do testów interfejsu
+        run: for i in 1 2 3; do npx playwright install --with-deps chromium && break; echo "Instalacja Chromium nie powiodła się (próba $i) – ponawiam"; sleep 30; done
       - run: npm test
       - name: Składnia interfejsu
         run: for f in src/renderer/js/*.js src/renderer/views/*.js src/preload.js; do node --check "$f"; done
       - name: Podgląd interfejsu (Chromium, bez błędów w konsoli)
-        run: |
-          for i in 1 2 3; do npx playwright install --with-deps chromium && break; echo "Instalacja Chromium nie powiodła się (próba $i) – ponawiam"; sleep 30; done
-          node scripts/preview.js preview 1
+        run: node scripts/preview.js preview 1
       - name: Podgląd interfejsu po angielsku (bez polskich tekstów na ekranie)
         run: node scripts/preview.js preview-en 1 --lang=en
       # Zrzuty są tylko do obejrzenia – awaria magazynu plików GitHuba nie może zatrzymać budowania instalatora.
