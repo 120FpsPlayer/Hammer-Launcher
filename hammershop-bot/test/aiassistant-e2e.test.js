@@ -25,9 +25,7 @@ const FORMS = {
   bug: [['Co nie działa?', 'Edytor HUD'], ['Wersja launchera i Minecrafta', '2.6.0'], ['Jak wywołać błąd – krok po kroku', '1. otwieram edytor 2. zapisuję']],
   plus: [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'Kod nie działa']],
   reward: [['Który giveaway wygrałeś/aś?', 'Hammer+ 30 dni'], ['Twój nick w Minecraft', 'Steve']],
-  report: [['Kogo zgłaszasz? (nick / ID)', 'Oszust123'], ['Co się stało?', 'Oszukał mnie na wymianie']],
   apply: [['Ile masz lat?', '17'], ['W czym chcesz pomagać?', 'Support'], ['Doświadczenie', 'Moderowałem serwer'], ['Dlaczego mamy wybrać właśnie Ciebie?', 'Bo lubię pomagać']],
-  appeal: [['Jaka to kara i kiedy ją nałożono?', 'Wyciszenie na 7 dni, wczoraj'], ['Dlaczego powinniśmy ją zdjąć?', 'To była pomyłka']],
 };
 const TOOLS = { reward: ['moje_wygrane', 'odbierz_nagrode', 'wezwij_zespol'], other: ['wezwij_zespol', 'info_launchera'] };
 

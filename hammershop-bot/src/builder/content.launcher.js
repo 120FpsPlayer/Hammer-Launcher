@@ -60,7 +60,7 @@ function information(x, build) {
         `> ${x.ch('rules')} – zasady serwera i launchera\n> ${x.ch('announcements')} – oficjalne ogłoszenia\n> ${x.ch('roles')} – role i powiadomienia\n` +
         `### ${x.E('rocket')} Launcher\n` +
         `> ${x.ch('launcher')} – pobierz launcher\n> ${x.ch('updates')} – nowe wersje i lista zmian\n> ${x.ch('news')} – aktualności, które widać też w launcherze\n` +
-        `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n` +
+        `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n> ${x.ch('hammershop')} – HammerShop, nasz współtwórca\n` +
         `### ${x.E('ticket')} Pomoc\n` +
         `> ${x.ch('tickets')} – otwórz ticket\n> ${x.ch('bugs')} – jak zgłosić błąd\n> ${x.ch('suggestions')} – Twoje pomysły na nowe funkcje\n` +
         `### ${x.E('chat')} Społeczność\n` +
@@ -87,10 +87,13 @@ function information(x, build) {
       `# ${x.E('mail')} Kontakt\nNajszybciej skontaktujesz się z nami przez ticket na ${x.ch('tickets')} – prywatny kanał z naszym zespołem.\n` +
         `> ${x.E('question')} **Launcher nie działa?** → ticket **Pomoc z launcherem**\n> ${x.E('warning')} **Znalazłeś błąd?** → ticket **Zgłoś błąd** (jak: ${x.ch('bugs')})\n` +
         `> ${x.E('star')} **Pytanie o Hammer+?** → ticket **Hammer+ i płatności**\n` +
+        (config.contact?.email ? `> ${x.E('mail')} **Wolisz e-mail?** → **${config.contact.email}**${site() ? ' albo formularz na naszej stronie' : ''}\n` : '') +
         `-# ${config.shop.supportHours ? `Godziny pracy: ${config.shop.supportHours}` : ''}`,
     ),
   );
-  contact.addActionRowComponents(buttons(open(x, 'support', 'Napisz do pomocy', 'mail', ButtonStyle.Primary), x.link('tickets', 'Wszystkie rodzaje ticketów', 'ticket')));
+  contact.addActionRowComponents(
+    buttons(open(x, 'support', 'Napisz do pomocy', 'mail', ButtonStyle.Primary), x.link('tickets', 'Wszystkie rodzaje ticketów', 'ticket'), site() && config.contact?.email ? linkBtn(`${site()}/kontakt`, 'Kontakt na stronie', ce(x.guild, 'mail')) : null),
+  );
 
   // Rekrutacja switched off with /tickety: the card says so and its button is grey.
   const hiringOff = require('../tickets/typestate').isOff(x.guild.id, config.getType('apply'));
@@ -189,7 +192,9 @@ function faq(x) {
     ['Co daje Hammer+ i jak go aktywować?', `Wygląd i wygodę – bez przewagi w grze. Wszystko opisaliśmy na ${x.ch('plus')}. Kod wpisujesz w launcherze: **Hammer+ → „Mam kod”**.`],
     ['Jak dostać Hammer+ za darmo?', 'Zaproś znajomych: na stronie launchera (sekcja **Zaproś znajomego**) masz swój link. Za każdego znajomego, który pobierze z niego launcher i kupi Hammer+, dostajesz **+7 dni Hammer+**.'],
     ['Mam pomysł na nową funkcję', `Super – napisz go na ${x.ch('suggestions')}. Czytamy wszystkie.`],
-    ['Czy mogę dołączyć do zespołu?', `Jasne – otwórz ticket **Rekrutacja** na ${x.ch('tickets')}.`],
+    require('../tickets/typestate').isOff(x.guild.id, config.getType('apply'))
+      ? ['Czy mogę dołączyć do zespołu?', `Teraz nie prowadzimy rekrutacji. Gdy ruszy, ogłosimy to na ${x.ch('announcements')}.`]
+      : ['Czy mogę dołączyć do zespołu?', `Jasne – otwórz ticket **Rekrutacja** na ${x.ch('tickets')}.`],
   ];
   const c = container(COLORS.brand);
   header(c, `# ${x.E('question')} Najczęściej zadawane pytania\nNie ma tu Twojego pytania? Otwórz ticket na ${x.ch('tickets')}.`, x.icon);
@@ -254,6 +259,42 @@ function boosters(x) {
   return card(c);
 }
 
+/** #hammershop – our co-creator's own channel (config.launcher.json → partner: name, url, discord invite). */
+function hammershop(x) {
+  const p = config.partner ?? {};
+  const name = p.name || 'HammerShop';
+  const c = container(COLORS.brand);
+  c.addTextDisplayComponents(
+    text(
+      `# 🤝 ${name} – współtwórca ${x.brand}\n` +
+        `**${name}** współtworzy ${x.brand} – razem budujemy launcher, z którego korzystasz. ` +
+        'Na co dzień to sklep dla wszystkich, którzy prowadzą własny serwer Minecraft albo Discord.',
+    ),
+  );
+  c.addSeparatorComponents(divider());
+  c.addTextDisplayComponents(
+    text(
+      `### ${x.E('cart')} Co znajdziesz w ${name}\n` +
+        `> ${x.E('box')} **Pluginy** – gotowe dodatki na serwer Minecraft\n` +
+        `> ${x.E('gear')} **Skrypty** – automaty, które robią robotę za Ciebie\n` +
+        `> ${x.E('chat')} **Boty Discord** – dla Twojej społeczności\n` +
+        `> ${x.E('rocket')} **Serwery** – i wiele więcej, oferta ciągle rośnie`,
+    ),
+  );
+  c.addSeparatorComponents(divider());
+  c.addTextDisplayComponents(
+    text(
+      `### ${x.E('info')} Kto za co odpowiada\n` +
+        `> ${x.E('logo')} **${x.brand}**, Hammer Client i Hammer+ – pomagamy tutaj, na ${x.ch('tickets')}\n` +
+        `> ${x.E('cart')} **Zakupy w ${name}** – obsługuje zespół ${name}, u siebie\n` +
+        `-# W launcherze masz skrót do ${name} na ekranie **Graj**.`,
+    ),
+  );
+  const links = [p.url ? linkBtn(p.url, `Odwiedź ${name}`, ce(x.guild, 'cart')) : null, p.discord ? linkBtn(p.discord, `Discord ${name}`, ce(x.guild, 'chat')) : null].filter(Boolean);
+  if (links.length) c.addActionRowComponents(row(...links));
+  return card(c);
+}
+
 function staff(x) {
   const c = container(COLORS.brand);
   c.addTextDisplayComponents(
@@ -304,6 +345,8 @@ function postsFor(key, x, build) {
       return [{ banner: 'giveaways' }, giveaways(x)];
     case 'boosters':
       return [{ banner: 'boosters' }, boosters(x)];
+    case 'hammershop':
+      return [{ banner: 'hammershop' }, hammershop(x)];
     case 'staff':
       return [{ banner: 'staff' }, staff(x)];
     default:

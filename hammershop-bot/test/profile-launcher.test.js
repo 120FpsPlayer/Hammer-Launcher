@@ -84,7 +84,7 @@ test('the profile: its own name, logo, rules and ticket types laid over the shop
   assert.equal(config.brand.name, 'Hammer Launcher');
   assert.equal(config.server.logo, 'launcher');
   assert.equal(config.rules.file, 'regulamin-launcher.md');
-  assert.deepEqual(config.ticketTypes.map((t) => t.id), ['order', 'support', 'bug', 'plus', 'reward', 'report', 'apply', 'appeal']);
+  assert.deepEqual(config.ticketTypes.map((t) => t.id), ['order', 'support', 'bug', 'plus', 'reward', 'apply']);
   assert.equal(config.getType('order').shopOnly, true);
   // What only a shop needs is off; the rest keeps the shop's well-tried settings.
   for (const key of ['shopStatus', 'salesReport', 'welcomeDiscount', 'promos', 'affiliates', 'balance', 'gifts', 'cart', 'deals', 'abandonedOrders']) assert.equal(Boolean(config[key].enabled), false, key);
@@ -96,11 +96,11 @@ test('the profile: its own name, logo, rules and ticket types laid over the shop
 test('/build makes the Hammer Launcher server: its name, its mark as the icon, its own channels and roles – no shop', () => {
   assert.equal(guild.name, 'Hammer Launcher');
   assert.equal(path.basename(guild.iconSet), 'logo-launcher.png');
-  for (const key of ['verify', 'rules', 'welcome', 'information', 'announcements', 'roles', 'launcher', 'updates', 'news', 'plus', 'faq', 'tickets', 'bugs', 'suggestions', 'chat', 'servers', 'giveaways', 'leaderboard', 'boosters', 'statMembers', 'statVersion', 'statDownloads', 'ticketLogs', 'backups']) {
+  for (const key of ['verify', 'rules', 'welcome', 'information', 'announcements', 'roles', 'launcher', 'updates', 'news', 'plus', 'faq', 'hammershop', 'tickets', 'bugs', 'suggestions', 'chat', 'servers', 'giveaways', 'leaderboard', 'boosters', 'statMembers', 'statVersion', 'statDownloads', 'ticketLogs', 'backups']) {
     assert.ok(channel(key), `#${key}`);
   }
   for (const key of ['shop', 'howToBuy', 'payments', 'restocks', 'vouches', 'proofs', 'sales', 'statShop', 'statVouches']) assert.equal(db.channelId(guild.id, key), null, `no #${key}`);
-  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 32);
+  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 33);
   // No #zrzuty-ekranu; the download channel has the 📥 tray; #czat and #serwery are for talking – no bot cards there.
   assert.equal(db.channelId(guild.id, 'screenshots'), null, 'no #zrzuty-ekranu');
   assert.match(channel('launcher').name, /📥/);
@@ -147,7 +147,15 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
   assert.match(channelText('roles'), /Aktualizacje\*\* – każda nowa wersja launchera/);
   assert.doesNotMatch(channelText('roles'), /Dostawy|Klient/);
 
-  const all = everything();
+  // HammerShop is named only as our co-creator: on its own channel (#hammershop) and in the channel guide's line about it.
+  assert.match(channelText('hammershop'), /HammerShop – współtwórca Hammer Launcher[\s\S]*Pluginy/);
+  assert.deepEqual(files('hammershop'), ['hammerlauncher-hammershop.png']);
+  const partner = channel('hammershop').id;
+  const all = [...guild.channels.cache.values()]
+    .filter((c) => c.id !== partner)
+    .map((c) => (c.messageList ?? []).map((m) => textOf(m.body)).join('\n'))
+    .join('\n')
+    .replace(/<#\d+> – HammerShop, nasz współtwórca/, '');
   for (const shopWord of [/HammerShop/, /PaysafeCard/, /\bSklep\b/, /Kup\*\*/, /opini[eę]/i, /koszyk/i, /saldo/i]) assert.doesNotMatch(all, shopWord);
 });
 

@@ -102,7 +102,7 @@ const BANNER_ALT = {
   payments: 'Płatności', products: 'Produkty', proofs: 'Realizacje', purchase: 'Zakup', restocks: 'Dostawy', reviews: 'Opinie',
   roles: 'Role', rules: 'Regulamin', shop: 'Sklep', staff: 'Zespół', support: 'Pomoc', tickets: 'Tickety', updates: 'Aktualizacje',
   verification: 'Weryfikacja', vip: 'VIP', vouches: 'Opinie', welcome: 'Powitanie', 'whats-new': 'Nowości',
-  launcher: 'Pobierz', plus: 'Hammer+', bugs: 'Zgłoś błąd', suggestions: 'Propozycje', servers: 'Serwery',
+  launcher: 'Pobierz', plus: 'Hammer+', bugs: 'Zgłoś błąd', suggestions: 'Propozycje', servers: 'Serwery', hammershop: 'HammerShop',
 };
 
 /** A banner image as an attachment (posted above channel cards). */

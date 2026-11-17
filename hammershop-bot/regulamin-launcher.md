@@ -17,7 +17,7 @@
   To solidny wzór, ale nie porada prawna.
 -->
 # 📜 Regulamin {brand}
--# Wersja 1.0 · obowiązuje od 12.11.2026 · serwer Discord i launcher {brand}
+-# Wersja 1.1 · obowiązuje od 17.11.2026 · serwer Discord i launcher {brand}
 
 To zasady naszego serwera Discord i korzystania z **{brand}**. Będąc tutaj albo używając launchera, akceptujesz ten regulamin oraz [Zasady społeczności Discorda](https://discord.com/guidelines).
 
@@ -58,7 +58,7 @@ To zasady naszego serwera Discord i korzystania z **{brand}**. Będąc tutaj alb
 ## {e:warning} §6 · Kary
 > **6.1** Za łamanie regulaminu grozi: ostrzeżenie, wyciszenie, wyrzucenie albo ban – zależnie od tego, co się stało i czy to pierwszy raz.
 > **6.2** Za oszustwa, cheaty, groźby i ataki na serwer albo launcher ban jest natychmiastowy.
-> **6.3** Od kary możesz się odwołać ticketem **Odwołanie od kary**. Omijanie bana drugim kontem kończy się banem obu kont.
+> **6.3** Od kary możesz się odwołać: napisz ticket **Pomoc z launcherem**, a gdy nie masz już dostępu do serwera – skorzystaj z kontaktu na naszej stronie. Omijanie bana drugim kontem kończy się banem obu kont.
 > **6.4** O sprawach, których regulamin nie opisuje, decyduje zespół – kierując się zdrowym rozsądkiem.
 
 ## {e:lock_locked} §7 · Prywatność

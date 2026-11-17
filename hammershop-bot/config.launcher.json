@@ -12,6 +12,14 @@
   "rules": {
     "file": "regulamin-launcher.md"
   },
+  "contact": {
+    "email": "hammerlauncherclient@gmail.com"
+  },
+  "partner": {
+    "name": "HammerShop",
+    "url": "https://hammershop.pl",
+    "discord": ""
+  },
   "shop": {
     "deliveryTime": "",
     "paymentMethods": []
@@ -94,19 +102,6 @@
       ]
     },
     {
-      "id": "report",
-      "label": "Zgłoś użytkownika",
-      "emoji": "🚨",
-      "icon": "warning",
-      "description": "Zgłoś oszusta albo kogoś, kto łamie zasady",
-      "channelPrefix": "zgloszenie",
-      "staffRoles": [],
-      "questions": [
-        { "id": "who", "label": "Kogo zgłaszasz? (nick / ID)", "style": "short", "placeholder": "Nick albo ID użytkownika", "required": true, "maxLength": 100 },
-        { "id": "what", "label": "Co się stało?", "style": "paragraph", "placeholder": "Opisz sytuację i dodaj linki do zrzutów ekranu.", "required": true, "maxLength": 1000 }
-      ]
-    },
-    {
       "id": "apply",
       "disabled": true,
       "label": "Rekrutacja",
@@ -121,19 +116,6 @@
         { "id": "experience", "label": "Doświadczenie", "style": "paragraph", "placeholder": "Co już robiłeś/aś na innych serwerach albo w projektach?", "required": true, "maxLength": 1000 },
         { "id": "why", "label": "Dlaczego mamy wybrać właśnie Ciebie?", "style": "paragraph", "placeholder": "Kilka zdań o sobie.", "required": true, "maxLength": 1000 }
       ]
-    },
-    {
-      "id": "appeal",
-      "label": "Odwołanie od kary",
-      "emoji": "🙏",
-      "icon": "info",
-      "description": "Odwołaj się od wyciszenia, przerwy lub ostrzeżenia",
-      "channelPrefix": "odwolanie",
-      "staffRoles": [],
-      "questions": [
-        { "id": "what", "label": "Jaka to kara i kiedy ją nałożono?", "style": "short", "placeholder": "Np. wyciszenie na 7 dni, 10.11", "required": true, "maxLength": 200 },
-        { "id": "why", "label": "Dlaczego powinniśmy ją zdjąć?", "style": "paragraph", "placeholder": "Opisz swoją wersję.", "required": true, "maxLength": 1000 }
-      ]
     }
   ],
   "snippets": [
@@ -146,6 +128,7 @@
     { "id": "resolved", "name": "✅ Rozwiązane", "content": "Wygląda na to, że sprawa jest załatwiona. Jeśli coś jeszcze nie działa, napisz tutaj – w innym wypadku ticket za chwilę zamkniemy. Miłej gry! 🧡" },
     { "id": "rules", "name": "📜 Regulamin", "content": "Przypominam o naszym regulaminie – znajdziesz go na kanale z regulaminem. Prosimy o trzymanie się zasad." }
   ],
+  "staffReminders": { "enabled": false },
   "shopStatus": { "enabled": false },
   "salesReport": { "enabled": false },
   "welcomeDiscount": { "enabled": false },

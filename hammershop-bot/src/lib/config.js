@@ -15,6 +15,10 @@ const LAUNCHER_PATH = path.join(__dirname, '..', '..', 'config.launcher.json');
  */
 const FEATURE_DEFAULTS = {
   rules: { file: 'regulamin.md', seller: '', email: '' },
+  // The address the website shows on its Kontakt page and that the site's e-mails go to (src/lib/mail.js) – '' = none.
+  contact: { email: '' },
+  // The Hammer Launcher server's co-creator, shown on its own channel (#hammershop): url – its site, discord – an invite ('' = no button).
+  partner: { name: '', url: '', discord: '' },
   chatFilter: { enabled: true, noLinks: ['chat'], allowGifs: true, allowedDomains: [], slurs: 'everywhere', profanity: 'public', extraWords: [], allowedWords: [], strikes: 3, strikeMinutes: 10, timeoutMinutes: 10 },
   orders: { receipts: true, proofs: true, vouchReminderHours: 24, statusDms: true, paymentProofs: true, pinViewers: ['731478953222602822'] },
   badges: { enabled: true, bestsellerMinSales: 3, ratingMinVouches: 2 },

@@ -58,7 +58,7 @@ function fillRules(src, x) {
   const values = {
     brand: config.brand.name,
     seller: String(config.rules?.seller ?? '').trim(),
-    email: String(config.rules?.email ?? '').trim(),
+    email: String(config.rules?.email || config.contact?.email || '').trim(), // the rules' own address, else the site's contact address
     supportHours: config.shop.supportHours ?? '',
     paymentMethods: methods.length ? `> ${methods.map((m) => `${x.E(m.emoji ?? 'card')} **${m.name}**`).join(' · ')}` : '',
   };

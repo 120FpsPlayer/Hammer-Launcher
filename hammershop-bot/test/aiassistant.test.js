@@ -466,13 +466,15 @@ test('the buttons on the first answer: the author calls the team, staff switch i
   assert.equal(aiOf(other.channel).stopped, 'manual');
 });
 
-test('report tickets: the context tells the assistant which kind of ticket it is (it only collects details there)', async () => {
+test('the context tells the assistant which kind of ticket it is; reports and appeals (in any ticket) are only collected for the team', async () => {
   await server();
   const client = fakeClient(say('Dzięki za zgłoszenie – opisz proszę, co się stało i dołącz zrzuty.'));
   assistant.setClient(client);
-  await open('report', [['Kogo zgłaszasz? (nick / ID)', 'Gracz123'], ['Co się stało?', 'Oszukał mnie']]);
-  assert.match(client.calls[0].messages.at(-1).content, /ticket typu report/);
-  assert.match(SYSTEM_PROMPT, /report \(Zgłoś użytkownika\).*Nie oceniaj/);
+  await open('bug', [['Co nie działa?', 'Edytor HUD'], ['Wersja launchera i Minecrafta', '2.11.1'], ['Jak wywołać błąd – krok po kroku', '1. otwieram edytor']]);
+  assert.match(client.calls[0].messages.at(-1).content, /ticket typu bug/);
+  // The launcher server has no „Zgłoś użytkownika” / „Odwołanie od kary” categories – people bring those up in any ticket.
+  assert.match(SYSTEM_PROMPT, /zgłoszenie użytkownika albo odwołanie od kary \(w dowolnym tickecie\).*Nie oceniaj/);
+  assert.doesNotMatch(SYSTEM_PROMPT, /^- (report|appeal) \(/m);
 });
 
 test('giveaway prizes: /giveaway start remembers the Hammer+ length, the draw time counts for the 48 hours, prize texts are read carefully', async () => {

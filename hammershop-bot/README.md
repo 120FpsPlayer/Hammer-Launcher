@@ -24,14 +24,15 @@ Ten sam bot prowadzi dwa różne serwery – który, wybierasz jedną linią w `
 ```
 〔 📊 STATYSTYKI 〕     👥┃ᴄᴢᴌᴏɴᴋᴏᴡɪᴇ: 123 · 🚀┃ᴡᴇʀꜱᴊᴀ: 2.6.0 · 📥┃ᴘᴏʙʀᴀɴɪᴀ: 456      (wersja i pobrania biorą się ze strony)
 〔 👋 WITAMY 〕         ✅┃ᴡᴇʀʏꜰɪᴋᴀᴄᴊᴀ · 📜┃ʀᴇɢᴜʟᴀᴍɪɴ · 👋┃ᴘᴏᴡɪᴛᴀɴɪᴀ · 📌┃ɪɴꜰᴏʀᴍᴀᴄᴊᴇ · 📢┃ᴏɢᴌᴏꜱᴢᴇɴɪᴀ · 🎭┃ʀᴏʟᴇ
-〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ
+〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ · 🤝┃ʜᴀᴍᴍᴇʀꜱʜᴏᴘ
 〔 🎧 POMOC 〕          🎫┃ᴛɪᴄᴋᴇᴛʏ · 🐛┃ᴢɢᴌᴏꜱ-ʙᴌᴀᴅ · 💡┃ᴘʀᴏᴘᴏᴢʏᴄᴊᴇ
 〔 💬 SPOŁECZNOŚĆ 〕    💬┃ᴄᴢᴀᴛ · 🎮┃ꜱᴇʀᴡᴇʀʏ · 🎉┃ɢɪᴠᴇᴀᴡᴀʏᴇ · 🏆┃ʀᴀɴᴋɪɴɢ · 💎┃ʙᴏᴏꜱᴛᴇʀᴢʏ
 〔 🔒 ZESPÓŁ 〕 · 〔 📁 LOGI 〕 · 〔 🎫 TICKETY 〕 · 〔 🔐 ZAMKNIĘTE TICKETY 〕
 ```
 
 - **Role:** 🔨 Hammer Launcher (rola bota), CEO, Co-CEO, **Developer**, Support, potem **Tester**, **💎 Hammer+** (nadaje bot), Boty, Członek oraz powiadomienia: Ogłoszenia, **Aktualizacje** (ping przy nowej wersji) i Giveawaye. Role, kanały i karty usunięte z układu (Manager, Administrator, Moderator, Stażysta, #zrzuty-ekranu, karta na #serwery) znikają po `/zbuduj tylko:update` – tylko te, które utworzył bot. Na #czat i #serwery bot nie wysyła żadnych kart.
-- **Tickety:** *Pomoc z launcherem*, *Zgłoś błąd*, *Hammer+ i płatności*, *Odbierz nagrodę*, *Zgłoś użytkownika*, *Rekrutacja*, *Odwołanie od kary* – z pytaniami o wersję launchera, Minecrafta i log.
+- **Tickety:** *Pomoc z launcherem*, *Zgłoś błąd*, *Hammer+ i płatności*, *Odbierz nagrodę* i *Rekrutacja* (domyślnie wyłączona – `/tickety`) – z pytaniami o wersję launchera, Minecrafta i log. Bot **nie przypomina** tu o nieprzejętych ticketach (`staffReminders.enabled: false` w `config.launcher.json`).
+- **#hammershop:** kanał naszego współtwórcy z jego banerem i kartą (co sprzedaje, kto za co odpowiada, przycisk do jego strony). Nazwę, adres strony i zaproszenie na jego Discorda ustawiasz w `config.launcher.json` → `partner` (`name`, `url`, `discord` – pusty `discord` = bez przycisku). Na zbudowanym serwerze kanał dodaje `/zbuduj tylko:update`. Baner kanału (`assets/banners-launcher/hammershop.png`) to zmniejszony baner HammerShop z `assets/brand/hammershop-pl-banner-wide.png`.
 - **Połączenie ze stroną i launcherem:** nowa wersja opublikowana w panelu admina pojawia się na **#aktualizacje** (z pingiem roli Aktualizacje), aktualność – na **#aktualności**, a kanały statystyk pokazują aktualną wersję i liczbę pobrań. `/launcher` pokazuje kartę launchera z aktualną wersją.
 - **Strona:** adres główny (`PUBLIC_URL`) to **strona launchera** z logo launchera (młot z wokseli) i nazwą Hammer Launcher – pobieranie (po zalogowaniu przez Discorda), aktualności, Hammer+ przez Stripe, program poleceń *Zaproś znajomego*; panel admina jest pod `/admin`.
 - **Te same emotki** co w HammerShop (jedyny wyjątek: emotka logo to młot launchera). Komend sklepu (`/produkt`, `/sklep`, `/promocja`, `/opinia`…) na tym serwerze nie ma, a `/pomoc` mówi o launcherze.
