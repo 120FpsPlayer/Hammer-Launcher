@@ -12,8 +12,9 @@
  *   - Every message: „Cześć! Jestem asystentem AI Hammera.” on the first one only, the answer, the signature line with
  *     the server's logo emoji (src/features/ai/format.js). Never half an answer: cut-off answers keep their complete
  *     sentences, long ones are split into whole messages.
- *   - Before every answer it looks for similar questions in the team's knowledge file (wiedza-asystenta.md,
- *     src/features/ai/knowledge.js) and sends the matches with the request, to be retold in the conversation.
+ *   - Before every answer it looks for similar questions in the team's knowledge – entries added with /wiedza and the
+ *     optional wiedza-asystenta.md (src/features/ai/knowledge.js) – and sends the matches with the request, to be retold
+ *     in the conversation.
  *   - The ticket's author writes → it answers (bursts are waited out – DEBOUNCE – and "typing…" is shown).
  *   - It can check giveaway wins and hand out the prize (Hammer+ codes at once, anything else goes to the team),
  *     tell the current launcher version / Hammer+ prices, and call the team (src/features/ai/tools.js).
@@ -315,7 +316,7 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   }
   if (messages[messages.length - 1].role !== 'user') return null;
   const query = [opening ? formText(ticket) : '', ...fresh.map((t) => t.text)].filter(Boolean).join('\n');
-  const matches = knowledge.find(query);
+  const matches = knowledge.find(query, { guildId: guild.id }); // /wiedza entries and the optional file
   messages.push(contextMessage(ticket, type, !(s.msgIds ?? []).length, knowledge.promptBlock(matches, budget.knowledgeChars)));
   return { messages, newestOwnerId, matches };
 }
@@ -522,6 +523,7 @@ async function answer(channel) {
   if (await sendReply(channel, outcome.text)) {
     answered(); // only now – a reply that never got out leaves the messages unanswered
     noteReply(ticket.ownerId);
+    knowledge.noteUsed(guild.id, convo.matches); // /wiedza lista shows which entries are used at all
   }
 }
 
@@ -960,7 +962,7 @@ function status(guild, channel = null) {
     activeTickets: open.filter((t) => t.ai?.active).length,
     ticket: ticket ? { open: ticket.status === 'open', ...(ticket.ai ?? {}) } : null,
     maxReplies: MAX_REPLIES,
-    knowledge: knowledge.stats(),
+    knowledge: knowledge.stats(guild.id),
   };
 }
 
@@ -1053,9 +1055,9 @@ hooks.route('ai', {
 
 hooks.on('ready', () => {
   if (!profile.launcher) return;
-  // The team's questions and answers: an empty file on the first start (it is not in the bot's package – an update never
-  // overwrites what the team wrote there).
-  if (knowledge.ensure()) console.log(`🤖 Asystent AI: utworzono pusty plik ${path.basename(knowledge.DEFAULT_FILE)} – dopisuj tam pytania i odpowiedzi zespołu (README → „Baza wiedzy asystenta”).`);
+  // The team's questions and answers come from /wiedza; the file is an optional extra – an empty one on the first start
+  // (it is not in the bot's package – an update never overwrites what the team wrote there).
+  if (knowledge.ensure()) console.log(`🤖 Asystent AI: utworzono pusty plik ${path.basename(knowledge.DEFAULT_FILE)} (nieobowiązkowy) – pytania i odpowiedzi zespołu najprościej dodasz komendą /wiedza dodaj.`);
   const p = ai.problem();
   if (p === 'no-key') {
     console.warn('🤖 Asystent AI: brak klucza w .env – asystent w ticketach jest wyłączony. Nagrody z giveawayów odbiera się przyciskami, a „człowiek” woła zespół. Darmowy klucz: GROQ_API_KEY z console.groq.com (README → „Asystent AI w ticketach”).');

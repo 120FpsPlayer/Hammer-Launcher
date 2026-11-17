@@ -1,12 +1,17 @@
 'use strict';
 
 /**
- * The team's own questions and answers for the AI assistant – hammershop-bot/wiedza-asystenta.md, written by hand:
+ * The team's own questions and answers for the AI assistant. Two sources, searched together:
+ *
+ * 1. Entries added on Discord with /wiedza (src/commands/knowledge.js) – kept in the bot's data (data/db.json, per
+ *    server, in the automatic backups), so an update, a hosting panel's editor or a lost tab can't break them. Each
+ *    entry has a few ways of asking (question variants) and one answer.
+ * 2. Optionally hammershop-bot/wiedza-asystenta.md, written by hand – what the team wrote before the command existed:
  *
  *   - Jak zmienić wersję Minecrafta?
  *   	- W launcherze: Instancje → kliknij instancję → Edytuj → Wersja Minecrafta.
  *
- * Before every answer the assistant looks here for questions like the one in the ticket (find()) and sends the best few
+ * Before every answer the assistant looks for questions like the one in the ticket (find()) and sends the best few
  * with the request, so the model can give the team's answer in its own words (src/features/aiassistant.js).
  *
  * The file is edited in Notepad by people who never saw a parser, so reading it is forgiving: "-", "*", "•" or "1."
@@ -15,16 +20,30 @@
  * skipped. It is read again whenever it changes (mtime / size) – no restart. A missing, broken or huge file means "no
  * entries" (said once in the console) – never an error in a ticket.
  *
- * Matching is plain word overlap, Polish-aware: lowercase, letters without diacritics (people type „jak pobrac”),
- * stop-words left out, and words with the same beginning count as one word (wersja / wersję / wersji).
+ * Matching is word overlap, Polish-aware: lowercase, letters without diacritics (people type „jak pobrac”), stop-words
+ * left out, words with the same beginning count as one word (wersja / wersję / wersji), a few true synonyms are one
+ * word (pobrać / ściągnąć), and one typo in a longer word is forgiven (launher). Every variant of an entry is scored on
+ * its own. Guards against matching an unrelated ticket: words every ticket here has (launcher, gra, działa…) weigh
+ * half and can't make a match alone, and a typo never counts unless another word matched exactly.
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
+const db = require('../../lib/db');
+const { UserError } = require('../../lib/utils');
 
 const DEFAULT_FILE = path.join(__dirname, '..', '..', '..', 'wiedza-asystenta.md');
 const MAX_BYTES = 512 * 1024; // a knowledge file is a few KB – anything this big is a mistake (a pasted log?)
 const MIN_SCORE = 0.5; // at least half of a stored question's words must be in the ticket
+// "Clearly fits": three quarters of the stored question is in the ticket (and at least two words of it) – the model is
+// then told to answer from that entry instead of only being shown it.
+const STRONG_SCORE = 0.75;
+
+/**
+ * Limits of the entries added with /wiedza – enough for every question a launcher's team gets, small enough that the
+ * search stays instant and an answer still fits the free plans' request (the block in promptBlock() is capped anyway).
+ */
+const LIMITS = { entries: 300, variants: 10, question: 200, questions: 1000, answer: 1500 };
 
 /**
  * What a new knowledge file starts with: only this comment, no entries. The file itself is not shipped in the bot's
@@ -32,6 +51,9 @@ const MIN_SCORE = 0.5; // at least half of a stored question's words must be in 
  * never overwrite the questions the team wrote.
  */
 const TEMPLATE = `<!--
+Najprościej: pytania i odpowiedzi dodawaj na Discordzie komendą /wiedza dodaj (lista: /wiedza lista,
+sprawdzenie: /wiedza test). Ten plik jest nieobowiązkowy – asystent czyta oba źródła.
+
 Wiedza asystenta AI – pytania i odpowiedzi zespołu. Asystent czyta ten plik przed każdą odpowiedzią w tickecie:
 gdy pytanie w tickecie jest podobne do któregoś z poniższych, przekazuje odpowiedź własnymi słowami.
 Zmiany działają od razu, bez ponownego uruchamiania bota. Ten komentarz na górze pliku
@@ -72,9 +94,31 @@ const STOP = new Set(
   ).split(' '),
 );
 
-/** The words of a text that carry meaning – folded, without stop-words and one-letter leftovers. */
+/**
+ * True synonyms, folded to one word before comparing (by the word's beginning: ściągnąć / ściągam / ściągnięcie). Only
+ * words that always mean the same here – a loose one („wywala” is a crash or a kick) would match tickets about
+ * something else; other phrasings are what an entry's question variants are for.
+ */
+const SYNONYMS = [
+  [['pobra', 'pobier', 'pobior', 'sciag', 'download'], 'pobrac'],
+  [['instal', 'zainstal'], 'instalacja'],
+];
+const EXACT_SYNONYMS = new Map([
+  ['mc', 'minecraft'],
+  ['h+', 'hammer+'],
+  ['hammerplus', 'hammer+'],
+]);
+
+function canonical(word) {
+  if (EXACT_SYNONYMS.has(word)) return EXACT_SYNONYMS.get(word);
+  for (const [stems, to] of SYNONYMS) if (stems.some((s) => word.startsWith(s))) return to;
+  return word;
+}
+
+/** The words of a text that carry meaning – folded, without stop-words and one-letter leftovers, synonyms as one word. */
 function words(text) {
-  return [...new Set(fold(text).split(' ').filter((w) => w.length > 1 && !STOP.has(w)))];
+  const folded = fold(text).replace(/\bhammer ?(?:\+|plus)/g, 'hammer+'); // "Hammer plus", "hammer +"
+  return [...new Set(folded.split(' ').filter((w) => w.length > 1 && !STOP.has(w)).map(canonical))];
 }
 
 const prefix = (a, b) => {
@@ -87,6 +131,63 @@ function same(a, b) {
   if (a === b) return true;
   const p = prefix(a, b);
   return p >= 4 && p >= 0.7 * Math.min(a.length, b.length);
+}
+
+/** a and b differ by exactly one letter typed wrong, missing, added or two swapped (Damerau, ≤ 1) – or not at all. */
+function oneEdit(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  const i = prefix(a, b);
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+
+/**
+ * One typo in a longer word (launher / launcher, minceraft / minecrafta, instlacja). Only words of 6+ letters (short
+ * ones are too often other words one letter apart: wejść / wyjść) that start with the same three letters (Polish
+ * prefixes change the meaning: wyłączyć / włączyć), letters only (1.21.4 vs 1.21.5 is not a typo). The longer word may
+ * go on with another ending (a typo in the stem: launher → launchera).
+ */
+function typo(a, b) {
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  if (s.length < 6 || s.slice(0, 3) !== l.slice(0, 3) || !/^[a-z]+$/.test(s) || !/^[a-z]+$/.test(l)) return false;
+  return oneEdit(s, l) || [s.length - 1, s.length, s.length + 1].some((n) => n >= 6 && n < l.length && oneEdit(s, l.slice(0, n)));
+}
+
+// Words nearly every ticket on a launcher server has – folded beginnings (and the forms of „gra” whole: too short for a
+// beginning). They weigh half and can't make a match on their own, so „launcher nie działa” doesn't pull in every
+// stored question that mentions the launcher.
+const COMMON_STEMS = ['launcher', 'minecraf', 'hammer', 'dzial', 'problem', 'serwer', 'pytani'];
+const COMMON_WORDS = new Set(['gra', 'gry', 'grze', 'gre', 'grac', 'gram', 'grania', 'granie', 'gierka', 'gierki', 'gierke', 'sprawa', 'sprawie', 'sprawy', 'sprawe']);
+const common = (w) => COMMON_WORDS.has(w) || COMMON_STEMS.some((s) => w.startsWith(s));
+
+/**
+ * How well one stored question (its words: own) fits the words of a ticket (asked) → { score, hits, ok, strong }.
+ * score: the stored question's words found in the ticket, by weight (common words count half). ok – the assistant uses
+ * it: score ≥ MIN_SCORE, two words found (one when the question has one), at least one of them exactly (not only by a
+ * typo) and – when the question has any – at least one that is not a common word.
+ */
+function compare(own, asked) {
+  let total = 0;
+  let got = 0;
+  let hits = 0;
+  let exact = 0;
+  let rare = 0;
+  let rareOwn = 0;
+  for (const w of own) {
+    const weight = common(w) ? 0.5 : 1;
+    total += weight;
+    if (weight === 1) rareOwn += 1;
+    const kind = asked.some((a) => same(w, a)) ? 'word' : asked.some((a) => typo(w, a)) ? 'typo' : null;
+    if (!kind) continue;
+    hits += 1;
+    got += weight;
+    if (kind === 'word') exact += 1;
+    if (weight === 1) rare += 1;
+  }
+  const score = total ? got / total : 0;
+  const ok = hits >= Math.min(2, own.length) && score >= MIN_SCORE && exact >= 1 && (rareOwn ? rare >= 1 : own.length >= 2);
+  return { score, hits, ok, strong: ok && hits >= 2 && score >= STRONG_SCORE };
 }
 
 // ───────────── Reading the file ─────────────
@@ -174,60 +275,205 @@ function load() {
   return cache;
 }
 
+/** The file's entries ([{ questions, answer }]) – read again only when it changed. */
 const entries = () => load().entries;
 
+// ───────────── Entries added with /wiedza (the bot's data) ─────────────
+
+/** This server's entries from the command: [{ id, questions, answer, by, at, editedBy, editedAt, uses, usedAt }]. */
+const own = (guildId) => (guildId ? db.guild(guildId).knowledge.entries : []);
+const get = (guildId, id) => own(guildId).find((e) => e.id === id) ?? null;
+
+/** "- Jak pobrać launcher?\n2) Skąd go pobrać?" → one question variant per line, bullets and numbering dropped, repeats once. */
+function splitQuestions(raw) {
+  const seen = new Set();
+  const out = [];
+  for (const line of String(raw ?? '').split(/\r\n|\r|\n/)) {
+    const text = line.replace(/^\s*(?:[-*•+–]|\d{1,3}[.)])\s+/, '').replace(/\s+/g, ' ').trim();
+    const key = fold(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+
+const cut = (text, n) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
+/** What the matcher sees in a question – two questions with the same words are the same question to it. */
+const key = (question) => words(question).sort().join(' ');
+
 /**
- * The entries whose questions are most like `query` → [{ question, answer, score }], best first: at most `limit`, each
- * with a score ≥ MIN_SCORE (the share of the stored question's words found in the query) and at least two shared words
- * (one, when the stored question has only one).
+ * The form's two fields → { questions, answer, notes } ready to save – or a UserError that says what to fix. id: the
+ * entry being edited (its own questions are no duplicates). notes: hints that don't stop saving.
  */
-function find(query, { limit = 3 } = {}) {
+function check(guildId, { questions: rawQuestions, answer: rawAnswer }, id = null) {
+  const { slash } = require('../../lib/commandsPl'); // here – only the messages need it
+  const questions = splitQuestions(rawQuestions);
+  const answer = String(rawAnswer ?? '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!questions.length) throw new UserError('Wpisz pytanie – chociaż jedno.');
+  if (questions.length > LIMITS.variants) throw new UserError(`Najwyżej ${LIMITS.variants} wersji pytania w jednym wpisie (masz ${questions.length}). Resztę dodaj jako osobny wpis.`);
+  if (questions.join('\n').length > LIMITS.questions) throw new UserError(`Pytania są za długie – razem najwyżej ${LIMITS.questions} znaków.`);
+  const long = questions.find((q) => q.length > LIMITS.question);
+  if (long) throw new UserError(`Pytanie „${cut(long, 60)}” jest za długie – najwyżej ${LIMITS.question} znaków. Każdą wersję pytania wpisz w osobnej linii.`);
+  for (const q of questions) {
+    const w = words(q);
+    if (!w.length) throw new UserError(`„${cut(q, 80)}” to same ogólne słowa – asystent nie rozpozna po nich, o co chodzi. Napisz całe pytanie, np. „Jak zmienić wersję Minecrafta?”.`);
+    if (w.length === 1 && common(w[0])) throw new UserError(`„${cut(q, 80)}” to za mało – takie słowo jest w prawie każdym tickecie. Napisz całe pytanie, np. „Jak zaktualizować launcher?”.`);
+  }
+  if (!answer) throw new UserError('Wpisz odpowiedź.');
+  if (answer.length > LIMITS.answer) throw new UserError(`Odpowiedź jest za długa (${answer.length} znaków) – najwyżej ${LIMITS.answer}. Napisz ją krócej albo podziel na dwa wpisy.`);
+  // The same question in two entries would make them fight over one ticket.
+  const mine = new Map(questions.map((q) => [key(q), q]));
+  for (const e of own(guildId)) {
+    if (e.id === id) continue;
+    const twin = e.questions.find((q) => mine.has(key(q)));
+    if (!twin) continue;
+    const q = mine.get(key(twin));
+    const what = fold(q) === fold(twin) ? `Pytanie „${cut(q, 80)}” jest już` : `Pytanie „${cut(q, 80)}” asystent rozumie tak samo jak „${cut(twin, 80)}”`;
+    throw new UserError(`${what} we wpisie #${e.id}. Popraw tamten wpis: \`${slash('knowledge edit')} numer:${e.id}\`.`);
+  }
+  const notes = questions
+    .filter((q) => words(q).length === 1)
+    .map((q) => `„${cut(q, 60)}” ma tylko jedno ważne słowo – asystent użyje tej odpowiedzi w każdym tickecie, w którym ono padnie. Jeśli to za szeroko, napisz całe pytanie.`);
+  return { questions, answer, notes };
+}
+
+/** A UserError when the server has LIMITS.entries entries already – said before the form opens and again on saving. */
+function assertRoom(guildId) {
+  if (own(guildId).length < LIMITS.entries) return;
+  const { slash } = require('../../lib/commandsPl');
+  throw new UserError(`Baza wiedzy ma już ${LIMITS.entries} wpisów – to limit. Usuń te, których nikt już nie potrzebuje (\`${slash('knowledge remove')}\`), albo połącz podobne w jeden wpis.`);
+}
+
+/** A new entry → { entry, notes }. by: who added it (user ID). */
+function add(guildId, fields, by = null) {
+  assertRoom(guildId);
+  const kb = db.guild(guildId).knowledge;
+  const { questions, answer, notes } = check(guildId, fields);
+  // Numbers are never reused – #12 in an old log is always the same entry.
+  kb.seq = Math.max(kb.seq ?? 0, ...kb.entries.map((e) => e.id)) + 1;
+  const entry = { id: kb.seq, questions, answer, by, at: Date.now(), editedBy: null, editedAt: null, uses: 0, usedAt: null };
+  kb.entries.push(entry);
+  db.save();
+  return { entry, notes };
+}
+
+/** The entry with new questions and answer → { entry, notes }. */
+function update(guildId, id, fields, by = null) {
+  const entry = get(guildId, id);
+  if (!entry) throw new UserError(`Nie ma już wpisu #${id} – ktoś go usunął w międzyczasie.`);
+  const { questions, answer, notes } = check(guildId, fields, id);
+  Object.assign(entry, { questions, answer, editedBy: by, editedAt: Date.now() });
+  db.save();
+  return { entry, notes };
+}
+
+/** → the removed entry, or null when there was none. */
+function remove(guildId, id) {
+  const kb = db.guild(guildId).knowledge;
+  const entry = get(guildId, id);
+  if (!entry) return null;
+  kb.entries = kb.entries.filter((e) => e !== entry);
+  db.save();
+  return entry;
+}
+
+/** The assistant sent an answer with these matches – so /wiedza lista can say which entries are used at all. */
+function noteUsed(guildId, matches) {
+  let changed = false;
+  for (const m of matches ?? []) {
+    const entry = m.source === 'command' ? get(guildId, m.id) : null;
+    if (!entry) continue;
+    entry.uses = (entry.uses ?? 0) + 1;
+    entry.usedAt = Date.now();
+    changed = true;
+  }
+  if (changed) db.save();
+}
+
+/** Both sources as one list: the command's entries first (newest knowledge of the team), then the file's. */
+function all(guildId = null) {
+  return [
+    ...own(guildId).map((e) => ({ source: 'command', id: e.id, questions: e.questions, answer: e.answer })),
+    ...entries().map((e, i) => ({ source: 'file', id: null, n: i + 1, questions: e.questions, answer: e.answer })),
+  ];
+}
+
+// ───────────── Search ─────────────
+
+const better = (a, b) => a.ok - b.ok || a.score - b.score || a.hits - b.hits;
+
+/**
+ * Every entry that shares a word with `query`, with its best-fitting question variant → [{ entry, question, score,
+ * hits, ok, strong }], those the assistant uses (ok) first, then by score. For find() and /wiedza test.
+ */
+function rank(query, { guildId = null } = {}) {
   const asked = words(query);
   if (!asked.length) return [];
   const found = [];
-  for (const entry of entries()) {
+  for (const entry of all(guildId)) {
     let best = null;
     for (const question of entry.questions) {
-      const own = words(question);
-      if (!own.length) continue;
-      const hits = own.filter((w) => asked.some((a) => same(w, a))).length;
-      const score = hits / own.length;
-      if (hits < Math.min(2, own.length) || score < MIN_SCORE) continue;
-      if (!best || score > best.score || (score === best.score && hits > best.hits)) best = { question, answer: entry.answer, score, hits };
+      const ownWords = words(question);
+      if (!ownWords.length) continue;
+      const r = compare(ownWords, asked);
+      if (r.hits && (!best || better(r, best) > 0)) best = { ...r, question };
     }
-    if (best) found.push(best);
+    if (best) found.push({ ...best, entry });
   }
-  return found
-    .sort((a, b) => b.score - a.score || b.hits - a.hits)
+  return found.sort((a, b) => better(b, a)); // stable: on a tie the command's entry stays before the file's
+}
+
+/**
+ * The entries whose questions are most like `query` → [{ question, answer, score, strong, source, id }], best first:
+ * at most `limit`, only those that fit (compare()). strong on the first one: it clearly fits – unless another entry
+ * fits just as well, then the model chooses.
+ */
+function find(query, { limit = 3, guildId = null } = {}) {
+  const matches = rank(query, { guildId })
+    .filter((r) => r.ok)
     .slice(0, limit)
-    .map(({ question, answer, score }) => ({ question, answer, score }));
+    .map((r) => ({ question: r.question, answer: r.entry.answer, score: r.score, strong: r.strong, source: r.entry.source, id: r.entry.id }));
+  if (matches[0]?.strong && matches[1]?.strong && matches[1].score >= matches[0].score) matches[0].strong = false;
+  return matches;
 }
 
 /**
  * The part of the request with the matches – the team's own answers and what to do with them – at most `max`
- * characters (the free plans count every token). Empty when nothing matched.
+ * characters (the free plans count every token). Empty when nothing matched. When the first one clearly fits, the model
+ * is told to answer from it (and that one gets most of the room); otherwise it decides whether any fits.
  */
 function promptBlock(matches, max = 1200) {
   if (!matches?.length) return '';
+  const strong = Boolean(matches[0].strong);
   const head = 'Odpowiedzi zespołu z bazy wiedzy, podobne do pytania w tickecie:';
-  const tail =
-    'Jeśli któraś pasuje do tego, o co pyta autor, oprzyj na niej odpowiedź: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej. Jeśli żadna nie pasuje, pomiń je.';
+  const tail = strong
+    ? `Odpowiedź 1 wyraźnie pasuje do pytania w tickecie – odpowiedz na jej podstawie: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej. Nie dodawaj kroków, których w niej nie ma, chyba że autor pyta o coś więcej.${matches.length > 1 ? ' Pozostałe wykorzystaj tylko, jeśli też pasują.' : ''}`
+    : 'Jeśli któraś pasuje do tego, o co pyta autor, oprzyj na niej odpowiedź: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej. Jeśli żadna nie pasuje, pomiń je.';
   const room = Math.max(200, max - head.length - tail.length - 4);
-  const per = Math.floor(room / matches.length);
-  const items = matches.map((m, i) => {
-    const item = `${i + 1}. Pytanie: ${m.question}\nOdpowiedź zespołu: ${m.answer}`;
-    return item.length > per ? `${item.slice(0, per - 1)}…` : item;
-  });
+  const texts = matches.map((m, i) => `${i + 1}. Pytanie: ${m.question}\nOdpowiedź zespołu: ${m.answer}`);
+  const sizes = texts.map(() => Math.floor(room / texts.length));
+  if (strong && texts.length > 1) {
+    // The answer to give gets what it needs; the others share the rest (at least a short look each).
+    sizes[0] = Math.min(texts[0].length, Math.max(sizes[0], room - 160 * (texts.length - 1)));
+    const rest = Math.floor((room - sizes[0]) / (texts.length - 1));
+    for (let i = 1; i < sizes.length; i += 1) sizes[i] = rest;
+  }
+  const items = texts.map((t, i) => cut(t, sizes[i]));
   return `${head}\n${items.join('\n')}\n${tail}`;
 }
 
-/** For /asystent status: is the file there, how many questions it has, when it was read. */
-function stats() {
+/**
+ * For /asystent status: is the file there, how many questions it has, when it was read – and command: this server's
+ * entries from /wiedza.
+ */
+function stats(guildId = null) {
   const c = load();
-  return { file: path.basename(file), exists: c.exists, entries: c.entries.length, questions: c.questions, unanswered: c.unanswered ?? 0, loadedAt: c.loadedAt, error: c.error };
+  const mine = own(guildId);
+  const command = { entries: mine.length, questions: mine.reduce((n, e) => n + e.questions.length, 0), max: LIMITS.entries };
+  return { file: path.basename(file), exists: c.exists, entries: c.entries.length, questions: c.questions, unanswered: c.unanswered ?? 0, loadedAt: c.loadedAt, error: c.error, command };
 }
 
-/** Tests: another file (null = the default one); the next read starts from scratch. */
 /** Writes the empty knowledge file (TEMPLATE) when there is none – an existing file is never touched. → true when written */
 function ensure() {
   try {
@@ -239,10 +485,40 @@ function ensure() {
   }
 }
 
+/** Tests: another file (null = the default one); the next read starts from scratch. */
 function setFile(next) {
   file = next ?? DEFAULT_FILE;
   cache = { key: null, entries: [], questions: 0, loadedAt: null, error: null, exists: false };
   warned = null;
 }
 
-module.exports = { DEFAULT_FILE, MIN_SCORE, TEMPLATE, fold, words, same, parse, entries, find, promptBlock, stats, ensure, setFile };
+module.exports = {
+  DEFAULT_FILE,
+  MIN_SCORE,
+  STRONG_SCORE,
+  LIMITS,
+  TEMPLATE,
+  fold,
+  words,
+  same,
+  typo,
+  compare,
+  parse,
+  entries,
+  own,
+  get,
+  splitQuestions,
+  check,
+  assertRoom,
+  add,
+  update,
+  remove,
+  noteUsed,
+  all,
+  rank,
+  find,
+  promptBlock,
+  stats,
+  ensure,
+  setFile,
+};

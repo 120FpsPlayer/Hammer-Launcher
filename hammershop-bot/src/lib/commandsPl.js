@@ -58,6 +58,14 @@ const MAP = {
       state: C('stan', 'Włączyć czy wyłączyć?', {}, { on: '🟢 Włącz', off: '🔕 Wyłącz' }),
     }),
   }),
+  // The AI assistant's questions and answers – src/commands/knowledge.js (only on the Hammer Launcher server)
+  knowledge: C('wiedza', 'Baza wiedzy asystenta AI – pytania i odpowiedzi, z których korzysta w ticketach (zespół)', {
+    add: C('dodaj', 'Dodaj pytanie i odpowiedź (otwiera formularz)'),
+    list: C('lista', 'Wszystkie pytania i odpowiedzi z numerami – z komendy i z pliku'),
+    edit: C('edytuj', 'Popraw wpis – formularz z jego obecną treścią', { number: C('numer', 'Numer wpisu (z /wiedza lista)') }),
+    remove: C('usun', 'Usuń wpis (zapyta o potwierdzenie)', { number: C('numer', 'Numer wpisu (z /wiedza lista)') }),
+    test: C('test', 'Sprawdź, które odpowiedzi asystent weźmie przy takim pytaniu', { question: C('pytanie', 'Pytanie tak, jak napisałby je ktoś w tickecie') }),
+  }),
   backup: C('kopia', 'Zrób teraz kopię zapasową danych bota – trafia na kanał z kopiami (admini)'),
   balance: C('saldo', 'Saldo sklepu – Twoje albo zarządzanie saldem członka (admini i sprzedawcy)', {
     view: C('pokaz', 'Twoje saldo i ostatnie zmiany (zespół: wybierz członka, żeby zobaczyć jego saldo)', { user: user('Członek (tylko zespół – zostaw puste, żeby zobaczyć swoje)') }),

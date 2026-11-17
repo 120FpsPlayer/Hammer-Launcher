@@ -24,16 +24,27 @@ function chainLines(chain) {
     .join('\n');
 }
 
-/** "✅ `wiedza-asystenta.md` · 12 pytań (8 odpowiedzi) · wczytany 14:05" – the team's knowledge file (README → its format). */
+/** "📝 z komendy `/wiedza`: 12 wpisów (20 pytań)" – the entries added on Discord. */
+function commandLine(c) {
+  if (!c?.entries) return `⚪ z komendy \`${slash('knowledge')}\`: brak wpisów – dodaj pierwszy przez \`${slash('knowledge add')}\``;
+  return `📝 z komendy \`${slash('knowledge')}\`: ${count(c.entries, 'wpis', 'wpisy', 'wpisów')} (${count(c.questions, 'pytanie', 'pytania', 'pytań')}) · limit ${c.max}`;
+}
+
+/** "✅ `wiedza-asystenta.md` · 12 pytań (8 odpowiedzi) · wczytany 14:05" – the team's optional knowledge file (README → its format). */
+function fileLine(k) {
+  const name = `\`${k.file}\``;
+  if (!k.exists) return `⚪ z pliku: brak pliku ${name} – nie jest potrzebny`;
+  const read = k.loadedAt ? ` · wczytany ${time(k.loadedAt)}` : '';
+  const loose = k.unanswered ? ` · ⚠️ ${count(k.unanswered, 'pytanie', 'pytania', 'pytań')} bez odpowiedzi pod spodem (sprawdź wcięcia albo dodaj je przez \`${slash('knowledge add')}\`)` : '';
+  if (k.error) return `⚠️ z pliku ${name}: nie udało się odczytać (${truncate(k.error, 200)})${k.questions ? ` – działa ostatnia dobra wersja: ${count(k.questions, 'pytanie', 'pytania', 'pytań')}` : ''}`;
+  if (!k.questions) return `⚪ z pliku: ${name} jest pusty – nie jest potrzebny${loose}${read}`;
+  return `📄 z pliku: ✅ ${name} · ${count(k.questions, 'pytanie', 'pytania', 'pytań')} (${count(k.entries, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')})${read}${loose}`;
+}
+
+/** Both sources of the assistant's knowledge: /wiedza (in the bot's data) and the optional file. */
 function knowledgeLine(k) {
   if (!k) return null;
-  const name = `\`${k.file}\``;
-  if (!k.exists) return `⚪ brak pliku ${name} w folderze bota – asystent odpowiada bez niego (format: README → „Wiedza asystenta”)`;
-  const read = k.loadedAt ? ` · wczytany ${time(k.loadedAt)}` : '';
-  const loose = k.unanswered ? ` · ⚠️ ${count(k.unanswered, 'pytanie', 'pytania', 'pytań')} bez odpowiedzi pod spodem (sprawdź wcięcia)` : '';
-  if (k.error) return `⚠️ ${name}: nie udało się odczytać (${truncate(k.error, 200)})${k.questions ? ` – działa ostatnia dobra wersja: ${count(k.questions, 'pytanie', 'pytania', 'pytań')}` : ''}`;
-  if (!k.questions) return `⚪ ${name} jest pusty – dopisz pytania i odpowiedzi (format: README → „Wiedza asystenta”)${loose}${read}`;
-  return `✅ ${name} · ${count(k.questions, 'pytanie', 'pytania', 'pytań')} (${count(k.entries, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')})${read}${loose}`;
+  return `${commandLine(k.command)}\n${fileLine(k)}`;
 }
 
 function ticketLine(s) {
