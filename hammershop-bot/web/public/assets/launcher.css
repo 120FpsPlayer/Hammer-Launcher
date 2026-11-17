@@ -663,7 +663,8 @@ dialog input[type="text"] { min-height: 44px; border-radius: 11px; }
   .top .who.right { margin-left: auto; }
   .nav { display: none; position: absolute; left: 0; right: 0; top: 60px; margin: 0; padding: 10px var(--gutter) 16px; flex-direction: column; align-items: stretch; gap: 2px; background: #0e0a07; border-bottom: 1px solid var(--line-2); box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .9); }
   .menu-open .nav { display: flex; }
-  .nav a { padding: 12px 14px; border-radius: 12px; font-size: 15px; }
+  .nav { max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px); overflow-y: auto; overscroll-behavior: contain; } /* a low screen scrolls the menu, not the page under it */
+  .nav a { padding: 11px 14px; border-radius: 12px; font-size: 15px; }
   .nav .menu-only { display: inline-flex; }
 }
 @media (max-width: 1079px) {

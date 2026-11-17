@@ -400,7 +400,7 @@
         input.removeAttribute('aria-describedby');
         return;
       }
-      if (!note) note = label.appendChild(el('span', { class: 'field-error', id: input.id + '-error' }));
+      if (!note) note = input.insertAdjacentElement('afterend', el('span', { class: 'field-error', id: input.id + '-error' })); // right under the field
       note.textContent = text;
       input.setAttribute('aria-invalid', 'true');
       input.setAttribute('aria-describedby', note.id);
