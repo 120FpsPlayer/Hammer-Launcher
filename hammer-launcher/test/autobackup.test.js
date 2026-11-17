@@ -217,3 +217,77 @@ test('services: without Hammer+ nothing is backed up by itself – manual backup
   const manual = await s.worlds.backup(instance.id, 'Nasz świat');
   assert.deepEqual([manual.auto, (await s.worlds.listBackups(instance.id)).length], [false, 1]);
 });
+
+/** Holds every world backup until the test lets it go – a big world on a slow disk. Returns { started, release, restore }. */
+function slowBackups() {
+  const real = worlds.backup;
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  let begin;
+  const started = new Promise((resolve) => (begin = resolve));
+  worlds.backup = async (...args) => {
+    begin();
+    await gate;
+    return real(...args);
+  };
+  return { started, release, restore: () => (worlds.backup = real) };
+}
+
+test('services: quitting waits for a world backup that is still being packed – and quits anyway after the cap', async () => {
+  const { s, instance, start } = setup();
+  s.settings.set({ autoBackup: true });
+  // Nothing running: the launcher quits at once.
+  assert.equal(s.quitWork(), null);
+  assert.deepEqual(await s.beforeQuit(), { waited: false, finished: true });
+
+  const slow = slowBackups();
+  try {
+    const child = await start();
+    makeWorld(instance, 'Duży', { savedAt: Date.now() + 1000 });
+    child.emit('exit', 0, null);
+    await slow.started;
+    assert.equal(s.quitWork(), 'backup', 'main.js asks before it quits – and shows why the launcher stays');
+    let quit = null;
+    const waiting = s.beforeQuit({ maxMs: 30_000 }).then((r) => (quit = r));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(quit, null, 'no quitting in the middle of the backup');
+    slow.release();
+    await waiting;
+    assert.deepEqual(quit, { waited: true, finished: true });
+    const made = await s.worlds.listBackups(instance.id);
+    assert.deepEqual(made.map((b) => [b.world, b.auto]), [['Duży', true]], 'the backup is complete when the launcher quits');
+    assert.deepEqual(fs.readdirSync(path.join(instance.dir, 'backups')).filter((f) => f.endsWith('.part')), []);
+    assert.equal(s.quitWork(), null);
+  } finally {
+    slow.restore();
+  }
+
+  // A backup the player started is waited for the same way.
+  const manual = slowBackups();
+  try {
+    const job = s.worlds.backup(instance.id, 'Duży');
+    await manual.started;
+    assert.equal(s.quitWork(), 'backup');
+    const waiting = s.beforeQuit({ maxMs: 30_000 });
+    manual.release();
+    assert.deepEqual(await waiting, { waited: true, finished: true });
+    assert.equal((await job).auto, false);
+  } finally {
+    manual.restore();
+  }
+
+  // A backup that never ends (a disk that hangs) does not keep the launcher alive for ever.
+  const stuck = worlds.backup;
+  worlds.backup = () => new Promise(() => {});
+  try {
+    const child = await start();
+    makeWorld(instance, 'Duży', { savedAt: Date.now() + 1000 });
+    child.emit('exit', 0, null);
+    await new Promise((resolve) => setImmediate(resolve));
+    const t0 = Date.now();
+    assert.deepEqual(await s.beforeQuit({ maxMs: 60 }), { waited: true, finished: false });
+    assert.ok(Date.now() - t0 < 2000, 'it gave up after the cap');
+  } finally {
+    worlds.backup = stuck;
+  }
+});

@@ -1,4 +1,4 @@
-/* The admin panel: news, Discord announcements, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages – over /api/admin/. */
+/* The admin panel: news, Discord announcements, the #plany card, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages – over /api/admin/. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -912,6 +912,193 @@
       if (changed && !$('tab-wiadomosci').hidden) loaders.wiadomosci().catch(function () { /* the next round shows it */ });
     }).catch(function () { /* signed out or offline: the number just stays */ });
   }
+
+  // ── Plany: the card on #📋 plany (the launcher's site only). Every change is saved and on Discord at once – the bot
+  // edits the same message and pings nobody – so there is no draft to forget: the preview is what the channel shows. ──
+  (function () {
+    if (!$('tab-plany')) return;
+    var COLORS = { now: '#ff9f43', next: '#5aa9ff', later: '#f2c94c', done: '#5fd08a' };
+    var plan = { items: [], sections: [], limits: { title: 80, note: 140, items: 20 }, editing: null, discord: null, updatedAt: null, busy: false };
+    var longDate = function (ms) { return new Date(ms).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }); };
+    function chosen() { var c = document.querySelector('input[name="plan-section"]:checked'); return c ? c.value : 'now'; }
+    function titleOf(id) { var s = plan.sections.filter(function (x) { return x.id === id; })[0]; return s ? s.title : id; }
+    function planError(text) { $('plan-error').textContent = text; $('plan-error').hidden = !text; }
+    function counts() { $('plan-title-count').textContent = String($('plan-title').value.length); $('plan-note-count').textContent = String($('plan-note').value.length); }
+    function status(text, kind) { var s = $('plan-status'); s.textContent = text || ''; s.className = 'notice small' + (kind ? ' ' + kind : ''); s.hidden = !text; }
+
+    function drawSections(selected) {
+      var box = $('plan-sections');
+      box.textContent = '';
+      plan.sections.forEach(function (s) {
+        var input = el('input', { type: 'radio', name: 'plan-section', value: s.id });
+        input.checked = s.id === selected;
+        var chip = el('label', { class: 'ann-kind' }, [input, el('i', { class: 'ann-dot' }), s.title]);
+        chip.style.setProperty('--c', COLORS[s.id] || '#ffa94d');
+        box.appendChild(chip);
+      });
+    }
+    function reset() {
+      plan.editing = null;
+      $('plan-form').reset();
+      drawSections(chosen() || 'now');
+      $('plan-form-title').textContent = 'Nowy punkt';
+      $('plan-save').textContent = 'Dodaj do planów';
+      $('plan-cancel').hidden = true;
+      counts();
+      planError('');
+    }
+    function edit(item) {
+      plan.editing = item.id;
+      drawSections(item.section);
+      $('plan-title').value = item.title;
+      $('plan-note').value = item.note || '';
+      $('plan-form-title').textContent = 'Edycja punktu';
+      $('plan-save').textContent = 'Zapisz zmiany';
+      $('plan-cancel').hidden = false;
+      counts();
+      planError('');
+      $('plan-title').focus();
+    }
+
+    /** One request at a time: a second click while the card is being edited would only race the first one. */
+    function change(method, route, body, done) {
+      if (plan.busy) return Promise.resolve(null);
+      plan.busy = true;
+      $('tab-plany').classList.add('plan-busy');
+      return api(method, route, body).then(function (r) { applied(r); if (done) done(r); return r; }).catch(function (err) { planError(err.message); oops(err); }).then(function (r) {
+        plan.busy = false;
+        $('tab-plany').classList.remove('plan-busy');
+        return r;
+      });
+    }
+    function applied(r) {
+      plan.items = r.items;
+      plan.updatedAt = r.updatedAt;
+      if (r.discord && r.discord.url && plan.discord) plan.discord.url = r.discord.url;
+      drawList();
+      drawPreview();
+      drawLinks();
+      if (!r.discord) return;
+      if (!r.discord.ok) status('Zapisano w panelu, ale karta na Discordzie się nie zmieniła: ' + r.discord.error + ' Spróbuj „Odśwież kartę na Discordzie”.', 'bad');
+      else if (r.discord.reposted) status('Karty nie było na kanale (ktoś ją usunął?) – bot wysłał ją od nowa i zapamiętał.', 'ok');
+      else status('');
+    }
+
+    function drawList() {
+      var box = $('plan-list');
+      box.textContent = '';
+      plan.sections.forEach(function (s) {
+        var own = plan.items.filter(function (i) { return i.section === s.id; });
+        var dot = el('i', { class: 'ann-dot' });
+        dot.style.setProperty('--c', COLORS[s.id] || '#ffa94d');
+        var group = el('div', { class: 'plan-group' }, [el('div', { class: 'plan-group-head' }, [dot, el('b', { text: s.title }), el('span', { class: 'muted small', text: own.length ? String(own.length) : '' })])]);
+        own.forEach(function (item, i) {
+          var up = el('button', { class: 'btn small plan-move', type: 'button', title: 'W górę', 'aria-label': 'Przesuń „' + item.title + '” w górę', text: '↑', onclick: function () { change('POST', 'roadmap/' + encodeURIComponent(item.id) + '/move', { dir: 'up' }); } });
+          var down = el('button', { class: 'btn small plan-move', type: 'button', title: 'W dół', 'aria-label': 'Przesuń „' + item.title + '” w dół', text: '↓', onclick: function () { change('POST', 'roadmap/' + encodeURIComponent(item.id) + '/move', { dir: 'down' }); } });
+          up.disabled = i === 0;
+          down.disabled = i === own.length - 1;
+          group.appendChild(el('div', { class: 'item plan-item' + (plan.editing === item.id ? ' plan-editing' : '') }, [
+            el('div', { class: 'plan-moves' }, [up, down]),
+            el('div', { class: 'grow' }, [el('div', { class: 'title', text: item.title }), item.note ? el('div', { class: 'body', text: item.note }) : null]),
+            el('div', { class: 'row plan-actions' }, [
+              el('button', { class: 'btn small', type: 'button', text: 'Edytuj', onclick: function () { edit(item); drawList(); } }),
+              el('button', { class: 'btn small danger', type: 'button', text: 'Usuń', onclick: function () {
+                confirmBox('Usunąć punkt z planów?', '„' + item.title + '” zniknie z karty na Discordzie.').then(function (yes) {
+                  if (yes) change('DELETE', 'roadmap/' + encodeURIComponent(item.id), undefined, function () { toast('Usunięto – karta na Discordzie jest już zmieniona.'); if (plan.editing === item.id) reset(); });
+                });
+              } }),
+            ]),
+          ]));
+        });
+        if (!own.length) group.appendChild(el('p', { class: 'muted small plan-empty', text: 'Pusto – tej sekcji nie będzie na karcie.' }));
+        box.appendChild(group);
+      });
+      $('plan-count').textContent = plan.items.length + ' z ' + plan.limits.items;
+    }
+
+    /** The card as Discord shows it (src/features/roadmap.js) – built from text nodes, never from HTML. */
+    function drawPreview() {
+      var md = $('plan-md');
+      md.textContent = '';
+      md.appendChild(el('h1', { text: '📋 Plany' }));
+      md.appendChild(el('div', { text: 'Nad czym teraz pracujemy i co pojawi się w kolejnych wersjach launchera.' }));
+      md.appendChild(el('hr', { class: 'dc-sep' }));
+      var ideas = el('span', { class: 'dc-mention', text: '#propozycje' });
+      var any = false;
+      plan.sections.forEach(function (s) {
+        var own = plan.items.filter(function (i) { return i.section === s.id; });
+        if (!own.length) return;
+        any = true;
+        md.appendChild(el('h3', { text: s.title }));
+        md.appendChild(el('ul', {}, own.map(function (i) { return el('li', {}, [el('strong', { text: i.title }), i.note ? ' – ' + i.note : '']); })));
+      });
+      if (!any) {
+        md.appendChild(el('h3', { text: '🛠️ Plany są w drodze' }));
+        md.appendChild(el('div', {}, ['Już niedługo pokażemy tutaj, nad czym pracujemy i co dodamy w kolejnych wersjach. Masz pomysł? Wrzuć go na ', ideas.cloneNode(true), ' – czytamy wszystkie!']));
+      }
+      var foot = $('plan-footer');
+      foot.textContent = '';
+      foot.hidden = !any; // the empty card has no footer
+      foot.previousElementSibling.hidden = !any;
+      if (plan.updatedAt) foot.appendChild(document.createTextNode('Ostatnia zmiana: ' + longDate(plan.updatedAt) + ' · '));
+      foot.appendChild(document.createTextNode('Plany mogą się jeszcze zmienić · Pomysły zostawiaj na '));
+      foot.appendChild(ideas);
+      $('plan-time').textContent = plan.updatedAt ? 'edytowano ' + when(plan.updatedAt) : '';
+      $('plan-updated').textContent = plan.updatedAt ? 'zmiana: ' + when(plan.updatedAt) : '';
+    }
+    function drawLinks() {
+      var d = plan.discord || {};
+      $('plan-open').hidden = !d.url;
+      if (d.url) $('plan-open').href = d.url;
+      $('plan-channel').textContent = d.channel ? '#' + d.channel.name : '#📋 plany';
+      var problem = !d.channel ? 'Na serwerze nie ma jeszcze kanału #📋 plany – dodaj go na Discordzie komendą /zbuduj tylko:update. Do tego czasu zmiany zapisują się tylko w panelu.' : '';
+      $('plan-setup').textContent = problem;
+      $('plan-setup').hidden = !problem;
+      $('plan-publish').disabled = !d.channel;
+    }
+
+    loaders.plany = function () {
+      return api('GET', 'roadmap').then(function (r) {
+        plan.items = r.items;
+        plan.sections = r.sections;
+        plan.limits = r.limits;
+        plan.updatedAt = r.updatedAt;
+        plan.discord = r.discord;
+        $('plan-title').maxLength = r.limits.title;
+        $('plan-note').maxLength = r.limits.note;
+        if (!document.querySelector('input[name="plan-section"]')) drawSections('now');
+        drawList();
+        drawPreview();
+        drawLinks();
+      });
+    };
+    $('plan-title').addEventListener('input', counts);
+    $('plan-note').addEventListener('input', counts);
+    $('plan-cancel').addEventListener('click', function () { reset(); drawList(); });
+    $('plan-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var fields = { section: chosen(), title: $('plan-title').value.trim(), note: $('plan-note').value.trim() };
+      if (!fields.title) { planError('Wpisz, co planujecie – tytuł punktu.'); $('plan-title').focus(); return; }
+      planError('');
+      var editing = plan.editing;
+      change(editing ? 'PUT' : 'POST', editing ? 'roadmap/' + encodeURIComponent(editing) : 'roadmap', fields, function (r) {
+        toast(r.discord && !r.discord.ok ? 'Zapisano w panelu (Discord nie odpowiedział).' : editing ? 'Zapisano – karta na Discordzie jest już zmieniona.' : 'Dodano – karta na Discordzie jest już zmieniona.');
+        var keep = fields.section;
+        reset();
+        drawSections(keep); // the next item most likely goes to the same section
+        drawList();
+      });
+    });
+    $('plan-publish').addEventListener('click', function () {
+      var button = $('plan-publish');
+      button.disabled = true;
+      api('POST', 'roadmap/publish', {}).then(function (r) {
+        if (plan.discord) plan.discord.url = r.url;
+        drawLinks();
+        status(r.reposted ? 'Karty nie było na kanale – bot wysłał ją od nowa i zapamiętał.' : 'Karta na Discordzie jest aktualna.', 'ok');
+      }).catch(function (err) { status(err.message, 'bad'); }).then(function () { button.disabled = !(plan.discord && plan.discord.channel); });
+    });
+  })();
 
   // ── Start: who is this? ──
   api('GET', 'me').then(function (r) {

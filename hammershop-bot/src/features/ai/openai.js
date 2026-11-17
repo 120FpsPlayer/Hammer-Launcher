@@ -26,7 +26,7 @@ const crypto = require('node:crypto');
 const models = require('./models');
 
 const TIMEOUT_MS = 60_000;
-const MAX_OUTPUT = 1500; // a hard cap – the assistant asks for ~500 on the free providers
+const MAX_OUTPUT = 1500; // a hard cap – reasoning + answer; the assistant asks for exactly this on the free providers
 const MAX_RETRY_AFTER_MS = 3_600_000;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 const MIN_WAIT_MS = 1000; // a limit "free again in 0 ms" is still a limit – never retried in a busy loop
@@ -147,10 +147,13 @@ function fromChat(json, model) {
   const choice = json.choices[0];
   const msg = choice?.message ?? {};
   const raw = typeof msg.content === 'string' ? msg.content : Array.isArray(msg.content) ? msg.content.map((p) => p?.text ?? '').join('') : '';
+  // Models that write their reasoning into the answer (qwen): finished <think> blocks, an answer whose opening <think>
+  // was lost, and reasoning cut off by max_tokens before its </think> – that one never reaches a ticket either.
   const text = raw
     .replace(/<think>[\s\S]*?<\/think>/g, '')
-    .replace(/^[\s\S]*<\/think>/, '') // an answer whose opening <think> was cut off
-    .trim(); // models that write their reasoning into the answer (qwen)
+    .replace(/^[\s\S]*<\/think>/, '')
+    .replace(/<think>[\s\S]*$/, '')
+    .trim();
   if (msg.tool_calls != null && (!Array.isArray(msg.tool_calls) || msg.tool_calls.some((c) => !c || typeof c !== 'object'))) {
     throw new ProviderError('bad-response', 'nieprawidłowe tool_calls w odpowiedzi');
   }

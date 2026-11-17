@@ -88,6 +88,7 @@ test('after a break the AI can call the team again at once; asking for a person 
   assert.equal(countTexts(channel, /Zespół jest już powiadomiony – ktoś zaraz tu odpisze/), 1, 'no second ping, but an answer');
 
   await fakes.server(CHAIN); // a fresh start – the next ticket must see the AI, not this break
+  groq(say('Napisz proszę, czego dotyczy płatność – sprawdzę, co da się zrobić.')); // the opening answer to the form
   const second = await open('plus', [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'Zwrot']], guild.addMember(uid(), [role('member')]));
   assert.equal(aiOf(second.channel).mode, 'ai');
   groq(limited(1), limited(1));

@@ -17,7 +17,7 @@
         node: tile(i, 26),
         label: i.name,
         raw: true, // a name the player typed – never translated
-        hint: `${i.mcVersion}${i.loader !== 'vanilla' ? ` ${LOADERS[i.loader]?.name}` : ''}`,
+        hint: i.pending ? HS.pendingHint(i) : `${i.mcVersion}${i.loader !== 'vanilla' ? ` ${LOADERS[i.loader]?.name}` : ''}`,
         on: i.id === state.instance?.id,
         onClick: () => state.selectInstance(i.id),
       })),
@@ -53,10 +53,13 @@
           ? [icon('stop'), 'ZATRZYMAJ']
           : run === 'preparing'
             ? [h('span.spinner'), 'PRZYGOTOWANIE']
-            : [icon('play'), 'GRAJ'],
+            : i?.pending
+              ? [h('span.spinner'), i.pending === 'copy' ? 'KOPIOWANIE' : 'INSTALOWANIE']
+              : [icon('play'), 'GRAJ'],
       );
       if (run === 'running' || run === 'starting') btn.classList.add('running');
-      if (run === 'preparing') btn.disabled = true;
+      // (an instance still being copied or installed cannot be started yet – the launcher would refuse it too)
+      if (run === 'preparing' || (!run && i?.pending)) btn.disabled = true;
       clear(
         playArea,
         h(
@@ -86,6 +89,8 @@
         );
       } else if (run === 'starting') {
         clear(progressArea, h('div.play-progress', h('div.label', h('b', 'Uruchamianie gry…'), h('span', 'okno Minecrafta zaraz się pojawi')), h('div.progress.indeterminate', h('i'))));
+      } else if (!run && i?.pending) {
+        clear(progressArea, h('div.play-progress', h('div.label', h('b', i.pending === 'copy' ? 'Launcher kopiuje tę instancję…' : 'Launcher instaluje tę paczkę modów…'), h('span', 'GRAJ zadziała, gdy skończy')), h('div.progress.indeterminate', h('i'))));
       } else if (run === 'running') {
         // An FPS test (Optymalizacja → Test FPS): the game measures and closes by itself.
         const test = state.benchmarks.has(i.id);

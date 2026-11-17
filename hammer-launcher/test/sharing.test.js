@@ -326,6 +326,9 @@ test('services: an invitation with a modpack – name and author shown first, th
   const progress = events.filter((e) => e.channel === 'task:progress');
   assert.ok(progress.length >= 2);
   assert.deepEqual([progress.at(-1).scope, progress.at(-1).done, progress.at(-1).total], ['modpack', 1, 1]);
+  // While it installed, the new instance was on the list marked „Instalowanie…”: the window was told when it began and ended.
+  assert.deepEqual(events.filter((e) => e.channel === 'instances:changed').map((e) => e.instanceId), [res.instance.id, res.instance.id]);
+  assert.equal(services.instances.list().find((i) => i.id === res.instance.id).pending, undefined);
   // Next time the instance with that pack is the first to fit; the link may leave version and loader to the pack.
   const next = await services.invite.read('hammer://join?server=fo.example.pl&pack=1KVo5zza');
   assert.deepEqual(next.fits.map((f) => [f.name, f.hasPack, f.hasServer]), [['Fabulously Optimized', true, true]]);

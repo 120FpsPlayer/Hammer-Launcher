@@ -595,7 +595,7 @@
     const el = h(
       'div.menu',
       { role: 'menu' },
-      items.map((it) => (it === '-' ? h('div.nav-sep') : h(`button${it.on ? '.on' : ''}`, { role: 'menuitem', onclick: () => (el.remove(), it.onClick()) }, it.node ?? (it.icon ? icon(it.icon) : null), it.raw ? raw(h('span.ellipsis', it.label)) : h('span.ellipsis', it.label), it.hint ? h('small', it.hint) : null))),
+      items.map((it) => (it === '-' ? h('div.nav-sep') : h(`button${it.on ? '.on' : ''}`, { role: 'menuitem', disabled: Boolean(it.disabled), title: it.title, onclick: () => (el.remove(), it.onClick()) }, it.node ?? (it.icon ? icon(it.icon) : null), it.raw ? raw(h('span.ellipsis', it.label)) : h('span.ellipsis', it.label), it.hint ? h('small', it.hint) : null))),
     );
     document.body.append(el);
     const w = Math.max(r.width, 240);
@@ -788,6 +788,9 @@
     return list.length === 1 ? `Minecraft ${list[0]}` : `Minecraft ${list[0]} – ${list[list.length - 1]}`;
   }
 
+  /** An instance the launcher is still copying or installing (`pending` from the instance list) – what it is busy with. */
+  const pendingHint = (i) => (i.pending === 'copy' ? 'kopiowanie…' : 'instalowanie…');
+
   /** The "Instancja" switcher used at the top of Mody / Optymalizacja / Konsola. */
   function instancePicker() {
     const el = h('button.instance-pick.compact', {
@@ -795,7 +798,7 @@
       onclick: () =>
         menu(
           el,
-          state.instances.map((i) => ({ node: tile(i, 26), label: i.name, raw: true, hint: state.running.has(i.id) ? 'w grze' : `${i.mcVersion} ${i.loader !== 'vanilla' ? LOADERS[i.loader]?.name : ''}`, on: i.id === state.instance?.id, onClick: () => state.selectInstance(i.id) })),
+          state.instances.map((i) => ({ node: tile(i, 26), label: i.name, raw: true, hint: state.running.has(i.id) ? 'w grze' : i.pending ? pendingHint(i) : `${i.mcVersion} ${i.loader !== 'vanilla' ? LOADERS[i.loader]?.name : ''}`, on: i.id === state.instance?.id, onClick: () => state.selectInstance(i.id) })),
         ),
     });
     const draw = () => {
@@ -806,6 +809,6 @@
     return { el, draw };
   }
 
-  window.HS = { views: {}, api, t: i18n.t, locale, h, append, clear, raw, icon, fmt, LOADERS, TILES, tile, head, bus, state, toast, copyText, taskBar, attempt, busy, modal, confirmDialog, menu, toggle, select, seg, range, field, empty, chip, debounce, open, instancePicker, community, money, discordCard, embers, hammerClientOn, hammerClientFits, hammerClientRange, hammerClientVersions, skinView, capeView, paintSkin, looksSlim, ACCENTS, applyAccent, FX, plusOn, fxLayer, applyTheme, isBeta, betaPill };
+  window.HS = { views: {}, api, t: i18n.t, locale, h, append, clear, raw, icon, fmt, LOADERS, TILES, tile, head, bus, state, toast, copyText, taskBar, attempt, busy, modal, confirmDialog, menu, toggle, select, seg, range, field, empty, chip, debounce, open, instancePicker, community, money, discordCard, embers, hammerClientOn, hammerClientFits, hammerClientRange, hammerClientVersions, pendingHint, skinView, capeView, paintSkin, looksSlim, ACCENTS, applyAccent, FX, plusOn, fxLayer, applyTheme, isBeta, betaPill };
   window.HS.themeNow = themeNow; // Motywy launchera
 })();

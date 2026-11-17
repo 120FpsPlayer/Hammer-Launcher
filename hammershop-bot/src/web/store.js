@@ -61,6 +61,7 @@ function load() {
     if (raw.cosmetics) state.cosmetics = raw.cosmetics; // Dodatki – see setCosmetics
     if (Array.isArray(raw.announcements)) state.announcements = raw.announcements; // the panel's „Ogłoszenia” – see its block below
     if (Array.isArray(raw.messages)) state.messages = raw.messages; // the contact form's messages – see their block below
+    if (Array.isArray(raw.roadmap?.items)) state.roadmap = raw.roadmap; // the panel's „Plany” – see its block below
   }
   // Old sessions out.
   const now = Date.now();
@@ -577,3 +578,18 @@ function removeMessage(id) {
   return item;
 }
 Object.assign(module.exports, { MAX_MESSAGES, messageList, getMessage, unreadMessages, addMessage, updateMessage, removeMessage });
+
+// ── The admin panel's „Plany” tab: the #📋 plany card on the Hammer Launcher server (src/lib/roadmap.js) ──
+/*
+ * roadmap = { items [{ id, section ('now'|'next'|'later'|'done'), title, note, at, by (Discord user ID) }] – in the
+ *             card's order, updatedAt (ms), by (who changed it last) } – the key is there once somebody saved anything
+ */
+const roadmap = () => state.roadmap ?? { items: [], updatedAt: null, by: null };
+/** The whole list at once (the panel works out the order) → the new roadmap. */
+function setRoadmap(items, by) {
+  state.roadmap = { items, updatedAt: Date.now(), by: by ?? null };
+  save();
+  return state.roadmap;
+}
+const roadmapId = () => newId('plan');
+Object.assign(module.exports, { roadmap, setRoadmap, roadmapId });

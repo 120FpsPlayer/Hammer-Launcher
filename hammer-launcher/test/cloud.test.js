@@ -210,6 +210,37 @@ test('taking a copy: the instances both have become equal to it; a running insta
   assert.throws(() => cloudSync.apply('x', { settings: pc.settings, instances: [a] }), /pochodzi z nowszego launchera/);
 });
 
+test('taking a copy: the newer look settings – theme, moving background, cape, cosmetics – checked like a pick by hand', () => {
+  const { createSettings } = require('../src/main/settings');
+  const settings = createSettings(path.join(tmpDir(), 'settings.json'));
+  settings.set({ theme: 'ocean', themeMotion: false, hammerCape: 'gold', cosmeticWings: 'angel', cosmeticHalo: true });
+  // This computer's copy carries them.
+  assert.deepEqual(cloudSync.collect({ settings: settings.get(), instances: [] }).launcher, { accent: 'orange', accentColor: '', heroStyle: 'classic', theme: 'ocean', themeMotion: false, hammerCape: 'gold', capeOn: true, lastMojangCape: '', cosmeticWings: 'angel', cosmeticHalo: true, cosmeticHat: '' });
+  const look = () => {
+    const s = settings.get();
+    return [s.accent, s.theme, s.themeMotion, s.hammerCape, s.capeOn, s.cosmeticWings, s.cosmeticHalo, s.cosmeticHat];
+  };
+  // A copy from an older launcher knows only the first three: the rest stays as it is here.
+  assert.deepEqual(cloudSync.apply({ v: 1, launcher: { accent: 'blue', accentColor: '', heroStyle: 'classic' }, instances: {} }, { settings, instances: [] }).look, true);
+  assert.deepEqual(look(), ['blue', 'ocean', false, 'gold', true, 'angel', true, '']);
+  // A theme this launcher does not know (from a newer one), or a value of the wrong kind, is ignored.
+  const odd = cloudSync.apply({ v: 1, launcher: { theme: 'kosmos', themeMotion: 'tak', capeOn: 0, cosmeticHat: 'nie-ma-takiej', cosmeticHalo: null }, instances: {} }, { settings, instances: [] });
+  assert.deepEqual([odd.look, look()], [false, ['blue', 'ocean', false, 'gold', true, 'angel', true, '']]);
+  // A known one comes.
+  const taken = cloudSync.apply({ v: 1, launcher: { theme: 'nether', themeMotion: true, hammerCape: 'frost', capeOn: false, lastMojangCape: 'migrator', cosmeticWings: '', cosmeticHalo: false, cosmeticHat: 'crown' }, instances: {} }, { settings, instances: [] });
+  assert.equal(taken.look, true);
+  assert.deepEqual(look(), ['blue', 'nether', true, 'frost', false, '', false, 'crown']);
+  assert.equal(settings.get().lastMojangCape, 'migrator');
+  // Without Hammer+ a Hammer+ look is not taken – the free settings are.
+  settings.set({ theme: 'default', hammerCape: '', cosmeticHat: '' });
+  const free = cloudSync.apply({ v: 1, launcher: { accent: 'custom', accentColor: '#12ab9f', heroStyle: 'stars', theme: 'end', themeMotion: false, hammerCape: 'royal', capeOn: true, cosmeticWings: 'dragon', cosmeticHat: 'crown' }, instances: {} }, { settings, instances: [], plusActive: false });
+  assert.equal(free.look, true);
+  assert.deepEqual(look(), ['blue', 'default', false, '', true, '', false, '']);
+  assert.deepEqual([settings.get().accentColor, settings.get().heroStyle], ['#12ab9f', 'classic'], 'the colour is kept for later, the paid ones are not switched on');
+  cloudSync.apply({ v: 1, launcher: { hammerCape: 'ember' }, instances: {} }, { settings, instances: [], plusActive: false });
+  assert.equal(settings.get().hammerCape, 'ember', 'a free cape needs no Hammer+');
+});
+
 /** The sync engine over a fake shop, with this computer's document in a variable. */
 function engine(shop, { code = 'kod' } = {}) {
   const pc = { doc: { v: 1, launcher: { accent: 'orange' }, instances: { Hammer: { servers: [] } } }, taken: [] };
@@ -361,7 +392,8 @@ test('services: Wyślij / Pobierz with the account\'s code; the shop being offli
   const sent = await home.s.cloud.push();
   assert.equal(sent.ok, true);
   assert.equal(shop.calls.at(-1).code, home.code, 'the Hammer+ code is the Bearer token');
-  assert.deepEqual(shop.copies.get(home.code).data, { v: 1, launcher: { accent: 'custom', accentColor: '#3366ff', heroStyle: 'forge' }, instances: { Hammer: { servers: [{ name: 'HammerShop', address: 'mc.hammershop.pl' }], hud: { hud: { fps: { x: 4 } } } } } });
+  const look = { accent: 'custom', accentColor: '#3366ff', heroStyle: 'forge', theme: 'default', themeMotion: true, hammerCape: '', capeOn: true, lastMojangCape: '', cosmeticWings: '', cosmeticHalo: false, cosmeticHat: '' };
+  assert.deepEqual(shop.copies.get(home.code).data, { v: 1, launcher: look, instances: { Hammer: { servers: [{ name: 'HammerShop', address: 'mc.hammershop.pl' }], hud: { hud: { fps: { x: 4 } } } } } });
   assert.deepEqual(home.s.cloud.status(), { active: true, auto: false, last: { at: sent.at, direction: 'push', updatedAt: sent.updatedAt }, note: null });
 
   // A second computer – another launcher folder, the same account – with its own server: sending asks first.
@@ -400,6 +432,34 @@ test('services: Wyślij / Pobierz with the account\'s code; the shop being offli
   const n = shop.calls.length;
   await assert.rejects(home.s.cloud.push(), /za duża dla chmury: \d+ KB, a limit to 256 KB\. Najwięcej zajmuje instancja „Hammer”/);
   assert.equal(shop.calls.length, n);
+});
+
+test('services: the theme, its moving background, the cape and the cosmetics go to the second computer too', async () => {
+  const shop = fakeShop();
+  const keys = plusKeys();
+  const home = services(shop, keys);
+  const laptop = services(shop, keys);
+  home.s.settings.set({ theme: 'cherry', themeMotion: false });
+  await home.s.plus.setCape('frost');
+  await home.s.plus.setCosmetic('wings', 'dragon');
+  assert.equal((await home.s.cloud.push()).ok, true);
+  const taken = await laptop.s.cloud.pull();
+  assert.deepEqual([taken.ok, taken.look], [true, true]);
+  const look = (pc) => {
+    const s = pc.s.settings.get();
+    return [s.theme, s.themeMotion, s.hammerCape, s.cosmeticWings];
+  };
+  assert.deepEqual(look(laptop), ['cherry', false, 'frost', 'dragon']);
+  assert.equal(laptop.s.plus.capes().selected, 'frost', 'the Peleryny card shows it');
+  assert.equal(laptop.s.plus.cosmetics().wings, 'dragon');
+  laptop.s.settings.set({ cloudAuto: true });
+  assert.deepEqual(await laptop.s.cloud.startup(), { upToDate: true }, 'nothing left to take');
+  // A copy an older launcher sent (it knows only the colour and the animated background) keeps the theme here.
+  const older = shop.copies.get(home.code);
+  older.data = { ...older.data, launcher: { accent: 'green', accentColor: '', heroStyle: 'classic' } };
+  older.updatedAt += 60;
+  assert.equal((await laptop.s.cloud.pull()).ok, true);
+  assert.deepEqual([laptop.s.settings.get().accent, ...look(laptop)], ['green', 'cherry', false, 'frost', 'dragon']);
 });
 
 test('services: automatic sync – at the start and after a game session – never touches an instance in a game', async () => {

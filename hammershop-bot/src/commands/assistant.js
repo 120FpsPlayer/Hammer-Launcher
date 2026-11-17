@@ -24,6 +24,18 @@ function chainLines(chain) {
     .join('\n');
 }
 
+/** "✅ `wiedza-asystenta.md` · 12 pytań (8 odpowiedzi) · wczytany 14:05" – the team's knowledge file (README → its format). */
+function knowledgeLine(k) {
+  if (!k) return null;
+  const name = `\`${k.file}\``;
+  if (!k.exists) return `⚪ brak pliku ${name} w folderze bota – asystent odpowiada bez niego (format: README → „Wiedza asystenta”)`;
+  const read = k.loadedAt ? ` · wczytany ${time(k.loadedAt)}` : '';
+  const loose = k.unanswered ? ` · ⚠️ ${count(k.unanswered, 'pytanie', 'pytania', 'pytań')} bez odpowiedzi pod spodem (sprawdź wcięcia)` : '';
+  if (k.error) return `⚠️ ${name}: nie udało się odczytać (${truncate(k.error, 200)})${k.questions ? ` – działa ostatnia dobra wersja: ${count(k.questions, 'pytanie', 'pytania', 'pytań')}` : ''}`;
+  if (!k.questions) return `⚪ ${name} jest pusty – dopisz pytania i odpowiedzi (format: README → „Wiedza asystenta”)${loose}${read}`;
+  return `✅ ${name} · ${count(k.questions, 'pytanie', 'pytania', 'pytań')} (${count(k.entries, 'odpowiedź', 'odpowiedzi', 'odpowiedzi')})${read}${loose}`;
+}
+
 function ticketLine(s) {
   if (!s.ticket) return null;
   if (!s.ticket.open) return 'Ten ticket jest zamknięty.';
@@ -68,6 +80,8 @@ function statusEmbed(guild, channel) {
       value: truncate(`${chainLines(s.chain)}\n-# Liczniki od północy (albo od uruchomienia bota).`, 1024),
     });
   }
+  const known = knowledgeLine(s.knowledge);
+  if (known) e.addFields({ name: 'Baza wiedzy', value: truncate(known, 1024) });
   const line = ticketLine(s);
   if (line) e.addFields({ name: 'Ten ticket', value: line });
   return e;

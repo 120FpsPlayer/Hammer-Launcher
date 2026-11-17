@@ -32,13 +32,16 @@ function loaderOf(dependencies) {
 function createModpacks({ modrinth, instances, fetchFn }) {
   /**
    * Installs a pack from a .mrpack file. onProgress({ label, done, total }).
+   * The instance is made first and the files are downloaded into it: it is marked unfinished until the last file is
+   * there, and `onCreated(instance)` tells the caller about it (services.js keeps it from being started meanwhile).
    * Returns the new instance.
    */
-  async function installFile(file, { name, icon, modpack, onProgress } = {}) {
+  async function installFile(file, { name, icon, modpack, onProgress, onCreated } = {}) {
     const zip = new AdmZip(file);
     const index = readIndex(zip);
     const { loader, loaderVersion } = loaderOf(index.dependencies);
-    const instance = instances.create({ name: name ?? index.name ?? 'Paczka modów', mcVersion: index.dependencies.minecraft, loader, loaderVersion, icon: icon ?? 'star', modpack: modpack ?? { name: index.name, version: index.versionId } });
+    const instance = instances.create({ name: name ?? index.name ?? 'Paczka modów', mcVersion: index.dependencies.minecraft, loader, loaderVersion, icon: icon ?? 'star', modpack: modpack ?? { name: index.name, version: index.versionId } }, { unfinished: 'modpack' });
+    onCreated?.(instance);
     try {
       const files = (index.files ?? []).filter((f) => f.env?.client !== 'unsupported');
       let done = 0;
@@ -82,7 +85,7 @@ function createModpacks({ modrinth, instances, fetchFn }) {
           fs.writeFileSync(target, entry.getData());
         }
       }
-      return instances.get(instance.id);
+      return instances.patchInternal(instance.id, { unfinished: undefined });
     } catch (err) {
       instances.remove(instance.id);
       throw err;
@@ -90,7 +93,7 @@ function createModpacks({ modrinth, instances, fetchFn }) {
   }
 
   /** Installs a pack straight from Modrinth (newest version, or a chosen one). */
-  async function installFromModrinth({ projectId, versionId }, { onProgress } = {}) {
+  async function installFromModrinth({ projectId, versionId }, { onProgress, onCreated } = {}) {
     const project = await modrinth.project(projectId);
     const version = versionId ? await modrinth.version(versionId) : (await modrinth.versions(projectId))[0];
     const file = primaryFile(version);
@@ -99,7 +102,7 @@ function createModpacks({ modrinth, instances, fetchFn }) {
     onProgress?.({ label: `Pobieranie paczki ${project.title}`, done: 0, total: 0 });
     await download(file.url, tmp, { sha1: file.hashes?.sha1, fetchFn });
     try {
-      return await installFile(tmp, { name: project.title, modpack: { projectId: project.id, versionId: version.id, name: project.title, version: version.version_number, iconUrl: project.icon_url }, onProgress });
+      return await installFile(tmp, { name: project.title, modpack: { projectId: project.id, versionId: version.id, name: project.title, version: version.version_number, iconUrl: project.icon_url }, onProgress, onCreated });
     } finally {
       fs.rmSync(tmp, { force: true });
     }

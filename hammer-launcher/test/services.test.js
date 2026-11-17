@@ -186,3 +186,89 @@ test('services: without an official Minecraft nothing is imported and the button
   assert.equal(missing.services.instances.get(missing.instance.id).serversImported, undefined, 'it is tried again once the game exists');
   assert.equal(missing.events.filter((e) => e.channel === 'toast').length, 0);
 });
+
+/**
+ * Holds every file copy of „Duplikuj” until the test lets them go – a big instance on a slow disk. `started` resolves
+ * at the first file. Returns { started, release, restore }.
+ */
+function slowCopy() {
+  const fsp = require('node:fs/promises');
+  const real = fsp.copyFile;
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  let begin;
+  const started = new Promise((resolve) => (begin = resolve));
+  fsp.copyFile = async (from, to) => {
+    begin();
+    await gate;
+    return real(from, to);
+  };
+  return { started, release, restore: () => (fsp.copyFile = real) };
+}
+
+test('services: „Duplikuj” copies in the background – the copy is marked, one copy at a time, never under a running game', async () => {
+  const { services, instance, events, running } = setup();
+  for (const [rel, body] of Object.entries({ 'mods/sodium.jar': 'jar', 'config/sodium.json': '{}', '.hammer/content.json': '{}', 'logs/latest.log': 'log', 'crash-reports/crash-1.txt': 'crash', 'backups/Nasz świat-2026-11-10_18-05.zip': 'zip', 'screenshots/2026-11-10_18.05.33.png': 'png', '.hammer/przywracanie/2026-11-11_14-05-33/manifest.json': '{}', '.hammer/benchmarks.json': '[]' })) {
+    fs.mkdirSync(path.dirname(path.join(instance.dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(instance.dir, rel), body);
+  }
+  // The game runs: nothing is copied.
+  running();
+  await assert.rejects(services.instances.duplicate(instance.id), /^Error: Najpierw zamknij grę/);
+  running(false);
+  assert.equal(services.instances.list().length, 1);
+
+  const slow = slowCopy();
+  let copy = null;
+  try {
+    const job = services.instances.duplicate(instance.id);
+    assert.ok(job instanceof Promise, 'the window is not held while files are copied');
+    await slow.started;
+    // The copy is on the list at once, marked – and nothing can start, change, copy or remove it yet.
+    const listed = services.instances.list().find((i) => i.id !== instance.id);
+    assert.deepEqual([listed.name, listed.pending], ['Hammer (kopia)', 'copy']);
+    assert.deepEqual(events.filter((e) => e.channel === 'instances:changed').map((e) => e.instanceId), [listed.id]);
+    await assert.rejects(services.launch(listed.id), /Ta instancja jeszcze się kopiuje – poczekaj, aż launcher skończy\./);
+    assert.throws(() => services.whenIdle(listed.id, 'instancja jest właśnie w użyciu'), /jeszcze się kopiuje/);
+    assert.throws(() => services.instances.remove(listed.id), /jeszcze się kopiuje/);
+    assert.throws(() => services.instances.update(listed.id, { name: 'Inna' }), /jeszcze się kopiuje/);
+    await assert.rejects(services.instances.duplicate(listed.id), /jeszcze się kopiuje/);
+    // A second click on „Duplikuj” makes no second copy; the original is not started in the middle of it either.
+    await assert.rejects(services.instances.duplicate(instance.id), /Ta instancja jest już kopiowana/);
+    await assert.rejects(services.launch(instance.id), /Poczekaj, aż launcher skończy kopiować tę instancję/);
+    assert.throws(() => services.whenIdle(instance.id, 'instancja jest właśnie w użyciu'), /Poczekaj, aż launcher skończy kopiować tę instancję/);
+    slow.release();
+    copy = await job;
+  } finally {
+    slow.restore();
+  }
+  assert.equal(copy.name, 'Hammer (kopia)');
+  assert.equal(services.instances.list().find((i) => i.id === copy.id).pending, undefined, 'done: an instance like any other');
+  assert.equal(services.instances.get(copy.id).unfinished, undefined);
+  // What the copy needs is there; what tells the story of the original stays with it.
+  const has = (rel) => fs.existsSync(path.join(copy.dir, rel));
+  assert.deepEqual(['mods/sodium.jar', 'config/sodium.json', '.hammer/content.json', 'saves/Nasz świat/level.dat', 'saves/Nasz świat/region/r.0.0.mca'].filter((rel) => !has(rel)), []);
+  assert.deepEqual(['logs', 'crash-reports', 'backups', 'screenshots', '.hammer/przywracanie', '.hammer/benchmarks.json'].filter(has), []);
+  assert.ok(fs.existsSync(path.join(instance.dir, 'backups', 'Nasz świat-2026-11-10_18-05.zip')), 'the original keeps everything');
+  // The bar in the sidebar follows the copy (bytes) and always ends at 100 %.
+  const bar = events.filter((e) => e.channel === 'task:progress' && e.scope === 'copy');
+  assert.ok(bar.length >= 2);
+  assert.deepEqual(bar.at(-1), { channel: 'task:progress', scope: 'copy', instanceId: copy.id, label: 'Kopiowanie instancji „Hammer”', done: 1, total: 1 });
+  assert.deepEqual(events.filter((e) => e.channel === 'instances:changed').map((e) => e.instanceId), [copy.id, copy.id]);
+  // Free again: the original starts (as far as the login) and can be copied once more.
+  await assert.rejects(services.launch(instance.id), /Zaloguj się kontem Microsoft/);
+  await assert.rejects(services.launch(copy.id), /Zaloguj się kontem Microsoft/);
+  assert.equal((await services.instances.duplicate(instance.id)).name, 'Hammer (kopia)');
+});
+
+test('services: a copy or modpack install cut off by closing the launcher is removed at the next start', () => {
+  const { services, instance } = setup();
+  const root = path.dirname(services.paths.instances);
+  // What a launcher closed in the middle leaves: the instance with its mark, half of the files.
+  const half = services.instances.create({ name: 'Hammer (kopia)', mcVersion: '1.21.1', loader: 'fabric' }, { unfinished: 'copy' });
+  const pack = services.instances.create({ name: 'Paczka', mcVersion: '1.21.1', loader: 'fabric' }, { unfinished: 'modpack' });
+  fs.writeFileSync(path.join(half.dir, 'mods', 'polowa.jar'), 'ja');
+  const next = createServices({ root, config: { brand: 'HammerShop' }, accounts: {} });
+  assert.deepEqual(next.instances.list().map((i) => i.id), [instance.id]);
+  assert.ok(!fs.existsSync(half.dir) && !fs.existsSync(pack.dir), 'nothing of them is left on the disk');
+});

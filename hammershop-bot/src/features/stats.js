@@ -2,9 +2,10 @@
 
 const config = require('../lib/config');
 const db = require('../lib/db');
+const hooks = require('../lib/hooks');
 const panels = require('../lib/panels');
 const { e, COLORS } = require('../lib/theme');
-const { ts, plural } = require('../lib/utils');
+const { ts, plural, safeRename } = require('../lib/utils');
 const { container, text, divider, header, v2 } = require('../lib/v2');
 const { channelName, sameChannelName } = require('../builder/style');
 
@@ -24,7 +25,26 @@ const STAT_NAMES = {
   // The Hammer Launcher server: the newest published launcher and how often its installer was downloaded.
   statVersion: (v) => channelName(`🚀 Wersja: ${v ?? 'beta'}`),
   statDownloads: (n) => channelName(`📥 Pobrania: ${n.toLocaleString('en-US')}`),
+  // Players in a multiplayer world with Hammer Client right now (playingNow) – singleplayer doesn't report itself.
+  statPlaying: (n) => channelName(`🎮 Gra na serwerach: ${n.toLocaleString('en-US')}`),
 };
+
+/**
+ * How many accounts play on a server with Hammer Client right now: the in-game client says "I am playing" every 90 s
+ * while it is in a multiplayer world (hammer-client Presence.java), and the website keeps that for 5 minutes, in memory
+ * only (src/web/launcher.js onlineNow, PRESENCE_MS) – so someone who quit still counts for a few minutes.
+ */
+function playingNow() {
+  try {
+    return require('../web/launcher').onlineNow();
+  } catch {
+    return 0;
+  }
+}
+// The presence list starts empty with every restart and fills up again with the clients' next "I am playing" – until
+// then the channel keeps its old number instead of dropping to 0 for a moment (and using up a rename on it).
+const PRESENCE_WARMUP_MS = 3 * 60_000;
+let startedAt = Date.now();
 
 function trackMessage(message) {
   if (!message.guild || message.author.bot) return;
@@ -79,6 +99,7 @@ function statNames(guild) {
     names.statVersion = STAT_NAMES.statVersion(launcher.version);
     names.statDownloads = STAT_NAMES.statDownloads(launcher.downloads);
   }
+  if (db.channelId(guild.id, 'statPlaying') && Date.now() - startedAt >= PRESENCE_WARMUP_MS) names.statPlaying = STAT_NAMES.statPlaying(playingNow());
   return names;
 }
 
@@ -92,17 +113,27 @@ function launcherNumbers() {
   }
 }
 
-async function updateStatChannels(client) {
+/** Renames the stat channels whose number changed. keys: only these channels (e.g. ['statPlaying']). */
+async function updateStatChannels(client, { keys = null } = {}) {
   for (const guildId of db.allGuildIds()) {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) continue;
     for (const [key, name] of Object.entries(statNames(guild))) {
+      if (keys && !keys.includes(key)) continue;
       const channel = guild.channels.cache.get(db.channelId(guildId, key) ?? '');
-      if (!channel) continue;
-      // Discord allows 2 renames per 10 minutes per channel – this runs every 10 minutes at most.
-      if (!sameChannelName(channel.name, name)) await channel.setName(name, 'Aktualizacja statystyk').catch(() => null);
+      if (!channel || sameChannelName(channel.name, name)) continue;
+      // Discord allows 2 renames per 10 minutes per channel. This runs every 10 minutes (and after /build); the
+      // players' channel also every 5 – safeRename counts its renames and skips one over the limit (the next round has it).
+      if (key === 'statPlaying') await safeRename(channel, name).catch(() => null);
+      else await channel.setName(name, 'Aktualizacja statystyk').catch(() => null);
     }
   }
 }
 
-module.exports = { weekKey, STAT_NAMES, statNames, trackMessage, leaderboardPanel, updateStatChannels, top };
+// The players' number moves more than the others: checked every 5 minutes (the first time once the presence list is warm).
+hooks.every('statPlaying', 5 * 60_000, (client) => updateStatChannels(client, { keys: ['statPlaying'] }), PRESENCE_WARMUP_MS + 30_000);
+
+module.exports = {
+  weekKey, STAT_NAMES, statNames, trackMessage, leaderboardPanel, updateStatChannels, top, playingNow, PRESENCE_WARMUP_MS,
+  _setStartedAt: (ms) => (startedAt = ms), // tests: pretend the bot has been running for a while
+};

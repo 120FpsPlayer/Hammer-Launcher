@@ -140,5 +140,100 @@
   "deals": { "enabled": false },
   "abandonedOrders": { "enabled": false },
   "invites": { "enabled": true, "rewards": [] },
-  "orders": { "receipts": false, "proofs": false, "vouchReminderHours": 0, "statusDms": false, "paymentProofs": false }
+  "orders": { "receipts": false, "proofs": false, "vouchReminderHours": 0, "statusDms": false, "paymentProofs": false },
+  "chatHints": {
+    "enabled": true,
+    "channels": ["chat", "servers"],
+    "userCooldownMinutes": 30,
+    "channelCooldownMinutes": 2,
+    "dismissButton": true,
+    "words": {
+      "launcher": "(?<![a-z])(hammer ?|hamer ?)?(launch|lanch|launh|launcz|lancz|lauch|lanuch|lunch|lounch)e?r[a-z]*",
+      "mc": "(?<![a-z])(minecraft[a-z]*|maj?ncraft[a-z]*|maj?nkraft[a-z]*|minekraft[a-z]*|mincraft[a-z]*|mc)(?![a-z])",
+      "game": "(?<![a-z])(gra|gry|grze|gre|gierka|gierki|gierke|gierce)(?![a-z])",
+      "client": "(?<![a-z])(hammer ?|hamer ?)?(client|klient)[a-z]*",
+      "plus": "(?<![a-z])(ham+er ?([+]|plus[a-z]*)|h ?[+]|h plus|ham+erplus[a-z]*)",
+      "bad": "nie (chce )?(sie )?(dziala|dzial|dzialac|odpala|odpalic|odpali|wlacza|wlaczyc|wlaczy|uruchamia|uruchomic|uruchomi|startuje|wystartuje|otwiera|otworzyc|otworzy|instaluje|zainstaluje|laduje|zaladuje|wczytuje)|niedziala|nie dizala|nie dzaila|nie dzila|(?<![a-z])(s|wy)?(crash|crasz|krasz|cresz|kresz)[a-z]*|wywal[a-z]*|wyrzuc[a-z]*|zamyka sie|zamknelo|wylacza sie|wylaczylo|wysypuj[a-z]*|wysypal[a-z]*|czarny ekran|czarnym ekranie|bialy ekran|zawiesza|zawiesil[a-z]*|zacina sie na|exit code|kod wyjscia|(?<![a-z])(blad|bledy|bledem|error)(?![a-z])",
+      "mods": "(?<![a-z])(mody|modow|moda|modami|modach|mod|modyfikacj[a-z]*|shader[a-z]*|szader[a-z]*|szejder[a-z]*|tekstur[a-z]*|texture ?pack[a-z]*|resource ?pack[a-z]*|modpack[a-z]*|paczk[a-z]* (modow|tekstur)|optifine|optyfine|sodium|iris)(?![a-z])",
+      "dl": "(?<![a-z])(pobrac|pobierac|pobrania|pobranie|pobiore|sciagnac|sciagac|sciagne|zassac|zainstalowac|instalowac|instalk[a-z]*|instalator[a-z]*|download[a-z]*|link|linka|linku|linkiem|strona|strone|strony|stronk[a-z]*|adres)(?![a-z])",
+      "othergame": "(?<![a-z])(cs ?2|csgo|cs go|counter|fortnite|valorant|roblox|gta|apex|warzone|cod|rust|terraria|fifa|discord[a-z]*|telefon[a-z]*|tiktok|youtube|steam)(?![a-z])"
+    },
+    "topics": [
+      {
+        "id": "plus",
+        "patterns": [
+          "{plus} .{0,30}(kupic|kupie|kupuje|kupowac|zakupic|zaplacic|zaplace|placic|platnosc[a-z]*|oplacic|blik[a-z]*|paypal|paysafecard|psc|karta|karte|kosztuje|koszt|cena|cennik|ile|kod|kodu|kodem|kody|aktywowac|aktywuje|aktywacj[a-z]*|wpisac|wpisuje|dziala|dzialaj[a-z]*|przyszed[a-z]*|przyszlo|dostal[a-z]*|daje|warto|za darmo|darmo[a-z]*|free)",
+          "(kupic|kupie|zakupic|zaplacic|oplacic|kosztuje|cena|ile|kod|kodu|aktywowac|wpisac|co daje|za darmo|darmowy|darmowe) .{0,30}{plus}",
+          " kod[a-z]* (do |od |na )?({launcher}|ham+er|premium|plus)"
+        ],
+        "text": "⭐ Wszystko o **Hammer+** – co daje i jak go kupić – znajdziesz na {#plus}. Kod nie działa albo coś poszło nie tak z płatnością? Otwórz ticket **Hammer+ i płatności** na {#tickets}."
+      },
+      {
+        "id": "account",
+        "patterns": [
+          "(grac|gra|zagrac|pograc|zalogowac|dziala|bedzie dzialac|uzywac|odpalic|wejsc|mozna|da sie|{launcher}) .{0,30}(non ?premium|nie ?premium|bez premium|bez konta|bez oryginal[a-z]*|pirac[a-z]*|pirat[a-z]*|(?<![a-z])s?crack[a-z]*|(?<![a-z])t ?launcher[a-z]*|nieoryginal[a-z]*|nie oryginal[a-z]*|offline)",
+          "(non ?premium|nie ?premium|bez premium|pirac[a-z]*|nieoryginal[a-z]*|(?<![a-z])t ?launcher[a-z]*) .{0,30}({launcher}|dziala|zadziala|mozna|da sie)",
+          "(zalogowac|zaloguje|zalogowanie|logowanie|logowaniem|logowania|loguje|zalogowal[a-z]*|login[a-z]*) .{0,30}(microsoft[a-z]*|mikrosoft[a-z]*|majkrosoft[a-z]*|(?<![a-z])ms(?![a-z])|xbox[a-z]*|{launcher})",
+          "(microsoft[a-z]*|mikrosoft[a-z]*|majkrosoft[a-z]*|xbox[a-z]*) .{0,30}(zalogowac|zaloguje|logowanie|loguje|logowania|konto|konta|nie dziala|blad|error|nie moge)"
+        ],
+        "text": "🔑 W launcherze logujesz się kontem Microsoft z oryginalnym **Minecraft: Java Edition** – na oficjalnej stronie Microsoftu, w oknie launchera. Kont nieoryginalnych (non-premium) nie obsługujemy. Więcej na {#faq}."
+      },
+      {
+        "id": "fps",
+        "patterns": [
+          "(malo|niskie|niski|slabe|slaby|male|maly|spadki|spada|spadaja|dropy|dropi|ledwo|tylko|jakies) .{0,12}(fps|fpsy|fpsow|fpsa|klatek|klatki)",
+          "(?<![a-z])(fps|fpsy|fpsow|fpsa|klatki|klatek)(?![a-z]) .{0,20}(malo|niskie|niski|slabe|slaby|spada|spadaja|dropi|dropia|leci|leca|nie ma)",
+          " jak .{0,25}(zwiekszyc|podniesc|poprawic|podbic|wiecej|zoptymalizowac|przyspieszyc|odlagowac) .{0,20}(fps|fpsy|fpsow|klatki|klatek|wydajnosc|{mc}|{game}|{launcher})",
+          "({game}|{mc}|{launcher}) .{0,15}(laguje|laguja|lagi|laga|zacina|przycina|tnie|chrupie|muli|wolno chodzi|slabo chodzi|klatkuje)",
+          "(laguje|laguja|lagi|zacina|przycina|tnie sie|muli|klatkuje) .{0,15}({game}|{mc}|{launcher})"
+        ],
+        "not": "{othergame}|(?<![a-z])serwer[a-z]*",
+        "text": "🚀 Więcej FPS: w launcherze otwórz zakładkę **Optymalizacja** → **Zoptymalizuj wszystko** – launcher sam dobierze pamięć, Javę i mody wydajnościowe, a wynik sprawdzisz **Testem FPS**. Więcej porad na {#faq}."
+      },
+      {
+        "id": "mods",
+        "patterns": [
+          " (jak|gdzie|skad|czy) .{0,30}(wgrac|wgrywac|dodac|dodawac|zainstalowac|instalowac|wrzucic|wrzucac|wlaczyc|wlaczac|pobrac|sciagnac|miec|uzywac|zrobic|odpalic|dac) .{0,20}{mods}",
+          "{mods} .{0,30}(nie dzialaj[a-z]*|nie dziala|nie chca|nie chce|nie widac|nie wlacza[a-z]*|nie laduj[a-z]*|nie wczytuj[a-z]*|nie pokazuj[a-z]*|nie instaluj[a-z]*)",
+          "(wgrac|wgrywac|dodac|zainstalowac|instalowac|wrzucic|wlaczyc) .{0,15}{mods}"
+        ],
+        "not": "{othergame}",
+        "text": "🧩 Mody, shadery i paczki tekstur instalujesz w launcherze w zakładce **Mody** – wyszukaj, kliknij **Zainstaluj**, a potrzebne dodatki dojdą same. Coś nie działa? Zajrzyj na {#faq}."
+      },
+      {
+        "id": "plans",
+        "patterns": [
+          " (kiedy|co|czy) .{0,25}(nowa wersja|nowej wersji|nastepna wersja|nastepnej wersji|kolejna wersja|kolejnej wersji|nowy update|update|apdejt|aktualizacj[a-z]*|nowa funkcj[a-z]*|nowe funkcj[a-z]*)",
+          " co nowego .{0,20}({launcher}|{client})"
+        ],
+        "not": "{othergame}|(?<![a-z])serwer[a-z]*|(?<![a-z])(windows|windowsa|sterownik[a-z]*|java|javy)(?![a-z])",
+        "text": "📋 Nad czym teraz pracujemy i co wejdzie do następnej wersji, zobaczysz na {#roadmap}. Każdą nową wersję ogłaszamy na {#updates}."
+      },
+      {
+        "id": "download",
+        "patterns": [
+          "{dl} .{0,25}{launcher}",
+          "{launcher} .{0,25}{dl}",
+          " (gdzie|skad) .{0,20}(jest|znajde|dostane|mam|wziac|znalezc) .{0,15}{launcher}"
+        ],
+        "text": "📥 **Hammer Launcher** pobierzesz na {#launcher} – zawsze w najnowszej wersji.\n🌐 Albo prosto ze strony: {site}\nPobieraj go tylko od nas, nie z linków od obcych osób."
+      },
+      {
+        "id": "crash",
+        "question": false,
+        "patterns": [
+          "{launcher} .{0,30}{bad}",
+          "{bad} .{0,30}{launcher}",
+          "{mc} .{0,30}{bad}",
+          "{bad} .{0,30}{mc}",
+          "{client} .{0,25}{bad}",
+          "{bad} .{0,25}{client}",
+          "{game} .{0,12}{bad}",
+          "{bad} .{0,15}{game}"
+        ],
+        "not": "{othergame}|(juz|znowu|teraz|wszystko) (mi |sie )?(dziala|smiga|chodzi)|dziala juz|naprawil[a-z]*|naprawion[a-z]*|(nie|nigdy|zero|bez) (mi )?(crash|crasz|wywala|bledow|problemow)",
+        "text": "🛠️ Launcher albo gra nie startuje, wywala Cię albo widzisz czarny ekran? Otwórz ticket **Pomoc z launcherem** na {#tickets} i dołącz log: w launcherze **Konsola → Wyślij logi**, a link wklej w tickecie. Dopisz wersję Minecrafta i listę modów."
+      }
+    ]
+  }
 }

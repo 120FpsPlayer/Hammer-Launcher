@@ -30,6 +30,12 @@
  *   POST   announcements         { title, text, kind, image?, buttonLabel?, buttonUrl?, ping, banner?, confirmEveryone? }
  *                                → the card on #📢 ogłoszenia: { item, url } (ping 'everyone': owner only)
  *   DELETE announcements/<id>    takes it off Discord (the history keeps it, marked as deleted)
+ *   GET    roadmap               → „Plany”: { items, sections, limits, updatedAt, by, discord { channel, url } }
+ *   POST   roadmap               { section, title, note? }        PUT roadmap/<id> { section?, title?, note? }
+ *   DELETE roadmap/<id>          POST roadmap/<id>/move { dir: 'up' | 'down' } (within its section)
+ *                                – every change is saved and the card on #📋 plany is edited right away:
+ *                                → { items, updatedAt, discord { ok, url, reposted, error } }
+ *   POST   roadmap/publish       puts the card on Discord again (edits it, or posts it when it was deleted) → { url, reposted }
  *   GET    messages              → „Wiadomości”: { messages (the contact form's, newest first), unread, topics,
  *                                  mail { ready, to, from, host, port, address, last }, canDelete, canTest }
  *   GET    messages/count        → { unread, total } – the number on the tab
@@ -46,6 +52,7 @@ const store = require('./store');
 const releases = require('./releases');
 const plusLib = require('../lib/plus');
 const mail = require('../lib/mail');
+const roadmap = require('../lib/roadmap');
 const contact = () => require('./contact'); // (it uses line / block from this file)
 
 const PREFIX = '/api/admin/';
@@ -146,6 +153,33 @@ function announcementRow(a) {
   return { id: a.id, title: a.title, kind: a.kind, ping: a.ping, at: a.at, by: user(a.by), url: a.url, crossposted: Boolean(a.crossposted), deletedAt: a.deletedAt ?? null, deletedBy: user(a.deletedBy) };
 }
 
+// ── „Plany”: the card on #📋 plany (src/lib/roadmap.js, the bot side in src/features/roadmap.js) ──
+/** The form, checked → { section?, title?, note? } (partial: only what was sent). */
+function roadmapFields(body, { partial = false } = {}) {
+  const out = {};
+  if (!partial || body.section !== undefined) {
+    if (!roadmap.SECTION_IDS.includes(body.section)) throw problem(400, 'Wybierz sekcję: Teraz robimy, W następnej wersji, Później albo Ostatnio zrobione.');
+    out.section = body.section;
+  }
+  if (!partial || body.title !== undefined) {
+    out.title = line(body.title, 1000);
+    if (!out.title) throw problem(400, 'Wpisz, co planujecie – tytuł punktu.');
+    if (out.title.length > roadmap.LIMITS.title) throw problem(400, `Tytuł może mieć najwyżej ${roadmap.LIMITS.title} znaków (teraz ${out.title.length}).`);
+  }
+  if (!partial || body.note !== undefined) {
+    out.note = line(body.note, 1000);
+    if (out.note.length > roadmap.LIMITS.note) throw problem(400, `Notka może mieć najwyżej ${roadmap.LIMITS.note} znaków (teraz ${out.note.length}).`);
+  }
+  return out;
+}
+
+/** Where an item goes in its section: „Ostatnio zrobione” – on top (the newest first), the others – at the end. */
+const placed = (items, item) => (item.section === 'done' ? [item, ...items] : [...items, item]);
+
+const sectionTitle = (id) => roadmap.SECTIONS.find((s) => s.id === id)?.title ?? id;
+/** A list item as the panel shows it. */
+const roadmapRow = (item) => ({ id: item.id, section: item.section, title: item.title, note: item.note ?? '', at: item.at, by: item.by ?? null });
+
 // ── „Wiadomości”: what came through the website's contact form (src/web/contact.js) ──
 const PENDING_MS = 5 * 60_000; // an e-mail still "on its way" after this long never left (the bot was restarted meanwhile)
 
@@ -221,7 +255,8 @@ const uploadSaid = new Map();
 /**
  * /api/admin/… – h: the website's helpers { send, fail, jsonBody, userOf, limited, originOk } and the bot's side
  * { level, announce, log, plus { grant, recent, inspect, active }, featured { list, add, remove },
- *   announcements { info, bannerFile, post, remove }, currency, publicUrl, authReady, paymentsReady, webhookReady }.
+ *   announcements { info, bannerFile, post, remove }, roadmap { info, publish }, currency, publicUrl, authReady,
+ *   paymentsReady, webhookReady }.
  */
 async function api(req, res, url, h) {
   const route = url.pathname.slice(PREFIX.length).replace(/\/+$/, '');
@@ -269,6 +304,11 @@ async function api(req, res, url, h) {
     if (route === 'announcements') return h.send(res, 200, { ...h.announcements.info(), history: store.announcementList().map(announcementRow), canEveryone: owner, limits: ANN_LIMITS });
     if (route === 'messages') return h.send(res, 200, { messages: store.messageList().map((m) => messageRow(m)), unread: store.unreadMessages(), topics: contact().TOPICS, mail: mailInfo(), max: store.MAX_MESSAGES, canDelete: owner, canTest: owner });
     if (route === 'messages/count') return h.send(res, 200, { unread: store.unreadMessages(), total: store.messageList().length });
+    if (route === 'roadmap') {
+      const r = store.roadmap();
+      const by = r.by ? { id: r.by, name: store._state().users[r.by]?.name ?? null } : null;
+      return h.send(res, 200, { items: r.items.map(roadmapRow), sections: roadmap.SECTIONS, limits: roadmap.LIMITS, updatedAt: r.updatedAt, by, discord: h.roadmap.info() });
+    }
     const bannerOf = /^announcements\/banner\/([a-z]{1,24})$/.exec(route);
     if (bannerOf) {
       const file = h.announcements.bannerFile(bannerOf[1]);
@@ -436,6 +476,62 @@ async function api(req, res, url, h) {
       store.updateAnnouncement(item.id, { deletedAt: Date.now(), deletedBy: user.id });
       await log(`🗑️ Usunięto ogłoszenie z Discorda: **${item.title}**${removed ? '' : ' (wiadomości już tam nie było)'}`);
       return h.send(res, 200, { item: announcementRow(store.getAnnouncement(item.id)), gone: !removed });
+    }
+  }
+
+  // ── „Plany”: the card on #📋 plany. Every change is saved and put on Discord at once – the bot edits the same message
+  // and pings nobody, so there is no draft that could be forgotten: what the tab shows is what the channel shows. ──
+  if (head === 'roadmap') {
+    const items = store.roadmap().items;
+    const tooLong = 'Karta na Discordzie byłaby za długa – skróć notki albo usuń starsze punkty (np. z „Ostatnio zrobione”).';
+    /** Saves the new list, edits the card → the answer; Discord being down never loses the change (the answer says so). */
+    const saved = async (next, what) => {
+      const r = store.setRoadmap(next, user.id);
+      let discord;
+      try {
+        const posted = await h.roadmap.publish();
+        discord = { ok: true, url: posted?.url ?? null, reposted: Boolean(posted?.reposted) };
+      } catch (err) {
+        discord = { ok: false, error: err.message };
+      }
+      await log(`📋 Plany: ${what}${discord.ok ? (discord.reposted ? ' – kartę wysłano od nowa' : '') : ' – karta na Discordzie się nie zmieniła'}`);
+      return h.send(res, 200, { items: r.items.map(roadmapRow), updatedAt: r.updatedAt, discord });
+    };
+    const quoted = (item) => `„${roadmap.plain(item.title)}”`;
+    if (method === 'POST' && arg === 'publish') {
+      if (h.limited(req, 'roadmap-publish', 10)) return h.fail(res, 429, 'Za dużo prób naraz – odczekaj minutę.');
+      const posted = await h.roadmap.publish();
+      await log(`📋 Plany: karta na Discordzie ${posted.reposted ? 'wysłana od nowa' : 'odświeżona'} – ${posted.url}`);
+      return h.send(res, 200, { url: posted.url, reposted: Boolean(posted.reposted) });
+    }
+    if (method === 'POST' && !arg) {
+      const fields = roadmapFields(Object(body)); // (a JSON null is an empty form, not a crash)
+      if (items.length >= roadmap.LIMITS.items) return h.fail(res, 400, `Na karcie jest już ${roadmap.LIMITS.items} punktów – usuń coś (np. starsze z „Ostatnio zrobione”), zanim dodasz nowy.`);
+      const item = { id: store.roadmapId(), ...fields, at: Date.now(), by: user.id };
+      const next = placed(items, item);
+      if (!roadmap.fits(next)) return h.fail(res, 400, tooLong);
+      return saved(next, `dodano ${quoted(item)} (${sectionTitle(item.section)})`);
+    }
+    const [id, action, ...more] = String(arg ?? '').split('/');
+    const item = items.find((i) => i.id === id);
+    if (!arg || more.length) return h.fail(res, 404, 'Nie znaleziono');
+    if (!item) return h.fail(res, 404, 'Nie ma takiego punktu – może ktoś go właśnie usunął. Odśwież stronę.');
+    if (method === 'PUT' && !action) {
+      const fields = roadmapFields(Object(body), { partial: true });
+      const changed = { ...item, ...fields };
+      const moved = fields.section !== undefined && fields.section !== item.section;
+      const next = moved ? placed(items.filter((i) => i !== item), changed) : items.map((i) => (i === item ? changed : i));
+      if (!roadmap.fits(next)) return h.fail(res, 400, tooLong);
+      return saved(next, `zmieniono ${quoted(changed)}${moved ? ` (teraz: ${sectionTitle(changed.section)})` : ''}`);
+    }
+    if (method === 'DELETE' && !action) return saved(items.filter((i) => i !== item), `usunięto ${quoted(item)} (${sectionTitle(item.section)})`);
+    if (method === 'POST' && action === 'move') {
+      const step = { up: -1, down: 1 }[Object(body).dir];
+      if (!step) return h.fail(res, 400, 'Wybierz kierunek: w górę albo w dół.');
+      const same = items.filter((i) => i.section === item.section);
+      const other = same[same.indexOf(item) + step];
+      if (!other) return h.send(res, 200, { items: items.map(roadmapRow), updatedAt: store.roadmap().updatedAt, discord: null }); // already first / last
+      return saved(items.map((i) => (i === item ? other : i === other ? item : i)), `przesunięto ${quoted(item)} ${step < 0 ? 'w górę' : 'w dół'}`);
     }
   }
 

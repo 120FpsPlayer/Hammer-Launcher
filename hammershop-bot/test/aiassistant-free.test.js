@@ -14,6 +14,7 @@ const assistant = require('../src/features/aiassistant');
 const ai = require('../src/features/ai/client');
 const openai = require('../src/features/ai/openai');
 const { SYSTEM_PROMPT_FREE, freePrompt, GREETINGS } = require('../src/features/ai/prompt');
+const { INTRO } = require('../src/features/ai/format');
 const assistantCommand = require('../src/commands/assistant');
 
 const { uid, role, sleep, useEnv, groq, chat, say, callTools, limited, notFound, open, write, aiOf, botMessages, botTexts, panelOf, ticketLog, toolMessages, countTexts, giveaway, click, LIMIT_TEXT } = fakes;
@@ -30,26 +31,21 @@ async function statusText(channel) {
 }
 const CLAUDE_ONLY = ['cache_control', 'betas', 'fallbacks', 'output_config', '"strict"', 'additionalProperties', 'thinking'];
 
-test('Groq by default: a fixed greeting when the ticket opens (no API call), a small request only when the author writes', async () => {
+test('Groq by default: the ticket form is answered right away – one small request, the owner\'s format – then every message of the author', async () => {
   await server();
   assert.deepEqual([ai.provider(), ai.model()], ['groq', 'openai/gpt-oss-120b']);
-  const calls = groq(say('Spróbuj Optymalizacja → Zoptymalizuj wszystko. Jeśli nie pomoże, wyślij log.'));
+  const calls = groq(
+    say('Cześć! Jestem asystentem AI. Czarny ekran po starcie to najczęściej mod, który nie pasuje do wersji gry – wyłącz ostatnio dodane mody w zakładce **Mody** i uruchom grę jeszcze raz.'),
+    say('Spróbuj **Optymalizacja → Zoptymalizuj wszystko**. Jeśli nie pomoże, wyślij link z **Konsola → Wyślij logi**.'),
+  );
   const { channel, author } = await open('support', [['Temat', 'Gra się nie uruchamia'], ['Wersja launchera i Minecrafta', '2.6.0, 1.21.4 Fabric'], ['Opisz dokładnie, co się dzieje', 'Czarny ekran']]);
-  assert.equal(calls.length, 0, 'opening a ticket costs nothing');
-  const greeting = botMessages(channel).find((m) => m.content.startsWith(GREETINGS.support));
-  assert.ok(greeting, 'the greeting for a support ticket');
-  assert.deepEqual(customIds(greeting.body), ['ai:human', 'ai:off']);
-  assert.equal(panelOf(channel), undefined, 'no prize list outside reward tickets');
-  assert.equal(aiOf(channel).replies, 0, 'the greeting is not an answer from the model');
-
-  await write(channel, author, 'gra pokazuje czarny ekran po starcie, co robić?');
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 1, 'one request answers the form');
   const [req] = calls;
   assert.equal(req.url, 'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(req.headers.authorization, 'Bearer gsk_test_key');
   assert.equal(req.body.model, 'openai/gpt-oss-120b');
   assert.equal(req.body.reasoning_effort, 'low');
-  assert.ok(req.body.max_tokens <= 500, `max_tokens ${req.body.max_tokens}`);
+  assert.ok(req.body.max_tokens >= 1200 && req.body.max_tokens <= 1500, `max_tokens ${req.body.max_tokens}: room for the reasoning, still a small request`);
   assert.equal(req.body.tool_choice, 'auto');
   assert.deepEqual(req.body.tools.map((t) => [t.type, t.function.name]), [['function', 'wezwij_zespol'], ['function', 'info_launchera']], 'a support ticket: only these two');
   for (const t of req.body.tools) assert.ok(t.function.description.length <= 140, t.function.name);
@@ -60,25 +56,58 @@ test('Groq by default: a fixed greeting when the ticket opens (no API call), a s
   assert.equal(SYSTEM_PROMPT_FREE, freePrompt('reward'));
   assert.doesNotMatch(freePrompt('support'), /odbierz_nagrode|moje_wygrane/, 'no prize tools named where there are none');
   assert.match(freePrompt('support'), /„Odbierz nagrodę”/);
+  assert.match(freePrompt('support'), /Konsola → Wyślij logi/, 'the launcher\'s real button');
   assert.match(req.body.messages[1].content, /Czarny ekran/);
   assert.equal(req.body.messages.at(-1).role, 'system');
   assert.match(req.body.messages.at(-1).content, /ticket typu support/);
-  assert.doesNotMatch(req.body.messages.at(-1).content, /pierwsza wiadomość/, 'the greeting already introduced it');
-  assert.ok(req.body.messages.some((m) => m.role === 'assistant' && m.content.startsWith('Cześć! 👋')), 'the greeting is in the history');
-  assert.ok(botTexts(channel).some((t) => /Zoptymalizuj wszystko/.test(t)));
-  assert.ok(raw.length < 6000, `the whole request is ${raw.length} characters`);
+  assert.match(req.body.messages.at(-1).content, /pierwsza odpowiedź[\s\S]*Od razu odpowiedz na pytanie albo problem z formularza/);
+  assert.ok(raw.length < 7000, `the whole request is ${raw.length} characters`);
+
+  const first = botMessages(channel).find((m) => m.content?.startsWith(INTRO));
+  assert.ok(first, 'the first message introduces the assistant');
+  assert.equal(first.content.split('\n')[2], 'Czarny ekran po starcie to najczęściej mod, który nie pasuje do wersji gry – wyłącz ostatnio dodane mody w zakładce **Mody** i uruchom grę jeszcze raz.', 'the model\'s own introduction is taken out');
+  assert.deepEqual(customIds(first.body), ['ai:human', 'ai:off']);
+  assert.equal(panelOf(channel), undefined, 'no prize list outside reward tickets');
+  assert.equal(aiOf(channel).replies, 1);
+
+  await write(channel, author, 'gra pokazuje czarny ekran po starcie, co robić?');
+  assert.equal(calls.length, 2);
+  const next = calls[1].body;
+  assert.doesNotMatch(next.messages.at(-1).content, /pierwsza odpowiedź/, 'it introduced itself already');
+  assert.ok(next.messages.some((m) => m.role === 'assistant' && m.content.startsWith('Czarny ekran po starcie')), 'its answer is in the history – without the introduction');
+  const second = botMessages(channel).at(-1);
+  assert.match(second.content, /^Spróbuj \*\*Optymalizacja → Zoptymalizuj wszystko\*\*/, 'no introduction the second time');
+  assert.match(second.content, /\n-# \S+ Asystent AI$/);
+  assert.deepEqual(customIds(second.body), []);
+});
+
+test('Groq: a form without a question (or no form) gets the fixed greeting – no request until the author writes', async () => {
+  await server();
+  const calls = groq(say('Jasne – co dokładnie się dzieje?'));
+  const { channel, author } = await open('support');
+  assert.equal(calls.length, 0, 'nothing to answer yet – no request');
+  const greeting = botMessages(channel).find((m) => m.content?.startsWith(INTRO));
+  assert.equal(greeting.content.split('\n')[2], GREETINGS.support);
+  assert.deepEqual(customIds(greeting.body), ['ai:human', 'ai:off']);
+  assert.equal(aiOf(channel).replies, 0, 'the greeting is not an answer from the model');
+  const plus = await open('plus', [['Twój nick w Minecraft', 'Notch']]);
+  assert.equal(calls.length, 0, 'a nick is not a question');
+  assert.ok(botTexts(plus.channel).some((t) => t.includes(GREETINGS.plus)));
+  await write(channel, author, 'hej, mam pytanie');
+  assert.equal(calls.length, 1);
+  assert.doesNotMatch(calls[0].body.messages.at(-1).content, /pierwsza odpowiedź/, 'the greeting already introduced it');
 });
 
 test('a request carries the last 6 turns, each cut to ~400 characters, and a short form', async () => {
   await server();
-  const { channel, author } = await open('support', [['Opisz dokładnie, co się dzieje', 'x'.repeat(1000)]]);
   groq(...Array.from({ length: 5 }, (_, i) => say(`Odpowiedź ${i + 1}`)));
+  const { channel, author } = await open('support', [['Temat', 'Długi opis'], ['Opisz dokładnie, co się dzieje', 'x'.repeat(2500)]]);
   for (let i = 1; i <= 4; i += 1) await write(channel, author, `Wiadomość numer ${i}: ${'bla '.repeat(150)}`);
   const calls = groq(say('Ostatnia odpowiedź'));
   await write(channel, author, 'ostatnie pytanie');
   const turns = calls[0].body.messages.slice(1).filter((m) => m.role !== 'system');
   const [form, ...history] = turns;
-  assert.ok(form.content.length <= 650, `the form block has ${form.content.length} characters`);
+  assert.ok(form.content.length <= 1650 && form.content.length >= 1000, `the form block has ${form.content.length} characters – a whole form fits, a huge one is cut`);
   assert.ok(history.length <= 6, `${history.length} turns`);
   const all = history.map((m) => m.content).join('\n');
   assert.doesNotMatch(all, /Wiadomość numer 1:|Wiadomość numer 2:/, 'the oldest turns are left out');
@@ -94,7 +123,7 @@ test('a reward ticket: the claim buttons right away even with the AI on – the 
   const calls = groq(callTools(['moje_wygrane', {}, 'call_1']), callTools(['odbierz_nagrode', { giveawayId: gw.id, minecraftNick: 'Steve' }, 'call_2']), say('Gotowe! Kod masz wyżej.'));
   const { channel } = await open('reward', [['Który giveaway wygrałeś/aś?', 'Hammer+ na miesiąc'], ['Twój nick w Minecraft', 'Steve']], author);
   assert.equal(calls.length, 0);
-  assert.ok(botTexts(channel).some((t) => t.startsWith(GREETINGS.reward)));
+  assert.ok(botTexts(channel).some((t) => t.startsWith(`${INTRO}\n\n${GREETINGS.reward}`)), 'the fixed greeting – the claim buttons do the work');
   assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human']);
 
   await write(channel, author, 'mogę odebrać nagrodę przez Ciebie?');
@@ -138,11 +167,11 @@ test('model rotation: a 429 on the first model → the same request goes to the 
 test('a model the provider does not know (404) is skipped silently for the rest of the run – one console warning', async (t) => {
   await server();
   const warns = t.mock.method(console, 'warn', () => {});
+  const calls = groq(fakes.notFound(), say('Kod wpisz w **Hammer+ → „Mam kod”** → wklej → **Aktywuj**.'), say('Musi być wybrane konto, dla którego jest kod.'), say('Proszę bardzo!'));
   const { channel, author } = await open('plus', [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'Jak aktywować kod?']]);
-  const calls = groq(fakes.notFound(), say('Hammer+ → „Mam kod” → wklej → Aktywuj.'), say('Proszę bardzo!'));
   await write(channel, author, 'jak wpisać kod?');
   await write(channel, author, 'dzięki');
-  assert.deepEqual(calls.map((c) => c.body.model), ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'openai/gpt-oss-20b']);
+  assert.deepEqual(calls.map((c) => c.body.model), ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'openai/gpt-oss-20b', 'openai/gpt-oss-20b']);
   assert.equal(warns.mock.calls.filter((c) => /openai\/gpt-oss-120b[\s\S]*nie działa na tym koncie/.test(String(c.arguments[0]))).length, 1);
   assert.equal(botTexts(channel).some((t) => /przerwę|Wołam zespół/.test(t)), false);
   assert.match(await statusText(channel), /❌ niedostępny · `openai\/gpt-oss-120b`/);

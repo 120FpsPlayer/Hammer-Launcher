@@ -20,6 +20,10 @@ const loadCommands = require('../../src/commands');
 const hammerplus = require('../../src/features/hammerplus');
 const assistant = require('../../src/features/aiassistant');
 const openai = require('../../src/features/ai/openai');
+const knowledge = require('../../src/features/ai/knowledge');
+
+/** The knowledge file of the assistant tests – in this test file's own temporary data folder (absent until written). */
+const KNOWLEDGE_FILE = require('node:path').join(process.env.HS_DATA_DIR, 'wiedza-asystenta.md');
 
 const ENV_KEYS = ['ANTHROPIC_API_KEY', 'GROQ_API_KEY', 'AI_PROVIDER', 'AI_MODEL', 'AI_BASE_URL', 'AI_API_KEY'];
 for (const key of ENV_KEYS) delete process.env[key];
@@ -57,6 +61,8 @@ async function server(values = { GROQ_API_KEY: 'gsk_test_key' }) {
   }
   assistant.setClient(null);
   assistant._reset();
+  // The owner's own wiedza-asystenta.md never changes what a test sends – a knowledge test writes its own file here.
+  knowledge.setFile(KNOWLEDGE_FILE);
   db.guild(ctx.guild.id).aiAssistant = { enabled: true };
   useEnv(values);
   openai.setFetch(async (url, init) => {
@@ -136,5 +142,5 @@ async function command(member, channel, subcommand, options = {}) {
 
 module.exports = {
   ctx, uid, role, sleep, useEnv, server, groq, chat, say, callTools, limited, notFound, open, write, aiOf, botMessages, botTexts, panelOf,
-  ticketLog, toolMessages, countTexts, giveaway, click, command, LIMIT_TEXT, commands,
+  ticketLog, toolMessages, countTexts, giveaway, click, command, LIMIT_TEXT, commands, KNOWLEDGE_FILE,
 };

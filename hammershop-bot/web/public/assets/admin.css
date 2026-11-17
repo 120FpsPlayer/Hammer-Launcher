@@ -130,3 +130,19 @@ legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 8
 @media (max-width: 560px) {
   .msg-item .btn { flex: 1 1 auto; }
 }
+
+/* „Plany”: the list by sections (the preview reuses the Discord look above) */
+.plan-group { display: grid; gap: 8px; }
+.plan-group + .plan-group { border-top: 1px solid var(--line); padding-top: 12px; }
+.plan-group-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.plan-item { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; }
+.plan-item.plan-editing { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.plan-moves { display: grid; gap: 4px; }
+.plan-moves .btn { min-height: 26px; min-width: 32px; padding: 0 8px; font-size: 14px; line-height: 1; }
+.plan-actions { flex-wrap: nowrap; }
+.plan-empty { margin: 0; padding: 2px 0 2px 18px; }
+.plan-busy .plan-item .btn { pointer-events: none; opacity: .6; }
+@media (max-width: 560px) {
+  .plan-item { grid-template-columns: auto minmax(0, 1fr); }
+  .plan-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}

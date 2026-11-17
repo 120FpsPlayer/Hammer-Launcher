@@ -22,7 +22,8 @@
  *                order on the website shows it too.
  *   - admin      the admin panel (/admin, src/web/admin.js) asks the bot who may use it (the server's owner and
  *                OWNER_IDS – everything; the bot's admins – the rest), posts news and new launcher versions on Discord
- *                and announcements on #📢 ogłoszenia („Ogłoszenia” tab), and writes every change to the log channel.
+ *                and announcements on #📢 ogłoszenia („Ogłoszenia” tab), keeps the card on #📋 plany up to date („Plany”
+ *                tab, Hammer Launcher server) and writes every change to the log channel.
  *   - contact    a message from the website's contact form (src/web/contact.js) becomes a card on the team's chat –
  *                nobody is pinged (contactCard).
  *   - e-mail     with e-mail set up (MAIL_PASS – src/lib/mail.js) every paid website order, and every claimed referral
@@ -744,6 +745,14 @@ const panelAnnouncements = {
   },
 };
 
+// ───────────── The panel's „Plany” tab: the card on #📋 plany (src/features/roadmap.js) ─────────────
+const panelRoadmap = {
+  /** Where the card is: { channel: { id, name, url } | null, url (the message) | null }. */
+  info: () => require('./roadmap').status(guildOf()),
+  /** Edits the card to the saved list – or posts it when it is gone → { url, reposted }. */
+  publish: () => require('./roadmap').publish(needGuild()),
+};
+
 /** The featured servers for the panel – the same list /featured edits. */
 const panelFeatured = {
   list: () => featuredServers(),
@@ -806,7 +815,7 @@ function start(c) {
     }
   });
   webAuth.setClientId(c.application?.id ?? c.user?.id);
-  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, contact: contactCard });
+  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard });
   server.on('error', (err) => {
     console.warn(`🌐 Strona: nie można użyć portu ${env.web.port} (${err.code ?? err.message}) – bot działa dalej bez niej.`);
     server = null;
@@ -836,5 +845,5 @@ hooks.on('inviteDelete', (invite) => {
 module.exports = {
   catalog, featuredServers, plain, tabOf, artOf, guildOf, ticketOrder, handOver, onPaid, onLogin, isMember, start, stop: () => server?.close(), _setClient: (c) => (client = c),
   deliverPlus, plusDm, panelLevel, announce, panelLog, panelPlus, panelFeatured, panelReferrals, launcherChannel, checkInvite, inviteOf, invitesPaused, ownInviteFailing,
-  panelAnnouncements, contactCard, purchaseMail,
+  panelAnnouncements, contactCard, purchaseMail, panelRoadmap,
 };

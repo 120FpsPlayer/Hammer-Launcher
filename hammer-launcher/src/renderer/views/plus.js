@@ -163,7 +163,7 @@
           h('div.copy', h('div.why-icon', icon('cloud')), h('b', 'Kopia z chmury'), h('small', holds(c.cloud)), keepCloud),
           h('div.copy', h('div.why-icon', icon('monitor')), h('b', 'Ten komputer'), h('small', holds(c.local)), keepLocal),
         ),
-        h('p.hint', 'Druga kopia zostanie zastąpiona. Chodzi tylko o wygląd launchera, listy serwerów i układ HUD – światy, mody i konta zostają nietknięte.'),
+        h('p.hint', 'Druga kopia zostanie zastąpiona. Chodzi tylko o wygląd launchera i postaci, listy serwerów i układ HUD – światy, mody i konta zostają nietknięte.'),
       ),
       foot: [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Zdecyduję później')],
       wide: false,
@@ -219,7 +219,7 @@
           await load();
         });
       fetchBtn.onclick = async () => {
-        if (!(await HS.confirmDialog({ title: 'Pobrać kopię z chmury?', text: 'Wygląd launchera, listy serwerów i układ HUD na tym komputerze staną się takie jak w kopii. Serwery, których w kopii nie ma, znikną z list. Światy i mody zostają nietknięte.', confirm: 'Pobierz' }))) return;
+        if (!(await HS.confirmDialog({ title: 'Pobrać kopię z chmury?', text: 'Wygląd launchera i postaci, listy serwerów i układ HUD na tym komputerze staną się takie jak w kopii. Serwery, których w kopii nie ma, znikną z list. Światy i mody zostają nietknięte.', confirm: 'Pobierz' }))) return;
         HS.busy(fetchBtn, async () => {
           await cloudResult(await attempt(() => api.cloud.pull()));
           await load();
@@ -242,7 +242,7 @@
         status?.note ? h('p.cloud-note', icon('info'), status.note) : null,
         h('div.cloud-acts', send, fetchBtn),
         h('label.cloud-auto', auto, h('div', h('b', 'Synchronizuj automatycznie'), h('small', 'Pobiera przy starcie launchera, wysyła po każdej grze.'))),
-        h('p.hint', 'W kopii: wygląd launchera oraz lista serwerów i układ HUD każdej instancji (po nazwie instancji). Światy, mody i konta zostają tylko na komputerze.'),
+        h('p.hint', 'W kopii: wygląd launchera i postaci (motyw, peleryna, dodatki) oraz lista serwerów i układ HUD każdej instancji (po nazwie instancji). Światy, mody i konta zostają tylko na komputerze.'),
       );
     }
     draw();
@@ -277,7 +277,7 @@
     { icon: 'sparkles', title: 'Ruchome peleryny i dodatki', text: 'Ruchome peleryny Płomień, Iskry i Fale, a do tego skrzydła, aureola i czapki. Widzą je gracze z Hammer Client.', go: ['skin', 'Dodatki'] },
     { icon: 'discord', title: 'Ranga na Discordzie', text: 'Ranga 💎 Hammer+ na naszym serwerze Discord – dopóki masz Hammer+.', go: null },
     { icon: 'star', title: 'Znaczek Hammer+ w grze', text: 'Na liście graczy (Tab) przed Twoim nickiem widać młotek z plusem zamiast zwykłego młotka. Widzą go gracze z Hammer Client.', go: null },
-    { icon: 'cloud', title: 'Chmura', text: 'Wygląd launchera, listy serwerów i układ HUD na każdym Twoim komputerze. Zacznie działać, gdy sklep HammerShop będzie online.', go: null },
+    { icon: 'cloud', title: 'Chmura', text: 'Wygląd launchera i postaci, listy serwerów i układ HUD na każdym Twoim komputerze. Zacznie działać, gdy sklep HammerShop będzie online.', go: null },
   ];
 
   function render(root) {

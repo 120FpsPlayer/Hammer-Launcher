@@ -39,7 +39,7 @@ test('server status: a real Server List Ping exchange with a local fake server',
   assert.equal(motdText('§aZielony §ltekst'), 'Zielony tekst');
 });
 
-test('instances: create (game in Polish), edit (new version = install again), duplicate, remove', () => {
+test('instances: create (game in Polish), edit (new version = install again), duplicate, remove', async () => {
   const instances = createInstances(createPaths(tmpDir()));
   assert.throws(() => instances.create({ name: 'Bez wersji' }), /Wybierz wersję/);
   const a = instances.create({ name: 'Moja Żółta Instancja', mcVersion: '1.21.1', loader: 'fabric', icon: 'diamond', memoryMb: 6000 });
@@ -54,7 +54,7 @@ test('instances: create (game in Polish), edit (new version = install again), du
   const b = instances.create({ name: 'Moja Żółta Instancja', mcVersion: '1.21.1' });
   assert.notEqual(b.id, a.id);
   fs.writeFileSync(path.join(a.dir, 'mods', 'x.jar'), 'x');
-  const copy = instances.duplicate(a.id);
+  const copy = await instances.duplicate(a.id);
   assert.ok(fs.existsSync(path.join(copy.dir, 'mods', 'x.jar')));
   assert.equal(copy.name, 'Nowa nazwa (kopia)');
   instances.remove(copy.id);
@@ -161,7 +161,7 @@ test('versions: NeoForge → Minecraft mapping and the default loader version', 
   assert.deepEqual([toml.modId, toml.version, toml.displayName], ['create', '0.5.1', 'Create']);
 });
 
-test('settings: the accent colour is one of the known ones; instances keep their own process priority', () => {
+test('settings: the accent colour is one of the known ones; instances keep their own process priority', async () => {
   const { ACCENTS } = require('../src/main/settings');
   assert.deepEqual(ACCENTS, ['orange', 'gold', 'red', 'blue', 'green', 'purple']);
   assert.equal(DEFAULT_SETTINGS.accent, 'orange');
@@ -176,7 +176,7 @@ test('settings: the accent colour is one of the known ones; instances keep their
   assert.equal(instances.update(a.id, { processPriority: 'high' }).processPriority, 'high');
   assert.equal(instances.update(a.id, { processPriority: 'realtime' }).processPriority, null);
   assert.equal(instances.update(a.id, { processPriority: '' }).processPriority, null);
-  assert.equal(instances.duplicate(instances.update(a.id, { processPriority: 'normal' }).id).processPriority, 'normal');
+  assert.equal((await instances.duplicate(instances.update(a.id, { processPriority: 'normal' }).id)).processPriority, 'normal');
 });
 
 test('accounts: the skin shown in the launcher can be updated, a forced refresh skips the stored token', async () => {

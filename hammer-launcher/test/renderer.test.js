@@ -455,6 +455,96 @@ ui('English: a name the player typed stays as typed, also when it is a word of t
   });
 });
 
+/* „Duplikuj” on a big instance: the launcher answers when the copy is complete; meanwhile it says the copy exists
+   ('instances:changed') and how far it is ('task:progress', scope 'copy'). The test lets the copy end itself. */
+function slowDuplicate() {
+  const list = window.hs.instances.list;
+  window.__made = null;
+  window.__asked = [];
+  window.hs.instances.list = async () => [...(await list()), ...(window.__made ? [{ ...window.__made }] : [])];
+  window.hs.instances.duplicate = (id) =>
+    new Promise((resolve) => {
+      window.__asked.push(id);
+      window.__made = { id: 'hammer-kopia', name: 'Hammer (kopia)', mcVersion: '1.21.1', loader: 'fabric', icon: 'hammer', optimized: true, hammerClient: true, playTimeMs: 0, lastPlayed: null, pending: 'copy' };
+      window.__emit('instances:changed', { instanceId: 'hammer-kopia' });
+      window.__emit('task:progress', { scope: 'copy', instanceId: 'hammer-kopia', label: 'Kopiowanie instancji „Hammer”', done: 0, total: 0 });
+      window.__letGo = () => {
+        delete window.__made.pending;
+        window.__emit('task:progress', { scope: 'copy', instanceId: 'hammer-kopia', label: 'Kopiowanie instancji „Hammer”', done: 1, total: 1 });
+        window.__emit('instances:changed', { instanceId: 'hammer-kopia' });
+        resolve({ ...window.__made });
+      };
+    });
+}
+
+ui('„Duplikuj”: says what stays with the original, then the copy is on the list – „Kopiowanie…”, its bar moving, Graj and Usuń blocked until it is done', async () => {
+  await withLauncher({ patch: slowDuplicate }, async ({ page, nav, until }) => {
+    await nav('Instancje');
+    const original = page.locator('.inst-card', { hasText: 'Hammer' }).first();
+    await original.locator('.more').click();
+    await page.locator('.menu button', { hasText: 'Duplikuj' }).click();
+    const ask = page.locator('.modal');
+    await ask.waitFor();
+    assert.match(await ask.innerText(), /Zduplikować instancję\?[\s\S]*Launcher skopiuje „Hammer” razem z modami, światami i ustawieniami\. Logi, raporty awarii, kopie zapasowe światów, zrzuty ekranu i wyniki testów FPS zostają przy oryginale\./);
+    await ask.locator('.btn.primary', { hasText: 'Duplikuj' }).click();
+    const copy = page.locator('.inst-card.making');
+    await copy.waitFor();
+    assert.match(await copy.innerText(), /Hammer \(kopia\)[\s\S]*Kopiowanie…/);
+    assert.equal(await copy.locator('.foot .btn.primary').isDisabled(), true, 'Graj waits for the copy');
+    assert.equal(await copy.locator('.making-bar .progress.indeterminate').count(), 1, 'the files are still being counted');
+    // The bar follows the launcher – and only the bar changes (the card under the mouse stays the same element).
+    const card = await copy.elementHandle();
+    await page.evaluate(() => window.__emit('task:progress', { scope: 'copy', instanceId: 'hammer-kopia', label: 'Kopiowanie instancji „Hammer”', done: 450, total: 1000 }));
+    assert.equal((await copy.locator('.making-bar span').innerText()).trim(), '45%');
+    assert.equal(await card.evaluate((el) => el.isConnected), true);
+    // Its menu: only the folder opens; Graj, Duplikuj and Usuń wait.
+    await copy.locator('.more').click();
+    const item = (label) => page.locator('.menu button', { hasText: label }).first();
+    for (const label of ['Graj', 'Edytuj', 'Duplikuj', 'Usuń']) assert.equal(await item(label).isDisabled(), true, label);
+    assert.equal(await item('Otwórz folder').isDisabled(), false);
+    assert.equal(await item('Usuń').getAttribute('title'), 'Poczekaj, aż launcher skończy kopiować tę instancję.');
+    await page.keyboard.press('Escape');
+    await page.locator('.tb-drag').click();
+    // The Graj screen: the copy can be picked, but GRAJ waits for it.
+    await page.evaluate(() => HS.state.selectInstance('hammer-kopia'));
+    await nav('Graj');
+    assert.equal((await page.locator('.play-btn').innerText()).trim(), 'KOPIOWANIE');
+    assert.equal(await page.locator('.play-btn').isDisabled(), true);
+    assert.match(await page.locator('.play-progress').innerText(), /Launcher kopiuje tę instancję…/);
+    // Done: an instance like the others, and a message says so.
+    await page.evaluate(() => window.__letGo());
+    await until(() => document.querySelector('.play-btn')?.textContent.trim() === 'GRAJ');
+    assert.equal(await page.locator('.play-btn').isDisabled(), false);
+    assert.match(await page.locator('.toast.ok').innerText(), /Gotowe – kopia „Hammer \(kopia\)” jest na liście instancji\./);
+    await nav('Instancje');
+    assert.equal(await page.locator('.inst-card.making').count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.__asked), ['hammershop'], 'one copy');
+  });
+});
+
+ui('a modpack being installed: „Instalowanie…” on its card and in the Graj switcher, GRAJ waits until it is done', async () => {
+  const patch = () => {
+    const list = window.hs.instances.list;
+    window.hs.instances.list = async () => [...(await list()), { id: 'cobblemon', name: 'Cobblemon Official', mcVersion: '1.21.1', loader: 'fabric', icon: 'star', playTimeMs: 0, lastPlayed: null, modpack: { name: 'Cobblemon Official', version: '1.6.1' }, pending: 'modpack' }];
+  };
+  await withLauncher({ patch }, async ({ page, nav, until }) => {
+    await page.locator('.instance-pick').click();
+    assert.match(await page.locator('.menu button', { hasText: 'Cobblemon Official' }).innerText(), /instalowanie…/);
+    await page.locator('.menu button', { hasText: 'Cobblemon Official' }).click();
+    await until(() => document.querySelector('.play-btn')?.textContent.trim() === 'INSTALOWANIE');
+    assert.equal(await page.locator('.play-btn').isDisabled(), true);
+    assert.match(await page.locator('.play-progress').innerText(), /Launcher instaluje tę paczkę modów…\s*GRAJ zadziała, gdy skończy/);
+    await nav('Instancje');
+    const card = page.locator('.inst-card.making');
+    assert.match(await card.innerText(), /Cobblemon Official[\s\S]*Instalowanie…/);
+    assert.equal(await card.locator('.foot .btn.primary').isDisabled(), true);
+    await page.evaluate(() => window.__emit('task:progress', { scope: 'modpack', instanceId: 'cobblemon', label: 'Pobieranie plików paczki (61/148)', done: 61, total: 148 }));
+    assert.equal((await card.locator('.making-bar span').innerText()).trim(), '41%');
+    await card.locator('.more').click();
+    assert.equal(await page.locator('.menu button', { hasText: 'Usuń' }).getAttribute('title'), 'Poczekaj, aż launcher skończy instalować tę paczkę modów.');
+  });
+});
+
 /* One Chromium for the whole file; every test has a window (and a fake launcher) of its own. */
 test.describe('the interface in Chromium', { concurrency: 4 }, () => {
   test.before(async () => {

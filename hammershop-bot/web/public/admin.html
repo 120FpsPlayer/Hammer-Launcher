@@ -36,6 +36,7 @@
       <button role="tab" data-tab="pulpit" aria-selected="true">Pulpit</button>
       <button role="tab" data-tab="aktualnosci">Aktualności</button>
       <button role="tab" data-tab="ogloszenia">Ogłoszenia</button>
+      <!--launcher--><button role="tab" data-tab="plany">Plany</button><!--/launcher-->
       <button role="tab" data-tab="komunikat">Komunikat</button>
       <button role="tab" data-tab="wersje">Wersje launchera</button>
       <button role="tab" data-tab="plus">Hammer+</button>
@@ -136,6 +137,48 @@
       </div>
       <div class="card"><h2>Wysłane z panelu</h2><p class="muted small">Ostatnie 20 ogłoszeń wysłanych z tej zakładki – kto, kiedy i link do wiadomości.</p><div class="list" id="ann-history"></div></div>
     </section>
+
+    <!--launcher-->
+    <!-- Plany: the card on #📋 plany – every change is on Discord at once (the bot edits the same message, no ping) -->
+    <section class="tab" id="tab-plany" role="tabpanel" hidden>
+      <div class="notice warn" id="plan-setup" hidden></div>
+      <div class="grid-2">
+        <div class="stack">
+          <form class="card fields" id="plan-form" novalidate>
+            <div><h2 id="plan-form-title">Nowy punkt</h2><p class="muted small">Każdy zapis od razu zmienia kartę na <b id="plan-channel">#📋 plany</b> – bot edytuje tę samą wiadomość i nikogo nie pinguje. Nie ma osobnego „Opublikuj”, o którym można zapomnieć.</p></div>
+            <fieldset><legend>Sekcja</legend><div class="ann-chips" id="plan-sections"></div></fieldset>
+            <label>Co robicie<input type="text" id="plan-title" maxlength="80" placeholder="np. Jasny motyw launchera" autocomplete="off"><span class="hint"><span id="plan-title-count">0</span>/80</span></label>
+            <label>Krótka notka (opcjonalnie)<input type="text" id="plan-note" maxlength="140" placeholder="np. do wyboru w Ustawieniach → Wygląd" autocomplete="off"><span class="hint"><span id="plan-note-count">0</span>/140 · jedna linijka na karcie</span></label>
+            <p class="notice bad small" id="plan-error" role="alert" hidden></p>
+            <div class="row"><button class="btn primary" type="submit" id="plan-save">Dodaj do planów</button><button class="btn" type="button" id="plan-cancel" hidden>Anuluj edycję</button></div>
+          </form>
+          <div class="card stack">
+            <div class="row"><h2>Podgląd</h2><span class="muted small right">tak wygląda karta na Discordzie</span></div>
+            <div class="dc">
+              <div class="dc-msg">
+                <img class="dc-avatar" src="/assets/launcher-icon.png" alt="">
+                <div class="dc-main">
+                  <div class="dc-head"><b>Hammer Launcher</b><span class="dc-app">Aplikacja</span><span class="dc-time" id="plan-time"></span></div>
+                  <div class="dc-card">
+                    <div class="dc-md" id="plan-md"></div>
+                    <hr class="dc-sep">
+                    <div class="dc-sub" id="plan-footer"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card stack plan-side">
+          <div class="row"><h2>Na karcie</h2><span class="muted small" id="plan-count"></span><span class="muted small right" id="plan-updated"></span></div>
+          <div class="row"><a class="btn small" id="plan-open" target="_blank" rel="noopener" hidden>Zobacz na Discordzie</a><button class="btn small" type="button" id="plan-publish" title="Gdy ktoś usunął kartę albo Discord nie odpowiadał przy zapisie – bot wyśle ją od nowa i zapamięta.">Odśwież kartę na Discordzie</button></div>
+          <p class="notice small" id="plan-status" role="status" hidden></p>
+          <p class="muted small">Strzałki zmieniają kolejność w sekcji. Gotowe? <b>Edytuj</b> → sekcja „Ostatnio zrobione” – punkt trafi tam na górę.</p>
+          <div class="stack" id="plan-list"></div>
+        </div>
+      </div>
+    </section>
+    <!--/launcher-->
 
     <!-- Komunikat -->
     <section class="tab" id="tab-komunikat" role="tabpanel" hidden>

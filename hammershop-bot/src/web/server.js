@@ -90,6 +90,8 @@ let hooks = {
   contact: async () => null, // (message) → a card for the team on Discord (src/features/website.js contactCard)
   // The panel's „Ogłoszenia” tab: cards on #📢 ogłoszenia (src/features/website.js panelAnnouncements).
   announcements: { info: () => ({ channel: null, role: null, members: null, brand: null, bot: null, kinds: [] }), bannerFile: () => null, post: notConnected, remove: notConnected },
+  // The panel's „Plany” tab: the card on #📋 plany (src/features/website.js panelRoadmap → src/features/roadmap.js).
+  roadmap: { info: () => ({ channel: null, url: null }), publish: notConnected },
 };
 const products = () => hooks.catalog();
 const publicProduct = (p) => ({ id: p.id, name: p.name, category: p.category, description: p.description, price: p.price, art: p.art, image: p.image ?? null, eta: p.eta ?? null, instant: Boolean(p.instant), published: true });
@@ -532,7 +534,7 @@ async function handle(req, res) {
     return admin.api(req, res, url, {
       send, fail, jsonBody, userOf, limited, originOk,
       level: (id) => hooks.level(id), announce: (a) => hooks.announce(a), log: (t) => hooks.log(t),
-      plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements,
+      plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements, roadmap: hooks.roadmap,
       publicUrl: () => web().publicUrl, authReady, paymentsReady, webhookReady, playing: () => launcher.onlineNow(), invitesPaused: () => Boolean(hooks.invitesPaused?.()), ownInviteFailing: () => Boolean(hooks.ownInviteFailing?.()),
     });
   }

@@ -224,18 +224,53 @@
   // Whether this computer has an official Minecraft with settings to bring over (asked when the tab opens).
   let hasOfficialOptions = false;
 
+  /**
+   * „Duplikuj”: says first what the copy gets and what stays with the original. The copy takes a while on a big
+   * instance – it is on the list at once („Kopiowanie…”, see render) and this ends when it is complete.
+   */
+  async function duplicate(i) {
+    const ok = await HS.confirmDialog({
+      title: 'Zduplikować instancję?',
+      text: `Launcher skopiuje „${i.name}” razem z modami, światami i ustawieniami. Logi, raporty awarii, kopie zapasowe światów, zrzuty ekranu i wyniki testów FPS zostają przy oryginale. Duża instancja może się kopiować kilka minut.`,
+      confirm: 'Duplikuj',
+    });
+    if (!ok) return;
+    const copy = await attempt(() => api.instances.duplicate(i.id));
+    if (copy) HS.toast('ok', `Gotowe – kopia „${copy.name}” jest na liście instancji.`);
+    await state.refreshInstances();
+  }
+
+  // How far each copy and modpack install is – the bar on the card of the instance being made. From the launcher's
+  // progress events: only that bar changes, the grid is not drawn again (a card replaced under the mouse eats a click).
+  const madeSoFar = new Map(); // instance id → percent (null while the files are still being counted)
+  function paintBar(bar, pct) {
+    return clear(bar, h(`div.progress${pct == null ? '.indeterminate' : ''}`, h('i', { style: { '--w': `${pct ?? 0}%` } })), h('span', pct == null ? '' : `${pct}%`));
+  }
+  api.on('task:progress', (p) => {
+    if (!p?.instanceId || !['copy', 'modpack'].includes(p.scope)) return;
+    const pct = p.total > 0 ? Math.min(100, Math.round((p.done / p.total) * 100)) : null;
+    madeSoFar.set(p.instanceId, pct);
+    for (const bar of document.querySelectorAll(`[data-making="${p.instanceId}"]`)) paintBar(bar, pct);
+  });
+
+  /** What an instance still being made waits for – the launcher refuses the same with these words. */
+  const waitText = (i) => (i.pending === 'copy' ? 'Poczekaj, aż launcher skończy kopiować tę instancję.' : 'Poczekaj, aż launcher skończy instalować tę paczkę modów.');
+
   function actions(i, anchor) {
+    // Still being copied or installed: only its folder opens – starting, changing or removing it waits until it is done.
+    const wait = i.pending ? { disabled: true, title: waitText(i) } : {};
     HS.menu(anchor, [
-      { icon: 'play', label: 'Graj', onClick: () => HS.play(i.id) },
-      { icon: 'pen', label: 'Edytuj', onClick: () => editInstance(i) },
-      { icon: 'puzzle', label: 'Mody', onClick: () => state.selectInstance(i.id).then(() => HS.go('mods')) },
+      { icon: 'play', label: 'Graj', ...wait, onClick: () => HS.play(i.id) },
+      { icon: 'pen', label: 'Edytuj', ...wait, onClick: () => editInstance(i) },
+      { icon: 'puzzle', label: 'Mody', ...wait, onClick: () => state.selectInstance(i.id).then(() => HS.go('mods')) },
       { icon: 'folder', label: 'Otwórz folder', onClick: () => attempt(() => api.app.openFolder(i.id)) },
-      { icon: 'copy', label: 'Duplikuj', onClick: () => attempt(() => api.instances.duplicate(i.id), 'Utworzono kopię instancji.').then(() => state.refreshInstances()) },
-      { icon: 'share', label: 'Udostępnij', hint: 'kod albo plik', onClick: () => HS.shareUi.exportDialog(i) },
-      ...(hasOfficialOptions ? [{ icon: 'sliders', label: 'Przenieś ustawienia z Minecrafta', onClick: () => HS.officialUi.importOptions(i) }] : []),
+      { icon: 'copy', label: 'Duplikuj', ...wait, onClick: () => duplicate(i) },
+      { icon: 'share', label: 'Udostępnij', hint: 'kod albo plik', ...wait, onClick: () => HS.shareUi.exportDialog(i) },
+      ...(hasOfficialOptions ? [{ icon: 'sliders', label: 'Przenieś ustawienia z Minecrafta', ...wait, onClick: () => HS.officialUi.importOptions(i) }] : []),
       {
         icon: 'wrench',
         label: 'Napraw instancję',
+        ...wait,
         onClick: async () => {
           // Nothing is deleted: the next start checks every game file and installs the loader again.
           if (!(await attempt(() => api.instances.repair(i.id)))) return;
@@ -247,6 +282,7 @@
       {
         icon: 'trash',
         label: 'Usuń',
+        ...wait,
         onClick: async () => {
           const ok = await HS.confirmDialog({ title: 'Usunąć instancję?', text: `„${i.name}” zostanie usunięta razem ze światami, modami i ustawieniami. Tego nie da się cofnąć.`, confirm: 'Usuń na zawsze', danger: true });
           if (!ok) return;
@@ -267,13 +303,16 @@
         state.instances.map((i) => {
           const run = state.running.get(i.id);
           const news = updates.get(i.id);
+          const making = i.pending ? (i.pending === 'copy' ? 'Kopiowanie…' : 'Instalowanie…') : null;
           return h(
-            `div.inst-card${i.id === sel ? '.selected' : ''}`,
-            { tabIndex: 0, onclick: () => state.selectInstance(i.id), ondblclick: () => editInstance(i), oncontextmenu: (e) => (e.preventDefault(), actions(i, e.currentTarget.querySelector('.more'))) },
+            `div.inst-card${i.id === sel ? '.selected' : ''}${making ? '.making' : ''}`,
+            { tabIndex: 0, onclick: () => state.selectInstance(i.id), ondblclick: () => !making && editInstance(i), oncontextmenu: (e) => (e.preventDefault(), actions(i, e.currentTarget.querySelector('.more'))) },
             run ? h('span.running-badge', HS.chip(run === 'preparing' ? 'Pobieranie' : 'W grze', 'ok', 'play')) : null,
             h('div.top', tile(i, 48), h('div.grow', HS.raw(h('h3.ellipsis', i.name)), h('div.dim', { style: { fontSize: '12.5px' } }, `Minecraft ${i.mcVersion}`))),
             h(
               'div.chips',
+              // (first in the row, not in the corner: a long name would run under it)
+              making ? h('span.chip.accent', h('span.spinner'), making) : null,
               HS.chip(LOADERS[i.loader]?.name ?? i.loader, i.loader === 'vanilla' ? null : 'accent', i.loader === 'vanilla' ? 'cube' : 'puzzle'),
               i.optimized && i.loader !== 'vanilla' ? HS.chip('Zoptymalizowana', 'ok', 'bolt') : null,
               HS.hammerClientOn(i) ? HS.chip('Hammer Client', 'accent', 'hammer') : null,
@@ -284,10 +323,9 @@
             ),
             h(
               'div.foot',
-              icon('clock'),
-              h('span', i.playTimeMs ? fmt.duration(i.playTimeMs) : 'jeszcze nie grano'),
+              making ? paintBar(h('div.making-bar', { dataset: { making: i.id } }), madeSoFar.get(i.id) ?? null) : [icon('clock'), h('span', i.playTimeMs ? fmt.duration(i.playTimeMs) : 'jeszcze nie grano')],
               h('button.btn.sm.icon.ghost.more', { title: 'Więcej', 'aria-label': 'Więcej opcji', onclick: (e) => (e.stopPropagation(), actions(i, e.currentTarget)) }, icon('ellipsis')),
-              h('button.btn.sm.primary', { style: { marginLeft: 0 }, disabled: Boolean(run), onclick: (e) => (e.stopPropagation(), HS.play(i.id)) }, icon('play'), 'Graj'),
+              h('button.btn.sm.primary', { style: { marginLeft: 0 }, disabled: Boolean(run || making), title: making ? waitText(i) : null, onclick: (e) => (e.stopPropagation(), HS.play(i.id)) }, icon('play'), 'Graj'),
             ),
           );
         }),

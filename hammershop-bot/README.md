@@ -22,9 +22,9 @@ Ten sam bot prowadzi dwa różne serwery – który, wybierasz jedną linią w `
 **Serwer Hammer Launcher** (`BOT_PROFILE=launcher`):
 
 ```
-〔 📊 STATYSTYKI 〕     👥┃ᴄᴢᴌᴏɴᴋᴏᴡɪᴇ: 123 · 🚀┃ᴡᴇʀꜱᴊᴀ: 2.6.0 · 📥┃ᴘᴏʙʀᴀɴɪᴀ: 456      (wersja i pobrania biorą się ze strony)
+〔 📊 STATYSTYKI 〕     👥┃ᴄᴢᴌᴏɴᴋᴏᴡɪᴇ: 123 · 🚀┃ᴡᴇʀꜱᴊᴀ: 2.6.0 · 📥┃ᴘᴏʙʀᴀɴɪᴀ: 456 · 🎮┃ɢʀᴀ ɴᴀ ꜱᴇʀᴡᴇʀᴀᴄʜ: 12   (liczby biorą się ze strony)
 〔 👋 WITAMY 〕         ✅┃ᴡᴇʀʏꜰɪᴋᴀᴄᴊᴀ · 📜┃ʀᴇɢᴜʟᴀᴍɪɴ · 👋┃ᴘᴏᴡɪᴛᴀɴɪᴀ · 📌┃ɪɴꜰᴏʀᴍᴀᴄᴊᴇ · 📢┃ᴏɢᴌᴏꜱᴢᴇɴɪᴀ · 🎭┃ʀᴏʟᴇ
-〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ
+〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · 📋┃ᴘʟᴀɴʏ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ
 〔 🛒 HAMMERSHOP 〕     🤝┃ʜᴀᴍᴍᴇʀꜱʜᴏᴘ
 〔 🎧 POMOC 〕          🎫┃ᴛɪᴄᴋᴇᴛʏ · 🐛┃ᴢɢᴌᴏꜱ-ʙᴌᴀᴅ · 💡┃ᴘʀᴏᴘᴏᴢʏᴄᴊᴇ
 〔 💬 SPOŁECZNOŚĆ 〕    💬┃ᴄᴢᴀᴛ · 🎮┃ꜱᴇʀᴡᴇʀʏ · 🎉┃ɢɪᴠᴇᴀᴡᴀʏᴇ · 🏆┃ʀᴀɴᴋɪɴɢ · 💎┃ʙᴏᴏꜱᴛᴇʀᴢʏ
@@ -35,6 +35,9 @@ Ten sam bot prowadzi dwa różne serwery – który, wybierasz jedną linią w `
 - **Tickety:** *Pomoc z launcherem*, *Zgłoś błąd*, *Hammer+ i płatności*, *Odbierz nagrodę* i *Rekrutacja* (domyślnie wyłączona – `/tickety`) – z pytaniami o wersję launchera, Minecrafta i log. Bot **nie przypomina** tu o nieprzejętych ticketach (`staffReminders.enabled: false` w `config.launcher.json`).
 - **#hammershop:** kanał naszego współtwórcy we własnej kategorii (między LAUNCHER a POMOC) z jego banerem i kartą (co sprzedaje, kto za co odpowiada, przycisk do jego strony). Nazwę, adres strony i zaproszenie na jego Discorda ustawiasz w `config.launcher.json` → `partner` (`name`, `url`, `discord` – pusty `discord` = bez przycisku). Na zbudowanym serwerze kategorię i kanał dodaje `/zbuduj tylko:update` (kanał, który był już w kategorii LAUNCHER, przenosi). Ta sama komenda podmienia też emotki, których obrazek zmienił się w nowej wersji (np. logo), zanim odświeży karty. Baner kanału (`assets/banners-launcher/hammershop.png`) to zmniejszony baner HammerShop z `assets/brand/hammershop-pl-banner-wide.png`.
 - **Połączenie ze stroną i launcherem:** nowa wersja opublikowana w panelu admina pojawia się na **#aktualizacje** (z pingiem roli Aktualizacje), aktualność – na **#aktualności**, a kanały statystyk pokazują aktualną wersję i liczbę pobrań. `/launcher` pokazuje kartę launchera z aktualną wersją.
+- **🎮 Gra na serwerach:** kanał statystyk z liczbą osób, które **teraz grają na serwerze z Hammer Client**. Liczy to, co zgłasza sama gra: Hammer Client w świecie wieloosobowym co 90 s mówi stronie „gram” (moduł znaczka w Tab, opcja zgłaszania – domyślnie włączone), a strona pamięta to 5 minut i tylko w pamięci. Dlatego gra jednoosobowa i gracze z wyłączonym zgłaszaniem się nie liczą, a ktoś, kto właśnie wyszedł, liczy się jeszcze kilka minut. Bot sprawdza liczbę co 5 minut i zmienia nazwę tylko wtedy, gdy liczba się zmieniła – najwyżej 2 razy na 10 minut, bo na tyle pozwala Discord (nadmiarową zmianę pomija, zrobi ją w następnej rundzie). Przez pierwsze 3 minuty po starcie bota kanał zostawia starą liczbę – lista graczy dopiero się wtedy zapełnia.
+- **📋 #plany:** jedna karta *„Teraz robimy” / „W następnej wersji” / „Później” / „Ostatnio zrobione”* (puste sekcje się nie pokazują, na dole data ostatniej zmiany; gdy nic nie ma – miły pusty stan). Kartę zmieniasz w panelu admina, w zakładce **Plany** – bot **edytuje tę samą wiadomość** (nigdy nie wysyła drugiej i nikogo nie pinguje). Gdy ktoś ją usunie, następna zmiana wyśle ją od nowa i bot ją zapamięta; `/zbuduj tylko:panels` odświeża ją razem z resztą kart. Na zbudowanym serwerze kanał (i 🎮 Gra na serwerach) dodaje `/zbuduj tylko:update`.
+- **Podpowiedzi na czacie** (bez AI): gdy ktoś na **#czat** albo **#serwery** zada jedno z typowych pytań, bot raz odpowiada krótką kartą ze wskazówką – jako odpowiedź na wiadomość, **bez pingu**, z przyciskiem *To nie to* (chowa ją pytający albo zespół). Tematy: skąd pobrać launcher (→ #pobierz i strona), launcher / gra nie startuje, wywala, czarny ekran (→ ticket *Pomoc z launcherem* + *Konsola → Wyślij logi*), Hammer+ – zakup i kod (→ #hammer-plus / ticket *Hammer+ i płatności*), mody i shadery (→ zakładka *Mody*), mało FPS (→ *Optymalizacja*), logowanie Microsoft / konta non-premium (→ #faq) i „kiedy nowa wersja?” (→ #plany i #aktualizacje). Rozpoznaje pytania bez polskich znaków i z typowymi literówkami („jak pobrac”, „nie dziala”, „crashuje”, „wywala mnie”), ale tylko takie, które pytają albo proszą o pomoc i mówią o launcherze / grze – samo „nie działa” w rozmowie o czymś innym nic nie wywoła. Nie spamuje: ta sama osoba dostaje ten sam temat najwyżej raz na 30 minut, kanał – raz na 2 minuty; nigdy zespół, boty, tickety ani wiadomość usunięta przez filtr czatu. Ustawienia: `config.launcher.json` → `chatHints` – `enabled`, `channels` (klucze kanałów), `userCooldownMinutes`, `channelCooldownMinutes`, `dismissButton`, `words` (grupy słów, np. wszystkie pisownie „launchera” – we wzorcach jako `{launcher}`) i `topics`: `id`, `patterns` (wyrażenia regularne sprawdzane na uproszczonym tekście: małe litery, bez polskich znaków, pojedyncze spacje, spacja na początku i końcu), opcjonalnie `not` (kiedy nie podpowiadać, np. „już działa”) i `"question": false` (temat, którego wzorce same wymagają słów o launcherze / grze – nie musi to być pytanie), oraz `text` z `{#kanał}` (np. `{#launcher}`, `{#tickets}`) i `{site}` (adres strony; linia z nim znika, gdy `PUBLIC_URL` nie jest ustawiony). Zły wzorzec bot pomija z ostrzeżeniem w konsoli. Na serwerze sklepu podpowiedzi są wyłączone (`chatHints.enabled: false` domyślnie).
 - **Strona:** adres główny (`PUBLIC_URL`) to **strona launchera** z logo launchera (młot z wokseli) i nazwą Hammer Launcher – pobieranie (po zalogowaniu przez Discorda), aktualności, Hammer+ przez Stripe, program poleceń *Zaproś znajomego*; panel admina jest pod `/admin`.
 - **Te same emotki** co w HammerShop (jedyny wyjątek: emotka logo to młot launchera). Komend sklepu (`/produkt`, `/sklep`, `/promocja`, `/opinia`…) na tym serwerze nie ma, a `/pomoc` mówi o launcherze.
 - **Gdzie zmienić teksty:** `config.launcher.json` (nazwa, opisy, rodzaje ticketów, gotowe odpowiedzi – nakładane na `config.json`), `regulamin-launcher.md`, układ kanałów i ról w `src/builder/layout.launcher.js`, karty kanałów w `src/builder/content.launcher.js`. Grafiki: `assets/banners-launcher/`, `assets/brand/logo-launcher.png`, `assets/brand/server-banner-launcher.png` (`npm run render-assets -- launcher` rysuje je od nowa ze znaku `assets/brand/logo-launcher-mark.png`; złote H w `assets/brand/logo-h.png` to znak HammerShop).
@@ -380,6 +383,7 @@ Logujesz się przez Discorda. Dostęp mają tylko: **właściciel** (właścicie
 | **Pulpit** | Ile launcherów uruchomiono dziś i w ostatnich 14 dniach, pobrania instalatora, używane wersje, aktywne konta Hammer+, przychód ze strony. Liczone są same liczby – bez adresów IP i kont |
 | **Aktualności** | Wiadomości na ekranie głównym launchera („Aktualności”) i na stronie launchera: tytuł, treść, etykieta, link, obrazek, przypięcie. Opcjonalnie od razu także na Discordzie (**#launcher**). U graczy pojawiają się najpóźniej po 10 minutach |
 | **Ogłoszenia** | Ładne ogłoszenie na Discordzie, na **#📢 ogłoszenia** – ta sama karta co z `/ogloszenie`: tytuł, treść z Markdownem Discorda (przyciski **B** / *I* / lista / link), rodzaj (Ogłoszenie, Aktualizacja, Wydarzenie, Ważne – kolor i baner), obrazek pod treścią (link `https://`), przycisk z linkiem i ping: bez pingu, rola **📢 Ogłoszenia** albo `@everyone` *(tylko właściciel, z dodatkowym potwierdzeniem)*. Podgląd na żywo wygląda jak wiadomość na Discordzie. Wiadomość jest od razu publikowana dla serwerów, które obserwują kanał. Pod spodem 20 ostatnich ogłoszeń z panelu (kto, kiedy, link) z przyciskiem *Usuń z Discorda*; każde trafia też na **#📋 logi-serwera** |
+| **Plany** | *(serwer Hammer Launcher)* Karta na Discordzie, na **#📋 plany**: dodawanie, edycja i usuwanie punktów (tytuł do 80 znaków, krótka notka do 140), wybór sekcji (*Teraz robimy*, *W następnej wersji*, *Później*, *Ostatnio zrobione* – tu nowe punkty trafiają na górę), strzałki ↑ ↓ zmieniające kolejność w sekcji i podgląd karty. **Każdy zapis od razu zmienia kartę** – bot edytuje tę samą wiadomość i nikogo nie pinguje, więc nie ma osobnego przycisku „Opublikuj”, o którym można zapomnieć. *Odśwież kartę na Discordzie* wysyła ją od nowa, gdy ktoś ją usunął albo Discord nie odpowiadał przy zapisie (zmiana zostaje wtedy zapisana w panelu). Limity pilnują, żeby karta zawsze mieściła się w jednej wiadomości (najwyżej 20 punktów i tyle tekstu, ile zmieści Discord). Każda zmiana trafia na kanał logów |
 | **Komunikat** | Pasek na samej górze launchera (informacja / ostrzeżenie / ważne), z linkiem i czasem wyświetlania – np. przerwa techniczna |
 | **Wersje launchera** | Wgrywanie instalatora, publikacja, wymagana wersja, podpis, powrót do starszej wersji, liczba pobrań *(tylko właściciel)* |
 | **Hammer+** | Wystawianie kodu dla nicku, sprawdzanie kodu, lista wystawionych i **cennik na stronie** – plany (nazwa, dni, cena) sprzedawane przez Stripe *(cennik: tylko właściciel)*. Pusty cennik = sprzedaż wyłączona. Na dole **Zaproś znajomego**: liczba linków, poleconych, pobrań, zakupów i dni w nagrodach oraz kto polecił najwięcej osób |
@@ -420,9 +424,22 @@ za nic płacić ani podawać karty.
 Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenAI, np. **Gemini**.
 
 **Co robi:**
-- Gdy ktoś otworzy ticket, wita się jako asystent AI bota (na darmowym Groq to gotowe powitanie dla danego rodzaju
-  ticketu – bez pytania AI, żeby nie zużywać limitu; Claude od razu czyta formularz i odpisuje). Potem odpowiada na każdą
-  wiadomość autora (czeka chwilę, aż ktoś skończy pisać, i pokazuje „pisze…”), a odpowiedzi z formularza zna.
+- Gdy ktoś otworzy ticket, od razu **odpowiada na pytanie z formularza** (także na darmowym Groq – jedno zapytanie na
+  ticket). Pierwsza wiadomość wygląda tak:
+  ```
+  Cześć! Jestem asystentem AI Hammera.
+
+  (odpowiedź)
+  -# 🔨 Asystent AI · napisz „człowiek”, a zawołam zespół
+  ```
+  (🔨 to emotka z logo serwera, gdy `/zbuduj` ją wgrał). Kolejne wiadomości to sama odpowiedź i podpis `-# 🔨 Asystent AI`.
+  Gdy w formularzu nie ma pytania (np. sam nick) albo zapytanie się nie uda (skończył się darmowy limit, błąd dostawcy),
+  zamiast odpowiedzi jest gotowe powitanie dla danego rodzaju ticketu. Potem odpowiada na każdą wiadomość autora (czeka
+  chwilę, aż ktoś skończy pisać, i pokazuje „pisze…”).
+- Odpowiada krótko i konkretnie, prawdziwymi nazwami z launchera (np. **Optymalizacja → Zoptymalizuj wszystko**), a gdy
+  czegoś brakuje, pyta dokładnie o to (np. link z **Konsola → Wyślij logi**). Nigdy nie wysyła urwanego zdania: gdy
+  dostawca utnie odpowiedź, zostają jej pełne zdania; długa odpowiedź idzie w dwóch wiadomościach.
+- Przed każdą odpowiedzią zagląda do pliku **`wiedza-asystenta.md`** z pytaniami i odpowiedziami zespołu (niżej).
 - Pomaga z launcherem, Hammer Client i Hammer+ (instalacja, SmartScreen, logi, FPS, kody…), podaje aktualną wersję
   launchera i cennik Hammer+ z panelu admina.
 - **Nagrody z giveawayów:** sprawdza, czy autor ticketu naprawdę wygrał. **Hammer+** wydaje od razu (kod na nick
@@ -457,9 +474,10 @@ działają jak zawsze.
 **Darmowe limity – uczciwie:** darmowy plan Groq jest mały i liczony **osobno dla każdego modelu** (na całe konto):
 w chwili pisania to mniej więcej **30 zapytań i ok. 8 tys. tokenów na minutę oraz ok. 1000 zapytań i 200 tys. tokenów
 dziennie na model** (dokładne liczby dla Twojego konta: console.groq.com → **Settings → Limits**). Dlatego bot:
-- przy otwarciu ticketu nie pyta AI (gotowe powitanie, w tickecie z nagrodą od razu przyciski),
+- przy otwarciu ticketu pyta AI tylko raz i tylko wtedy, gdy w formularzu jest pytanie (w tickecie z nagrodą od razu
+  przyciski, bez pytania AI),
 - wysyła darmowym modelom krótką instrukcję, tylko ostatnie 6 wiadomości i tylko narzędzia potrzebne w danym tickecie
-  (jedno zapytanie to zwykle ok. 1,5–2,5 tys. tokenów),
+  (jedno zapytanie to zwykle ok. 2–3 tys. tokenów),
 - **sam przełącza się między kilkoma darmowymi modelami**: gdy jednemu skończy się limit, to samo pytanie od razu trafia
   do następnego – w tickecie nic nie widać. Domyślna kolejka: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`,
   `llama-3.3-70b-versatile`, `meta-llama/llama-4-scout-17b-16e-instruct`, `qwen/qwen3-32b`. Model, którego Groq już nie ma,
@@ -470,6 +488,26 @@ woła zespół. Do odnowienia limitu (najwyżej godzina, potem próbuje znowu) d
 odpowiada w tym tickecie dalej (chyba że w międzyczasie odpisał ktoś z zespołu). Limity minutowe, które zwalniają się
 w kilka sekund, bot po prostu odczekuje. `/asystent status` pokazuje każdy model (✅ działa / ⏸️ limit do … / ❌ niedostępny)
 i ile dziś zapytań oraz tokenów zużył.
+
+<a id="baza-wiedzy-asystenta"></a>**Baza wiedzy asystenta – plik `wiedza-asystenta.md`** (w folderze bota, obok `config.json`). Wpisz tu pytania, które ludzie
+często zadają, i odpowiedzi zespołu. Przed każdą odpowiedzią (także tą na formularz) asystent szuka tu pytań podobnych do
+pytania w tickecie – bez względu na polskie znaki („jak pobrac” znajdzie „Jak pobrać…”) i odmianę słów – i jeśli któreś
+pasuje, przekazuje odpowiedź zespołu własnymi słowami, dopasowaną do rozmowy. Format: pytanie jako punkt `- `, pod nim
+odpowiedź jako punkt wcięty **tabulatorem** (albo dwiema spacjami):
+```
+- Jak zmienić wersję Minecrafta?
+	- W launcherze: Instancje → kliknij instancję → Edytuj → Wersja Minecrafta.
+
+- Jak pobrać launcher?
+- Skąd pobrać launcher?
+	- Tylko z hammerclient.com – zaloguj się przez Discorda, a pobieranie ruszy samo.
+	  Nie uruchamiaj „launchera”, który ktoś wysłał Ci prywatnie.
+```
+Kilka pytań jedno pod drugim ma wspólną odpowiedź; odpowiedź może mieć kilka linii (każda z wcięciem). Linie zaczynające
+się od `#` i komentarze `<!-- … -->` są pomijane. Zmiany działają od razu – bot sam wczytuje plik, gdy się zmieni, bez
+ponownego uruchamiania. `/asystent status` pokazuje, ile pytań ma plik, kiedy go wczytał i czy jakieś pytanie nie ma
+odpowiedzi (zwykle brak wcięcia). Do darmowego modelu idą najwyżej 3 najlepiej pasujące wpisy (ok. 1200 znaków).
+**Plik tworzy sam bot** przy pierwszym starcie (pusty, z opisem formatu na górze) – nie ma go w paczce bota, więc wgranie nowej wersji nigdy nie nadpisze Twoich pytań i odpowiedzi.
 
 **Uczciwie o prywatności:** na darmowych planach dostawca AI może wykorzystywać rozmowy do ulepszania swoich modeli.
 Dlatego w ticketach nikt nie prosi o hasła ani dane karty – zespół tego nie robi i asystent też nie.

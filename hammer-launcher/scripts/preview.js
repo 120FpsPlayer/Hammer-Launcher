@@ -931,6 +931,47 @@ async function main() {
   await shot('03b-instancja-menu');
   await page.mouse.click(700, 720);
 
+  // „Duplikuj”: what stays with the original; then the copy on the list while it is being made, next to a modpack that
+  // is still installing – both „…” with their bars, Graj blocked – and the Graj screen with the modpack picked.
+  await page.locator('.inst-card .more').first().click();
+  await page.locator('.menu button', { hasText: 'Duplikuj' }).click();
+  await shot('03c-duplikuj-pytanie');
+  await page.evaluate(() => {
+    const list = window.hs.instances.list;
+    const duplicate = window.hs.instances.duplicate;
+    const making = [
+      { id: 'hammer-kopia', name: 'Hammer (kopia)', mcVersion: '1.21.1', loader: 'fabric', icon: 'hammer', optimized: true, hammerClient: true, playTimeMs: 0, lastPlayed: null, pending: 'copy' },
+      { id: 'cobblemon', name: 'Cobblemon Official', mcVersion: '1.21.1', loader: 'fabric', icon: 'star', optimized: true, playTimeMs: 0, lastPlayed: null, modpack: { name: 'Cobblemon Official', version: '1.6.1' }, pending: 'modpack' },
+    ];
+    window.hs.instances.list = async () => [...(await list()), ...making.map((i) => ({ ...i }))];
+    window.hs.instances.duplicate = () => new Promise(() => {}); // a big instance: the copy goes on
+    window.__madeDone = () => {
+      window.hs.instances.list = list;
+      window.hs.instances.duplicate = duplicate;
+      for (const i of making) window.__emit('task:progress', { scope: i.pending, instanceId: i.id, label: 'Gotowe', done: 1, total: 1 });
+    };
+  });
+  await page.locator('.modal .btn.primary').click();
+  await page.evaluate(() => {
+    window.__emit('instances:changed', { instanceId: 'hammer-kopia' });
+    window.__emit('task:progress', { scope: 'modpack', instanceId: 'cobblemon', label: 'Pobieranie plików paczki (61/148)', done: 61, total: 148 });
+    window.__emit('task:progress', { scope: 'copy', instanceId: 'hammer-kopia', label: 'Kopiowanie instancji „Hammer”', done: 2.3e9, total: 5.1e9 });
+  });
+  await page.locator('.inst-card.making').nth(1).waitFor();
+  await shot('03d-instancje-kopiowanie-i-instalowanie');
+  await page.locator('.inst-card.making .more').first().click();
+  await shot('03e-kopiowana-instancja-menu');
+  await page.mouse.click(700, 720);
+  await page.evaluate(() => HS.state.selectInstance('cobblemon'));
+  await nav('Graj');
+  await shot('01d-graj-paczka-instaluje-sie');
+  await page.evaluate(async () => {
+    window.__madeDone();
+    await HS.state.selectInstance('hammershop');
+    await HS.state.refreshInstances();
+  });
+  await page.waitForTimeout(1600); // the sidebar's task card goes away after its 100 %
+
   await nav('Optymalizacja');
   await page.waitForTimeout(300);
   await shot('08-optymalizacja');

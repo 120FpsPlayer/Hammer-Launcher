@@ -263,11 +263,11 @@ test('the capes of Hammer+ are called in the dictionary what capes.json calls th
   for (const cape of capes) assert.equal(en.t(cape.name), cape.nameEn, cape.id);
 });
 
-test('names the launcher makes up itself follow the language: a copied instance', () => {
+test('names the launcher makes up itself follow the language: a copied instance', async () => {
   const polish = createInstances(createPaths(tmpDir()));
-  assert.equal(polish.duplicate(polish.create({ name: 'Hammer', mcVersion: '1.21.1', loader: 'fabric' }).id).name, 'Hammer (kopia)');
+  assert.equal((await polish.duplicate(polish.create({ name: 'Hammer', mcVersion: '1.21.1', loader: 'fabric' }).id)).name, 'Hammer (kopia)');
   const english = createInstances(createPaths(tmpDir()), { t: (text) => tr(text, 'en') });
-  assert.equal(english.duplicate(english.create({ name: 'Hammer', mcVersion: '1.21.1', loader: 'fabric' }).id).name, 'Hammer (copy)');
+  assert.equal((await english.duplicate(english.create({ name: 'Hammer', mcVersion: '1.21.1', loader: 'fabric' }).id)).name, 'Hammer (copy)');
 });
 
 /*

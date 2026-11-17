@@ -60,6 +60,7 @@ function information(x, build) {
         `> ${x.ch('rules')} – zasady serwera i launchera\n> ${x.ch('announcements')} – oficjalne ogłoszenia\n> ${x.ch('roles')} – role i powiadomienia\n` +
         `### ${x.E('rocket')} Launcher\n` +
         `> ${x.ch('launcher')} – pobierz launcher\n> ${x.ch('updates')} – nowe wersje i lista zmian\n> ${x.ch('news')} – aktualności, które widać też w launcherze\n` +
+        (x.url('roadmap') ? `> ${x.ch('roadmap')} – nad czym pracujemy i co będzie dalej\n` : '') +
         `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n` +
         `### ${x.E('cart')} HammerShop\n> ${x.ch('hammershop')} – HammerShop, nasz współtwórca\n` +
         `### ${x.E('ticket')} Pomoc\n` +
@@ -306,7 +307,7 @@ function staff(x) {
         `> Transkrypcje trafiają na ${x.ch('transcripts')}, każda akcja na ${x.ch('ticketLogs')}\n` +
         `### ${x.E('star')} Hammer+\n> \`${slash('hammerplus grant')}\` – kod dla nicku (sprawdzany w Mojang) · \`${slash('hammerplus check')}\` – czyj jest kod i do kiedy działa · \`${slash('hammerplus list')}\`\n` +
         '> Kod kupiony na stronie przychodzi graczowi sam (strona + DM). Zły nick albo kod nie działa → sprawdź kod, w razie potrzeby wystaw nowy\n' +
-        `### ${x.E('rocket')} Launcher i strona\n> Panel admina na stronie${site() ? ` (${site()}/admin)` : ''}: **aktualności** i **komunikat** widoczne w launcherze, **wersje launchera**, cennik Hammer+, polecane serwery\n` +
+        `### ${x.E('rocket')} Launcher i strona\n> Panel admina na stronie${site() ? ` (${site()}/admin)` : ''}: **aktualności** i **komunikat** widoczne w launcherze, **wersje launchera**, cennik Hammer+, polecane serwery, **plany** na ${x.ch('roadmap', '#plany')}\n` +
         `> Nowe wersje i aktualności z panelu pojawiają się same na ${x.ch('updates')} i ${x.ch('news')} · \`${slash('launcher')}\` pokazuje aktualną wersję · \`${slash('featured add')}\` – polecane serwery\n` +
         `### ${x.E('gift')} Społeczność\n> \`${slash('giveaway start')}\` · \`${slash('giveaway end')}\` · \`${slash('giveaway reroll')}\` · \`${slash('announce')}\` – ładne ogłoszenie z opcjonalnym banerem i pingiem\n` +
         `### ${x.E('refresh')} Zmiana tekstów\n> Edytuj \`config.launcher.json\` albo \`regulamin-launcher.md\`, uruchom bota ponownie i użyj \`${slash('build')} tylko:panels\` – każda karta zaktualizuje się na miejscu\n` +
@@ -334,6 +335,11 @@ function postsFor(key, x, build) {
       return [{ banner: 'updates' }, updates(x)];
     case 'news':
       return [{ banner: 'whats-new' }, news(x)];
+    case 'roadmap':
+      // A live panel (src/features/roadmap.js – loading it registers the card): the admin panel's „Plany” tab edits it
+      // in place, /build only:panels too.
+      require('../features/roadmap');
+      return [{ panel: 'roadmap' }];
     case 'plus':
       return [{ banner: 'plus' }, plus(x)];
     case 'faq':

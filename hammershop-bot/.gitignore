@@ -3,3 +3,5 @@ node_modules/
 data/*
 !data/.gitkeep
 *.log
+# The assistant's knowledge file is the team's own – the bot writes an empty one on its first start.
+/wiedza-asystenta.md

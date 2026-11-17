@@ -75,6 +75,15 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   const usedBefore = fs.existsSync(paths.settings);
   const store = createSettings(paths.settings);
   const instances = createInstances(paths, { t, lang: gameLanguage });
+  // An instance whose copy or modpack install was cut off – the launcher was closed or the computer shut down half-way –
+  // is only half there. It goes now, like one whose copy or install failed (tried again next time when a file is held).
+  for (const leftover of instances.list().filter((i) => i.unfinished)) {
+    try {
+      instances.remove(leftover.id);
+    } catch {
+      // held by another program – the next start tries again
+    }
+  }
 
   /* ── Hammer+ ── */
   const allAccounts = () => accounts.list?.() ?? [];
@@ -147,6 +156,8 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   const games = new GameManager(launchFn ? { launchFn } : {});
   const community = createCommunity({ config, fetchFn });
   const busy = new Set(); // instances being prepared
+  const making = new Map(); // instance id → 'copy' | 'modpack': still being copied or installed – on the list, not usable yet
+  const copying = new Set(); // instances a copy is being made of („Duplikuj”) – one copy of each at a time
   // Read again each time it is needed – the index is tiny, and a rebuilt mod is picked up without a restart.
   const hammerClient = () => loadHammerClient({ dir: clientDir, jar: clientJar });
   const worldTasks = new Set(); // instances with a world backup or restore in progress
@@ -157,7 +168,9 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   const updateWatch = createUpdateWatch({ list: () => instances.list(), check: (instance) => updates.check(instance), enabled: () => Boolean(store.get().modUpdateCheck), onChange: (status) => emit('updates:status', status), now });
   // „Udostępnij link”: the consent is the setting „Pytaj przed udostępnieniem zrzutu ekranu” switched off.
   const screenShare = createScreenshotShare({ config, fetchFn, now, consent: { given: () => !store.get().screenshotShareAsk, remember: () => store.set({ screenshotShareAsk: false }) } });
-  const sessionWork = new Set(); // what still runs after a game session: automatic backups, the cloud copy
+  const sessionWork = new Map(); // what still runs after a game session → what it does now: 'backup' (automatic backups), then 'cloud' (the cloud copy)
+  const worldWork = new Set(); // world backups and restores the player started (worldTask)
+  const QUIT_WAIT_MS = 3 * 60_000; // how long quitting waits for them at most (see beforeQuit)
   /** The cloud never reads or writes an instance whose game is running or being prepared. */
   const inGame = (instance) => games.isRunning(instance.id) || busy.has(instance.id);
   const cloud = cloudSync.createCloud({
@@ -165,7 +178,7 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
     api: shop,
     now,
     local: (previous) => cloudSync.collect({ settings: settings.get(), instances: instances.list(), skip: inGame, previous }),
-    take: (doc) => cloudSync.apply(doc, { settings, instances: instances.list(), skip: inGame }),
+    take: (doc) => cloudSync.apply(doc, { settings, instances: instances.list(), skip: inGame, plusActive: plus.status().active }),
   });
   plusChanged(); // arms the timer for a code that ends while the launcher is open
 
@@ -250,6 +263,13 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
     return instance;
   };
 
+  const MAKING = { copy: 'Ta instancja jeszcze się kopiuje – poczekaj, aż launcher skończy.', modpack: 'Ta paczka modów jeszcze się instaluje – poczekaj, aż launcher skończy.' };
+  /** An instance still being copied or installed into is on the list, but nothing may start, change or remove it yet. */
+  function complete(instance) {
+    if (making.has(instance.id)) throw new Error(MAKING[making.get(instance.id)]);
+    return instance;
+  }
+
   /**
    * First start: one ready-to-play instance – Fabric with optimisation on, on the newest Minecraft release the
    * bundled Hammer Client has a jar for (custom menu, HUD). Without the mod: the configured version, else the newest.
@@ -308,11 +328,13 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
    * arguments for Hammer Client are added to this one start – nothing of it is stored in the instance.
    */
   async function launch(instanceId, { join, server, world, benchmark = null } = {}) {
-    let instance = need(instanceId);
+    let instance = complete(need(instanceId));
     // „Wymagana aktualizacja”: the shop no longer supports this version – only what it said just now counts.
     if (selfUpdate.status().required) throw new Error('Ta wersja launchera nie jest już wspierana. Zaktualizuj launcher, żeby grać dalej.');
     if (games.isRunning(instance.id)) throw new Error('Ta instancja już działa.');
     if (busy.has(instance.id)) throw new Error('Gra jest już przygotowywana.');
+    // The game would change worlds while they are being read – the copy could get half of a save.
+    if (copying.has(instance.id)) throw new Error('Poczekaj, aż launcher skończy kopiować tę instancję – potem uruchom grę.');
     if (worldTasks.has(instance.id)) throw new Error('Poczekaj, aż launcher skończy kopię zapasową świata – potem uruchom grę.');
     if (contentTasks.has(instance.id)) throw new Error('Poczekaj, aż launcher skończy aktualizację modów – potem uruchom grę.');
     recoverWorlds(instance); // a world swap a crash cut off is finished before the game sees the saves folder
@@ -573,21 +595,89 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
 
   /** Changes that the running game would overwrite or trip over wait until it is closed. */
   const idle = (id, what) => {
-    const instance = need(id);
+    const instance = complete(need(id));
     if (games.isRunning(instance.id) || busy.has(instance.id)) throw new Error(`Najpierw zamknij grę – ${what}.`);
     if (worldTasks.has(instance.id)) throw new Error('Poczekaj, aż skończy się kopia zapasowa albo przywracanie świata.');
+    if (copying.has(instance.id)) throw new Error('Poczekaj, aż launcher skończy kopiować tę instancję.');
     return instance;
   };
 
-  /** One backup or restore per instance at a time; the game cannot be started in the middle of it. */
+  /** One backup or restore per instance at a time; the game cannot be started in the middle of it. Quitting waits for it. */
   async function worldTask(instance, label, fn) {
     worldTasks.add(instance.id);
+    const work = withProgress(label, fn);
+    worldWork.add(work);
     try {
-      return await withProgress(label, fn);
+      return await work;
     } finally {
+      worldWork.delete(work);
       worldTasks.delete(instance.id);
     }
   }
+
+  /**
+   * „Duplikuj” (instances.duplicate): one copy of an instance at a time, never while its game runs. The copy is on the
+   * list at once – „Kopiowanie…”, with the bar in the sidebar – and cannot be started or removed until it is done.
+   */
+  async function duplicateInstance(id) {
+    const original = complete(need(id));
+    if (copying.has(original.id)) throw new Error('Ta instancja jest już kopiowana – poczekaj, aż launcher skończy.');
+    idle(original.id, 'gra zmienia pliki, które trzeba skopiować');
+    copying.add(original.id);
+    const where = { scope: 'copy' }; // read at every progress event: the copy's id joins it once the copy exists
+    let copyId = null;
+    try {
+      return await withProgress(
+        `Kopiowanie instancji „${original.name}”`,
+        (onProgress) =>
+          instances.duplicate(original.id, {
+            onProgress,
+            onCreated: (copy) => {
+              copyId = copy.id;
+              making.set(copy.id, 'copy');
+              where.instanceId = copy.id;
+              emit('instances:changed', { instanceId: copy.id });
+              onProgress({ done: 0, total: 0 }); // the bar is there before the files are counted
+            },
+          }),
+        where,
+      );
+    } finally {
+      copying.delete(original.id);
+      if (copyId) {
+        making.delete(copyId);
+        emit('instances:changed', { instanceId: copyId });
+      }
+    }
+  }
+
+  /**
+   * A modpack install (a .mrpack file, Modrinth, an invitation): the instance it makes is on the list from the start,
+   * „Instalowanie…” – it cannot be started, edited, copied or removed until the last file is in. A failed install
+   * removes it, as before (modpacks.js). `install({ onCreated, onProgress })` runs the install itself.
+   */
+  async function installModpack(install, onProgress) {
+    let made = null;
+    try {
+      return await install({
+        onCreated: (instance) => {
+          made = instance.id;
+          making.set(made, 'modpack');
+          emit('instances:changed', { instanceId: made });
+        },
+        onProgress: (p) => onProgress?.(made ? { ...p, instanceId: made } : p),
+      });
+    } finally {
+      if (made) {
+        making.delete(made);
+        emit('instances:changed', { instanceId: made });
+      }
+    }
+  }
+  const installs = {
+    installFile: (file, opts = {}) => installModpack((hooks) => modpacks.installFile(file, { ...opts, ...hooks }), opts.onProgress),
+    installFromModrinth: (what, opts = {}) => installModpack((hooks) => modpacks.installFromModrinth(what, { ...opts, ...hooks }), opts.onProgress),
+  };
 
   /**
    * Runs a long task with a progress bar in the sidebar ('task:progress', a few events per second at most).
@@ -730,7 +820,7 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
       instance = need(instanceId);
       if (!pending.fits.includes(instance.id)) throw new Error('Ta instancja nie pasuje do zaproszenia – wybierz inną albo utwórz nową.');
     } else if (pack) {
-      instance = await withSteps('modpack', (onProgress) => modpacks.installFromModrinth({ projectId: pack.id, versionId: pack.versionId }, { onProgress }));
+      instance = await withSteps('modpack', (onProgress) => installs.installFromModrinth({ projectId: pack.id, versionId: pack.versionId }, { onProgress }));
     } else {
       instance = instances.create({ name: sharing.freeInstanceName(short(create.name, 48) || 'Serwer'), mcVersion: create.mc, loader: create.loader, icon: 'hammer', optimized: create.loader !== 'vanilla', hammerClient: true });
     }
@@ -864,16 +954,46 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   function afterSession(instance, playedMs) {
     const work = (async () => {
       await autoBackupWorlds(instance, now() - playedMs).catch(() => null);
+      sessionWork.set(work, 'cloud');
       await autoCloudPush();
     })();
-    sessionWork.add(work);
+    sessionWork.set(work, 'backup');
     work.finally(() => sessionWork.delete(work));
   }
 
   /** Resolves when everything started by the last game sessions is done (main.js waits for it before quitting). */
   async function afterSessions() {
     await new Promise((resolve) => setImmediate(resolve)); // a session that ended this very moment has registered by then
-    await Promise.allSettled([...sessionWork]);
+    await Promise.allSettled([...sessionWork.keys()]);
+  }
+
+  /**
+   * What quitting right now would cut off: 'backup' (a world backup or restore – automatic after a game, or one the
+   * player started), 'cloud' (only the cloud copy after a game is still being sent) or null. main.js asks before it quits.
+   */
+  function quitWork() {
+    if (worldWork.size || [...sessionWork.values()].includes('backup')) return 'backup';
+    return sessionWork.size ? 'cloud' : null;
+  }
+
+  /**
+   * Quitting waits for what quitWork() names – at most `maxMs`. A backup of a huge world on a slow disk must not keep
+   * the launcher alive for ever: after that it quits anyway, and the next backup of the instance clears the
+   * half-written .part (worlds.js). → { waited, finished }: whether there was anything to wait for, and whether it ended.
+   */
+  async function beforeQuit({ maxMs = QUIT_WAIT_MS } = {}) {
+    await new Promise((resolve) => setImmediate(resolve)); // (as in afterSessions)
+    if (!quitWork()) return { waited: false, finished: true };
+    let timer = null;
+    const cap = new Promise((resolve) => (timer = setTimeout(resolve, maxMs, false)));
+    const done = (async () => {
+      await afterSessions();
+      await Promise.allSettled([...worldWork]);
+      return true;
+    })();
+    const finished = await Promise.race([done, cap]);
+    clearTimeout(timer);
+    return { waited: true, finished };
   }
 
   /* ── Peleryny: the Hammer capes (two for everybody, the rest and one's own picture with Hammer+) and the switch ── */
@@ -1089,12 +1209,22 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   return {
     paths,
     settings,
-    instances,
+    instances: {
+      ...instances,
+      /** The list for the window: an instance still being copied or installed carries `pending` – 'copy' | 'modpack'. */
+      list: () => instances.list().map((i) => (making.has(i.id) ? { ...i, pending: making.get(i.id) } : i)),
+      /** Edytuj / Usuń: not while the instance is still being copied or installed. */
+      update: (id, patch) => instances.update(complete(need(id)).id, patch),
+      remove: (id) => instances.remove(complete(need(id)).id),
+      /** „Duplikuj” – see duplicateInstance. Asynchronous: resolves with the finished copy. */
+      duplicate: (id) => duplicateInstance(id),
+    },
     /** A change that the game – running, or still being prepared – or a world backup would trip over is refused. */
     whenIdle: (id, what) => idle(id, what),
     modrinth,
     content,
-    modpacks,
+    /** Modpacks: the instance being installed is marked until it is complete – see installModpack. */
+    modpacks: { ...modpacks, ...installs },
     optimizer,
     games,
     versions: versionsApi,
@@ -1391,6 +1521,8 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
       removeOutfit: (id) => skinStore.removeOutfit(id),
     },
     afterSessions,
+    quitWork,
+    beforeQuit,
     plus: {
       /** { active, until, account, reason, text, … } – see plus.js. */
       status: () => plus.status(),

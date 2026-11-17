@@ -165,11 +165,19 @@ function label(p = provider()) {
 }
 
 /**
- * How much of the ticket goes into one request (messages kept, characters per message, the form, output tokens). The
- * free providers count tokens per minute and per day, so they get the short version; Claude reads its long prefix from
- * the cache.
+ * How much of the ticket goes into one request (messages kept, characters per message, the form, the knowledge file's
+ * matches, output tokens). The free providers count tokens per minute and per day, so they get the short version;
+ * Claude reads its long prefix from the cache.
+ *
+ * maxTokens is a ceiling, not a target – the prompt keeps answers short. It must leave room for the hidden reasoning:
+ * gpt-oss (the first free model) and Gemini 2.5 think before they answer and pay for it out of the same max_tokens, and
+ * Polish costs about one token per 2–3 characters. 500 was often used up halfway through a sentence (finish_reason
+ * "length"); 1500 fits low-effort reasoning plus a long answer. formChars fits a whole ticket form – it is the first
+ * question now (the longest, „Zgłoś błąd”, is up to ~1,500 characters).
  */
 const budget = () =>
-  compact() ? { history: 6, messageChars: 400, formChars: 600, maxTokens: 500 } : { history: 30, messageChars: 1500, formChars: 3000, maxTokens: 8000 };
+  compact()
+    ? { history: 6, messageChars: 400, formChars: 1600, knowledgeChars: 1200, maxTokens: 1500 }
+    : { history: 30, messageChars: 1500, formChars: 3000, knowledgeChars: 4000, maxTokens: 8000 };
 
 module.exports = { DEFAULT_MODELS, DEFAULT_CHAINS, KEY_VARS, GROQ_URL, NOT_CHAT, provider, model, models, compact, client, configured, problem, label, budget, setClient, Anthropic };

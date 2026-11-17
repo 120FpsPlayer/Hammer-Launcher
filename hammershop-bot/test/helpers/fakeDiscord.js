@@ -580,7 +580,9 @@ class FakeChannel {
   }
 
   permissionsFor(member) {
-    return member.permissionsIn(this);
+    if (member.permissionsIn) return member.permissionsIn(this);
+    // discord.js takes a role too: what someone with just that role (and @everyone) may do here.
+    return new FakeMember(this.guild, `probe-${member.id}`, { roles: member.id === this.guild.id ? [] : [member.id] }).permissionsIn(this);
   }
 }
 

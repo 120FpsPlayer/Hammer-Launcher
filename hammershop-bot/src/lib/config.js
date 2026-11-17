@@ -20,6 +20,20 @@ const FEATURE_DEFAULTS = {
   // The Hammer Launcher server's co-creator, shown on its own channel (#hammershop): url – its site, discord – an invite ('' = no button).
   partner: { name: '', url: '', discord: '' },
   chatFilter: { enabled: true, noLinks: ['chat'], allowGifs: true, allowedDomains: [], slurs: 'everywhere', profanity: 'public', extraWords: [], allowedWords: [], strikes: 3, strikeMinutes: 10, timeoutMinutes: 10 },
+  // Short pointers to the right channel when someone in the chat asks a usual question (src/features/chathints.js).
+  // Off here – the Hammer Launcher server turns it on with its own topics in config.launcher.json. question: what makes a
+  // message a question or a call for help (checked on the simplified text: no Polish letters, single spaces, a space at
+  // both ends, "?" on its own).
+  chatHints: {
+    enabled: false,
+    channels: ['chat'],
+    userCooldownMinutes: 30,
+    channelCooldownMinutes: 2,
+    dismissButton: true,
+    question: '[?]| (jak|gdzie|skad|czemu|dlaczego|czy|co|kiedy|ktos|ktory|ktora|jaki|jaka|jakie|ile|help|pomocy?|pomoze|pomozecie|pomozcie|prosze|pls|plz|daj|dajcie|podeslij|podeslijcie|potrzebuje|mam problem|nie wiem|nie umiem|nie moge|mi|mnie|u mnie|moj|moja|moje) ',
+    words: {},
+    topics: [],
+  },
   orders: { receipts: true, proofs: true, vouchReminderHours: 24, statusDms: true, paymentProofs: true, pinViewers: ['731478953222602822'] },
   badges: { enabled: true, bestsellerMinSales: 3, ratingMinVouches: 2 },
   staffReminders: { enabled: true, unclaimedMinutes: 15, repeatMinutes: 60 },

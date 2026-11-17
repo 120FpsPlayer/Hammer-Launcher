@@ -6,14 +6,20 @@
  */
 
 const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { readJson, writeJson } = require('./store');
-const { fileReason } = require('./fsutil');
+const { fileReason, walk } = require('./fsutil');
 
 const LOADERS = ['vanilla', 'fabric', 'quilt', 'forge', 'neoforge'];
 const ICONS = ['hammer', 'grass', 'diamond', 'sword', 'pickaxe', 'creeper', 'nether', 'end', 'rocket', 'star'];
 const CONTENT_DIRS = { mod: 'mods', resourcepack: 'resourcepacks', shader: 'shaderpacks' };
+// What „Duplikuj” leaves with the original: it tells the story of the original, not of the copy – its logs and crash
+// reports, the zips of its worlds (often bigger than the worlds themselves), its screenshots (Galeria would show each
+// one twice), the restore points of its mod updates and its FPS test results. Paths inside the instance folder.
+const NOT_COPIED = ['logs', 'crash-reports', 'backups', 'screenshots', '.hammer/przywracanie', '.hammer/benchmarks.json'];
+const copied = (rel) => rel !== 'instance.json' && path.posix.basename(rel) !== 'session.lock' && !NOT_COPIED.some((p) => rel === p || rel.startsWith(`${p}/`));
 
 function slug(text) {
   const id = String(text)
@@ -77,7 +83,11 @@ function createInstances(paths, { t = (text) => text, lang = () => 'pl_pl' } = {
     return get(id);
   }
 
-  function create(data) {
+  /**
+   * `unfinished` ('copy' | 'modpack') marks an instance that is still being copied or installed into: the mark goes when
+   * it is complete, and one that is still there at the next start was cut off half-way (see services.js).
+   */
+  function create(data, { unfinished = null } = {}) {
     const fields = clean(data, { name: 'Nowa instancja', mcVersion: null, loader: 'vanilla', loaderVersion: null, icon: 'grass', memoryMb: null, jvmPreset: null, customJvmArgs: '', javaPath: '', optimized: false, hammerClient: true });
     if (!fields.mcVersion) throw new Error('Wybierz wersję Minecrafta.');
     let id = slug(fields.name);
@@ -87,7 +97,7 @@ function createInstances(paths, { t = (text) => text, lang = () => 'pl_pl' } = {
     // onboardAccessibility:false – no narrator onboarding screen before the main menu on the first start.
     const gameLang = /^[a-z]{2}_[a-z]{2}$/.test(String(lang?.() ?? '')) ? lang() : 'pl_pl';
     fs.writeFileSync(path.join(dir(id), 'options.txt'), `lang:${gameLang}\nonboardAccessibility:false\n`);
-    const instance = { ...fields, id, createdAt: Date.now(), lastPlayed: null, playTimeMs: 0, versionId: null, installedFor: null, ...(data.modpack ? { modpack: data.modpack } : {}) };
+    const instance = { ...fields, id, createdAt: Date.now(), lastPlayed: null, playTimeMs: 0, versionId: null, installedFor: null, ...(data.modpack ? { modpack: data.modpack } : {}), ...(unfinished ? { unfinished } : {}) };
     return save(instance);
   }
 
@@ -116,22 +126,47 @@ function createInstances(paths, { t = (text) => text, lang = () => 'pl_pl' } = {
     return true;
   }
 
-  function duplicate(id) {
+  /**
+   * „Duplikuj”: a new instance with the files of `id` – except what belongs to the original only (NOT_COPIED).
+   * Asynchronous, file by file: an instance of many gigabytes takes minutes and must not freeze the window.
+   * The copy is on the list from its first moment, marked unfinished; `onCreated(copy)` tells who made it,
+   * `onProgress({ done, total })` counts bytes. Returns the finished copy.
+   */
+  async function duplicate(id, { onCreated, onProgress } = {}) {
     const current = get(id);
     if (!current) throw new Error('Nie ma takiej instancji.');
-    const copy = create({ ...current, name: `${current.name} ${t('(kopia)')}`.slice(0, 48) });
+    const copy = create({ ...current, name: `${current.name} ${t('(kopia)')}`.slice(0, 48) }, { unfinished: 'copy' });
+    onCreated?.(copy);
     try {
+      const files = [];
+      let total = 0;
       // session.lock of a world: a running game holds it (Windows refuses to read it then) and it is useless in a copy.
-      fs.cpSync(dir(id), dir(copy.id), { recursive: true, filter: (src) => !['instance.json', 'session.lock'].includes(path.basename(src)) });
+      const { partial } = await walk(dir(id), (f) => copied(f.rel) && (files.push(f), (total += f.size)));
+      if (partial) throw new Error('ta instancja ma za dużo plików');
+      const free = await fsp.statfs(paths.instances).then((s) => s.bavail * s.bsize, () => Infinity);
+      if (total > free) throw new Error(`na dysku zabrakło miejsca (kopia potrzebuje około ${Math.max(1, Math.ceil(total / 1024 ** 3))} GB)`);
+      let done = 0;
+      onProgress?.({ done, total });
+      const made = new Set();
+      for (const f of files) {
+        const target = path.join(dir(copy.id), ...f.rel.split('/'));
+        if (!made.has(path.dirname(target))) {
+          await fsp.mkdir(path.dirname(target), { recursive: true });
+          made.add(path.dirname(target));
+        }
+        await fsp.copyFile(f.path, target);
+        done += f.size;
+        onProgress?.({ done: Math.min(done, total), total });
+      }
+      return patchInternal(copy.id, { versionId: current.versionId, installedFor: current.installedFor, optimized: current.optimized, unfinished: undefined });
     } catch (err) {
       // Half a copy (the disk filled up, a file was held by another program) is not an instance – it goes again.
-      fs.rmSync(dir(copy.id), { recursive: true, force: true });
+      await fsp.rm(dir(copy.id), { recursive: true, force: true, maxRetries: 3 }).catch(() => null);
       throw new Error(`Nie udało się skopiować instancji: ${fileReason(err)}.`, { cause: err });
     }
-    return patchInternal(copy.id, { versionId: current.versionId, installedFor: current.installedFor, optimized: current.optimized });
   }
 
   return { list, get, create, update, patchInternal, remove, duplicate, dir, contentDir: (id, type) => path.join(dir(id), CONTENT_DIRS[type] ?? 'mods') };
 }
 
-module.exports = { createInstances, clean, slug, LOADERS, ICONS, CONTENT_DIRS };
+module.exports = { createInstances, clean, slug, LOADERS, ICONS, CONTENT_DIRS, NOT_COPIED };

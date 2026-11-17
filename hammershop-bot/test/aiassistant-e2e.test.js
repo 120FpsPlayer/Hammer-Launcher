@@ -15,6 +15,7 @@ const tickets = require('../src/tickets/tickets');
 const typestate = require('../src/tickets/typestate');
 const assistant = require('../src/features/aiassistant');
 const { GREETINGS } = require('../src/features/ai/prompt');
+const { INTRO } = require('../src/features/ai/format');
 
 const { uid, role, sleep, groq, say, callTools, limited, open, write, aiOf, botMessages, botTexts, panelOf, countTexts, giveaway, command, LIMIT_TEXT } = fakes;
 const CHAIN = { GROQ_API_KEY: 'gsk_test_key', AI_MODEL: 'model-a, model-b' };
@@ -38,13 +39,20 @@ for (const typeId of Object.keys(FORMS)) {
     const gw = typeId === 'reward' ? giveaway({ prize: 'Hammer+ 30 dni', winners: [author.id], plusDays: 30 }) : null;
     const tools = TOOLS[typeId === 'reward' ? 'reward' : 'other'];
 
-    // 1. Open: the fixed greeting for this type, the prize list only in a reward ticket, no API call.
-    let calls = groq();
+    // 1. Open: the form is answered right away (one request with this type's tools); a reward ticket gets the fixed
+    // greeting and the prize list instead – no request.
+    let calls = groq(say('Odpowiedź na formularz.'));
     const { channel } = await open(typeId, FORMS[typeId], author);
-    assert.equal(calls.length, 0, 'opening costs nothing');
-    assert.equal(countTexts(channel, new RegExp(`^${escape(GREETINGS[typeId])}`)), 1, 'the greeting of this type, once');
-    if (gw) assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human']);
-    else assert.equal(panelOf(channel), undefined, 'no prize list here');
+    if (gw) {
+      assert.equal(calls.length, 0, 'a reward ticket: the buttons, no request');
+      assert.equal(countTexts(channel, new RegExp(`^${escape(`${INTRO}\n\n${GREETINGS.reward}`)}`)), 1, 'the fixed greeting, once');
+      assert.deepEqual(customIds(panelOf(channel).body), [`ai:claim:${gw.id}`, 'ai:human']);
+    } else {
+      assert.equal(calls.length, 1, 'one request answers the form');
+      assert.deepEqual(calls[0].body.tools.map((t) => t.function.name), tools);
+      assert.equal(countTexts(channel, new RegExp(`^${escape(`${INTRO}\n\nOdpowiedź na formularz.`)}`)), 1, 'introduction + the answer, once');
+      assert.equal(panelOf(channel), undefined, 'no prize list here');
+    }
 
     // 2. The first message → one request with this type's tools.
     calls = groq(say('Pierwsza odpowiedź.'));
@@ -111,7 +119,7 @@ for (const typeId of Object.keys(FORMS)) {
     assert.equal(countTexts(channel, /^Jestem z powrotem/), 1);
 
     // Nothing doubled, nothing leaked.
-    assert.equal(countTexts(channel, new RegExp(`^${escape(GREETINGS[typeId])}`)), 1);
+    assert.equal(countTexts(channel, new RegExp(`^${escape(INTRO)}`)), 1, 'introduced once');
     assert.equal(countTexts(channel, /Wołam zespół/), 1);
     assert.equal(botTexts(channel).some((t) => /<think>|undefined|NaN/.test(t)), false);
     if (typeId === 'apply') typestate.set(guild.id, 'apply', true);
@@ -121,6 +129,7 @@ for (const typeId of Object.keys(FORMS)) {
 test('a break or an escalation in one ticket neither silences nor wakes up another', async () => {
   const guild = await fakes.server(CHAIN);
   const a = await open('support');
+  groq(say('Kod wpisz w Hammer+ → „Mam kod”.'));
   const b = await open('plus', FORMS.plus);
   groq();
   await write(a.channel, a.author, 'człowiek');
@@ -180,6 +189,7 @@ test('a ticket closed while a message waits for its answer is not answered, show
 
 test('after a restart the assistant goes on from the database: no second greeting, the earlier answers in the history', async () => {
   await fakes.server(CHAIN);
+  groq(say('Dzięki za zgłoszenie – dopisz link z Konsola → Wyślij logi.'));
   const { channel, author } = await open('bug', FORMS.bug);
   groq(say('Spróbuj aktualizacji.'));
   await write(channel, author, 'HUD się nie zapisuje');
@@ -188,8 +198,8 @@ test('after a restart the assistant goes on from the database: no second greetin
   await write(channel, author, 'zaktualizowałem i dalej to samo');
   assert.equal(calls.length, 1);
   assert.ok(calls[0].body.messages.some((m) => m.role === 'assistant' && m.content === 'Spróbuj aktualizacji.'));
-  assert.doesNotMatch(calls[0].body.messages.at(-1).content, /pierwsza wiadomość/);
-  assert.equal(countTexts(channel, new RegExp(`^${escape(GREETINGS.bug)}`)), 1);
+  assert.doesNotMatch(calls[0].body.messages.at(-1).content, /pierwsza odpowiedź/);
+  assert.equal(countTexts(channel, new RegExp(`^${escape(INTRO)}`)), 1, 'no second introduction');
 });
 
 test('a ticket opened during a break gets the AI once the break is over (it was without AI only for the break)', async () => {
@@ -200,13 +210,14 @@ test('a ticket opened during a break gets the AI once the break is over (it was 
   assert.ok(assistant.paused());
   const during = await open('support');
   assert.equal(aiOf(during.channel).mode, 'noai');
-  assert.equal(countTexts(during.channel, new RegExp(`^${escape(GREETINGS.support)}`)), 0);
+  assert.equal(countTexts(during.channel, new RegExp(`^${escape(INTRO)}`)), 0, 'no greeting while the AI has a break');
   await sleep(1100);
   const calls = groq(say('Cześć! Jestem asystentem AI – w czym pomóc?'));
   await write(during.channel, during.author, 'launcher nie chce się zainstalować');
   assert.equal(calls.length, 1);
-  assert.match(calls[0].body.messages.at(-1).content, /pierwsza wiadomość/, 'it introduces itself – there was no greeting');
+  assert.match(calls[0].body.messages.at(-1).content, /pierwsza odpowiedź/, 'its first answer here');
   const reply = botMessages(during.channel).at(-1);
+  assert.match(reply.content, new RegExp(`^${escape(INTRO)}\n\n`), 'it introduces itself – there was no greeting');
   assert.deepEqual(customIds(reply.body), ['ai:human', 'ai:off'], 'the first AI message carries the buttons');
   assert.equal(guild.id, fakes.ctx.guild.id);
 });

@@ -7,7 +7,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog, Menu, Tray, nativeImage, clipboard, ClipboardItem } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog, Menu, Tray, nativeImage, clipboard, ClipboardItem, Notification } = require('electron');
 const { loadConfig } = require('./config');
 const { defaultRoot } = require('./paths');
 const { createAccounts, createCrypt } = require('./accounts');
@@ -60,6 +60,8 @@ if (!app.requestSingleInstanceLock()) {
   const gameRunning = () => Boolean(services?.games.running.size);
   let gameHidden = false; // the window steps aside while the game runs (Ustawienia → „Po uruchomieniu gry”)
   let quitting = false;
+  let quitWaited = false; // quitting has waited for a world backup once – the app.quit() after it (or a second „Zamknij launcher”) goes through
+  let sessionEnding = false; // Windows is shutting down or logging off: nothing may hold the launcher back then
 
   /** Brings the launcher in front – it opens a new window when the old one was closed to the tray. */
   function showWindow() {
@@ -221,6 +223,8 @@ if (!app.requestSingleInstanceLock()) {
       }
       return { action: 'deny' };
     });
+    // Windows ends the session: it gives a few seconds, so quitting does not wait for a backup (its .part is cleared later).
+    win.on('session-end', () => (sessionEnding = true));
     win.on('maximize', () => send('window:state', { maximized: true }));
     win.on('unmaximize', () => send('window:state', { maximized: false }));
     win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
@@ -699,9 +703,26 @@ if (!app.requestSingleInstanceLock()) {
     services.news.start(); // the shop's news and messages: a quiet look every ten minutes
   });
 
-  app.on('before-quit', () => {
+  // „Zamknij launcher” (tray), Cmd+Q, the last window closed: a world backup still being packed is finished first – at
+  // most a few minutes (services → beforeQuit). The window goes away at once and a note says why the launcher stays.
+  app.on('before-quit', (event) => {
     quitting = true;
     clearTimeout(quietTimer);
+    const work = !quitWaited && !sessionEnding ? services?.quitWork() : null;
+    if (!work) return;
+    event.preventDefault();
+    quitWaited = true;
+    if (win && !win.isDestroyed()) win.hide();
+    if (work === 'backup') {
+      const content = T('Kończę kopię zapasową świata – launcher zamknie się sam, gdy skończy.');
+      try {
+        if (tray && process.platform === 'win32') tray.displayBalloon({ title: config.name, content, iconType: 'info' });
+        else if (Notification.isSupported()) new Notification({ title: config.name, body: content, icon: ICON, silent: true }).show();
+      } catch {
+        // no note on this system – the launcher still closes by itself
+      }
+    }
+    services.beforeQuit().finally(() => app.quit());
   });
 
   // The launcher is closing: an update that was downloaded installs now – never under a running game (selfupdate.js).
@@ -716,12 +737,9 @@ if (!app.requestSingleInstanceLock()) {
     }
     // A running game keeps the launcher alive (play time, logs); it quits when the game ends.
     if (services?.games.running.size) return;
-    // An automatic world backup that is still being packed is finished first – half a zip helps nobody.
-    (services ? services.afterSessions() : Promise.resolve()).finally(() => {
-      if (services?.games.running.size) return;
-      presence?.close();
-      app.quit();
-    });
+    // An automatic world backup that is still being packed is finished first – before-quit waits for it.
+    presence?.close();
+    app.quit();
   });
 
   app.on('activate', () => {

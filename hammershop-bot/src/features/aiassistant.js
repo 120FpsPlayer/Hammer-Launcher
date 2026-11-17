@@ -4,9 +4,16 @@
  * 🤖 AI assistant in tickets (Hammer Launcher server) – answers people before the team does. The AI is chosen in .env
  * (src/features/ai/client.js): Groq (free, the default with GROQ_API_KEY), Claude, or any OpenAI-compatible API.
  *
- *   - A ticket opens → Claude reads the form answers and writes first (after the ticket card is posted); on the free
- *     providers the bot posts a fixed greeting for the ticket type instead (no API call – their limits are small), and
- *     a „Odbierz nagrodę” ticket gets the claim buttons right away.
+ *   - A ticket opens → the assistant reads the form (the person's question) and answers it right away, after the ticket
+ *     card is posted – on the free providers too (one request per ticket). Nothing to answer (a form without a
+ *     question on a free provider) → a fixed greeting for the ticket type, no API call; a „Odbierz nagrodę” ticket gets
+ *     the claim buttons right away (on the free providers with the fixed greeting – the buttons do the work). The
+ *     request fails, the free limit is out → the fixed greeting, and the author's first message is answered as usual.
+ *   - Every message: „Cześć! Jestem asystentem AI Hammera.” on the first one only, the answer, the signature line with
+ *     the server's logo emoji (src/features/ai/format.js). Never half an answer: cut-off answers keep their complete
+ *     sentences, long ones are split into whole messages.
+ *   - Before every answer it looks for similar questions in the team's knowledge file (wiedza-asystenta.md,
+ *     src/features/ai/knowledge.js) and sends the matches with the request, to be retold in the conversation.
  *   - The ticket's author writes → it answers (bursts are waited out – DEBOUNCE – and "typing…" is shown).
  *   - It can check giveaway wins and hand out the prize (Hammer+ codes at once, anything else goes to the team),
  *     tell the current launcher version / Hammer+ prices, and call the team (src/features/ai/tools.js).
@@ -30,6 +37,7 @@
  * Logs: what it does (prize handed out, team called, errors) goes to the ticket log – never the conversation.
  */
 
+const path = require('node:path');
 const { ButtonStyle, MessageFlags, ModalBuilder } = require('discord.js');
 const config = require('../lib/config');
 const db = require('../lib/db');
@@ -48,6 +56,8 @@ const { SYSTEM_PROMPT, freePrompt, GREETINGS } = require('./ai/prompt');
 const { TOOLS, toolsFor, runTool, brokenInput, REPORT_WHY } = require('./ai/tools');
 const { ProviderError } = require('./ai/openai');
 const { asksForHuman } = require('./ai/human');
+const format = require('./ai/format');
+const knowledge = require('./ai/knowledge');
 
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01'; // Claude: refusal fallbacks – a declined request is retried on another model
 const EFFORT = 'low'; // chat / support – Opus 5.5 always thinks, effort keeps it short (gpt-oss on Groq: reasoning_effort)
@@ -55,7 +65,9 @@ const MAX_ITERATIONS = 6; // model calls per answer (tool round trips)
 const MAX_REPLIES = 25; // per ticket – then the team takes over
 const HOURLY_CAP = 20; // answers per author per hour, across tickets
 const MAX_FAILURES = 2; // failed answers in a row before the team is called
-const BODY_MAX = 1820; // + the footer line stays under 1900 characters
+const BREAKS = ['limit', 'auth', 'model', 'config', 'billing']; // errors that pause the assistant for every ticket
+// An answer with nothing to post (cut off before its first full sentence, or empty): asked once more, for a shorter one.
+const SHORTER = 'Twoja poprzednia odpowiedź nie zmieściła się w limicie albo była pusta. Odpowiedz jeszcze raz, krócej: najwyżej 3–4 zdania albo 3 kroki.';
 const KEY_PAUSE_MS = 3_600_000; // no credits on Claude: no new calls for an hour
 const MAX_PAUSE_MS = 3_600_000; // a free limit: as long as the provider says, at most an hour
 const LIMIT_TEXT = 'Asystent AI ma teraz przerwę – skończył się darmowy limit. Zawołałem zespół, ktoś zaraz odpisze.';
@@ -211,9 +223,6 @@ const noteReply = (userId) => repliesTo.set(userId, [...(repliesTo.get(userId) ?
 
 // ───────────── The conversation ─────────────
 
-const FOOTER_FIRST = '-# 🤖 Asystent AI – może się pomylić. Napisz „człowiek”, a zawołam zespół.';
-const FOOTER = '-# 🤖 Asystent AI';
-const stripFooter = (text) => String(text ?? '').split('\n').filter((line) => !line.startsWith('-# 🤖')).join('\n').trim();
 /** No pings from the model's text (allowedMentions is empty anyway) and nothing that looks like one. */
 const clean = (text) =>
   String(text ?? '')
@@ -239,17 +248,32 @@ function formBlock(ticket, type, max) {
   return truncate(lines.join('\n'), max);
 }
 
-/** The bot's own context for this answer – a system message after the history, so the cached prefix stays the same. */
-function contextMessage(ticket, type, first) {
+/**
+ * The bot's own context for this answer – a system message after the history, so the cached prefix stays the same.
+ * known: the knowledge file's block for this question ('' when nothing matched).
+ */
+function contextMessage(ticket, type, first, known = '') {
   const today = new Date().toLocaleDateString('pl-PL', { timeZone: 'Europe/Warsaw', dateStyle: 'full' });
   const lines = [`Kontekst od bota: ticket typu ${type?.id ?? ticket.typeId} („${type?.label ?? ticket.typeId}”). Dziś jest ${today}.`];
-  if (first) lines.push('To Twoja pierwsza wiadomość w tym tickecie: przywitaj się, przedstaw jako asystent AI i od razu zajmij się sprawą z formularza.');
+  if (first) {
+    lines.push(
+      'To Twoja pierwsza odpowiedź w tym tickecie – powitanie i podpis doda bot. Od razu odpowiedz na pytanie albo problem z formularza. Jeśli w formularzu nie ma pytania, napisz jednym zdaniem, w czym możesz pomóc, i zapytaj o to, czego brakuje.',
+    );
+  }
+  if (known) lines.push('', known);
   return { role: 'system', content: lines.join('\n') };
 }
+
+/** The form's answers as one text – what the person asks when the ticket opens (for the knowledge file). */
+const formText = (ticket) => (ticket.answers ?? []).map((a) => String(a?.value ?? '').trim()).filter(Boolean).join('\n');
+
+/** Is there anything to answer in the form? A nick or a lone number is not a question. */
+const hasQuestion = (ticket) => (ticket.answers ?? []).some((a) => !/nick/i.test(a?.label ?? '') && /\p{L}{3,}/u.test(String(a?.value ?? '')));
 
 /**
  * The messages for the API: the form first, then the channel oldest → newest (the assistant's own messages as its
  * turns), and the author's messages it hasn't answered yet at the end. null when there is nothing to answer.
+ * The knowledge file is searched with what is being answered: the unanswered messages – and the form at the start.
  */
 function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   const s = ticket.ai ?? {};
@@ -262,7 +286,7 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   for (const m of history) {
     if (!m?.author || m.id === ticket.controlMessageId) continue;
     if (m.author.bot || m.author.id === botId) {
-      const text = mine.has(m.id) ? stripFooter(m.content) : '';
+      const text = mine.has(m.id) ? format.strip(m.content) : '';
       if (text) older.push({ role: 'assistant', text });
       continue;
     }
@@ -290,8 +314,10 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
     else messages.push({ role: turn.role, content: [{ type: 'text', text: turn.text }] });
   }
   if (messages[messages.length - 1].role !== 'user') return null;
-  messages.push(contextMessage(ticket, type, !(s.msgIds ?? []).length));
-  return { messages, newestOwnerId };
+  const query = [opening ? formText(ticket) : '', ...fresh.map((t) => t.text)].filter(Boolean).join('\n');
+  const matches = knowledge.find(query);
+  messages.push(contextMessage(ticket, type, !(s.msgIds ?? []).length, knowledge.promptBlock(matches, budget.knowledgeChars)));
+  return { messages, newestOwnerId, matches };
 }
 
 /**
@@ -333,12 +359,17 @@ const textOf = (content) =>
     .trim();
 
 /**
- * The tool loop → { kind: 'text', text, usedTools } | { kind: 'cut' } (max_tokens without text) | { kind: 'refusal' }
+ * The tool loop → { kind: 'text', text, usedTools, trimmed } | { kind: 'cut' } (nothing usable) | { kind: 'refusal' }
  * | { kind: 'escalated' } (a tool called the team – nothing more is said) | { kind: 'limit' } (too many steps).
+ *
+ * An answer cut off by max_tokens is never posted as it came – it would end in the middle of a sentence. Its complete
+ * sentences are kept (trimmed: true); when not even one is complete, the model is asked once more for a shorter answer
+ * (one extra request – the free plans count every one, and the bigger budget makes this rare).
  */
 async function converse(messages, ctx) {
   const client = ai.client();
   let usedTools = false;
+  let retried = false;
   for (let i = 0; i < MAX_ITERATIONS; i += 1) {
     const params = request(messages, ctx.type);
     ctx.allowed = new Set(params.tools.map((t) => t.name)); // a tool this ticket doesn't offer can't be run
@@ -365,28 +396,65 @@ async function converse(messages, ctx) {
       continue;
     }
     const text = textOf(content);
-    if (stopReason === 'max_tokens' && !text) return { kind: 'cut' }; // never run a cut-off tool call
-    if (!text && !usedTools) return { kind: 'cut' }; // a free model that only "thought" – nothing to send, try again later
-    return { kind: 'text', text, usedTools };
+    const cut = stopReason === 'max_tokens'; // a cut-off tool call is never run – it isn't a tool_use stop
+    // Text before a cut-off tool call ("Sprawdzam…") promises something that won't happen – not worth posting.
+    const whole = !cut ? text : uses.length ? '' : format.complete(text);
+    if (whole) return { kind: 'text', text: whole, usedTools, trimmed: whole !== text };
+    if (!cut && usedTools) return { kind: 'text', text: '', usedTools }; // a tool already did the talking
+    // Nothing to send: cut before the first full sentence, or a free model that only "thought".
+    if (retried) return { kind: 'cut' };
+    retried = true;
+    messages.push({ role: 'system', content: SHORTER });
   }
   return { kind: 'limit' };
 }
 
 // ───────────── Answering ─────────────
 
-/** An assistant message in the ticket. counted: false for the fixed greeting (it isn't an answer from the model). */
+/**
+ * An assistant message in the ticket, in the owner's format: the first one in a ticket starts with the introduction and
+ * carries the hint and the two buttons; every one ends with the signature (format.js). The model's own greeting or
+ * sign-off is taken out. An answer too long for one message goes out as two (or three) whole messages – the
+ * introduction on the first, the signature and buttons on the last. counted: false for the fixed greeting (it isn't an
+ * answer from the model). → the last message sent, null when there was nothing to send.
+ */
 async function sendReply(channel, text, { counted = true } = {}) {
-  const s = db.getTicket(channel.id)?.ai ?? {};
+  const ticket = db.getTicket(channel.id);
+  const s = ticket?.ai ?? {};
   const first = !(s.msgIds ?? []).length;
-  const body = truncate(clean(text), BODY_MAX);
-  if (!body) return null;
-  const msg = await channel.send({
-    content: `${body}\n${first ? FOOTER_FIRST : FOOTER}`,
-    allowedMentions: { parse: [] },
-    components: first ? [row(btn('ai:human', 'Zawołaj zespół', '🙋'), btn('ai:off', 'Wyłącz asystenta', '🔕'))] : [],
-  });
-  const now = db.getTicket(channel.id)?.ai ?? {};
-  patchAi(channel.id, { msgIds: [...(now.msgIds ?? []), msg.id].slice(-40), replies: (now.replies ?? 0) + (counted ? 1 : 0), firstMsgId: now.firstMsgId ?? msg.id, lastReplyAt: Date.now() });
+  const raw = clean(text);
+  if (!raw) return null;
+  // An answer that was nothing but a greeting ("Cześć!"): the first message says the type's greeting instead (the bot
+  // introduces itself already), a later one keeps what the model wrote.
+  const body = format.tidy(raw) || (first ? GREETINGS[ticket?.typeId] ?? GREETINGS.default : raw);
+  const parts = format.split(body);
+  const sent = [];
+  try {
+    for (const [i, part] of parts.entries()) {
+      const last = i === parts.length - 1;
+      sent.push(
+        await channel.send({
+          content: `${first && i === 0 ? `${format.INTRO}\n\n` : ''}${part}${last ? `\n${format.signature(channel.guild, first)}` : ''}`,
+          allowedMentions: { parse: [] },
+          components: first && last ? [row(btn('ai:human', 'Zawołaj zespół', '🙋'), btn('ai:off', 'Wyłącz asystenta', '🔕'))] : [],
+        }),
+      );
+    }
+  } finally {
+    // Even when a later part failed, the parts that got out are the assistant's (the history shows them as its turns).
+    if (sent.length) {
+      const now = db.getTicket(channel.id)?.ai ?? {};
+      const ids = sent.map((m) => m.id);
+      patchAi(channel.id, { msgIds: [...(now.msgIds ?? []), ...ids].slice(-40), replies: (now.replies ?? 0) + (counted ? 1 : 0), firstMsgId: now.firstMsgId ?? ids[0], lastReplyAt: Date.now() });
+    }
+  }
+  return sent.at(-1) ?? null;
+}
+
+/** The fixed first message for this ticket type (no API call) – and the ticket counts as greeted. */
+async function greet(channel, type) {
+  const msg = await sendReply(channel, GREETINGS[type?.id] ?? GREETINGS.default, { counted: false }).catch((err) => (console.warn('[asystent] powitanie:', err.message), null));
+  patchAi(channel.id, { greeted: true });
   return msg;
 }
 
@@ -429,16 +497,19 @@ async function answer(channel) {
 
   let outcome;
   const s = state(channel.id);
+  // The opening answer (the form, nothing said yet): when it can't be had, the fixed greeting instead of an error.
+  const opening = !ticket.ai.greeted && !(ticket.ai.msgIds ?? []).length;
   s.stopTyping = startTyping(channel);
   try {
     outcome = await converse(convo.messages, ctx);
   } catch (err) {
     s.stopTyping?.();
-    return failed(channel, err);
+    return opening ? openingFailed(channel, err) : failed(channel, err);
   }
   s.stopTyping?.();
   const answered = () => patchAi(channel.id, { answeredUpTo: convo.newestOwnerId ?? ticket.ai.answeredUpTo ?? null, greeted: true, failures: 0 });
-  if (outcome.kind === 'cut') return failed(channel, null); // nothing usable – those messages stay unanswered
+  if (outcome.kind === 'cut') return opening ? openingFailed(channel, null) : failed(channel, null); // nothing usable – those messages stay unanswered
+  if (outcome.trimmed) console.warn(`[asystent] odpowiedź uciął limit tokenów dostawcy – w tickecie #${pad(ticket.number)} wysyłam tylko jej pełne zdania.`);
   if (outcome.kind === 'escalated') return answered(); // the team was called (and said so) from inside the tool loop
   // Every other outcome posts something: only when the ticket is still open and no staff member took over meanwhile.
   if (!stillAnswering(channel)) return;
@@ -523,11 +594,13 @@ function announcePause(kind, err) {
 /** How long a break lasts: a free limit as long as the provider says; a key or model only .env fixes – until a restart. */
 const breakLength = (kind, err) => (kind === 'limit' ? err?.retryAfterMs ?? 60_000 : kind === 'billing' ? KEY_PAUSE_MS : Infinity);
 
-async function failed(channel, err) {
+/**
+ * What every failed request does, whichever answer it was for: classify it, start a break for every ticket when it is
+ * one (said once in the console), and a line in the ticket log. attempt: the ticket log's "Próba" text. → { kind, breaks }
+ */
+async function noteFailure(channel, err, attempt) {
   const kind = err ? classify(err) : 'transient';
-  const failures = (db.getTicket(channel.id)?.ai?.failures ?? 0) + 1;
-  if (db.getTicket(channel.id)?.status === 'open') patchAi(channel.id, { failures });
-  const breaks = ['limit', 'auth', 'model', 'config', 'billing'].includes(kind);
+  const breaks = BREAKS.includes(kind);
   const fresh = breaks && !paused(); // the first ticket that runs into it says so in the console
   if (breaks) pauseFor(kind, breakLength(kind, err));
   if (fresh) announcePause(kind, err);
@@ -539,21 +612,42 @@ async function failed(channel, err) {
     embeds: [
       logEmbed(COLORS.danger, kind === 'limit' ? '⏸️ Asystent AI: skończył się darmowy limit' : '⚠️ Asystent AI: błąd').addFields(
         { name: 'Ticket', value: `${channel} (\`#${pad(ticket?.number ?? 0)}\`)`, inline: true },
-        { name: breaks ? 'Przerwa do' : 'Próba', value: breaks ? (forever(paused()) ? 'ponownego uruchomienia bota' : ts(paused()?.until ?? Date.now(), 'f')) : `${failures} z ${MAX_FAILURES}`, inline: true },
+        { name: breaks ? 'Przerwa do' : 'Próba', value: breaks ? (forever(paused()) ? 'ponownego uruchomienia bota' : ts(paused()?.until ?? Date.now(), 'f')) : attempt, inline: true },
         { name: 'Błąd', value: errorText(err) },
       ),
     ],
   });
+  return { kind, breaks };
+}
+
+async function failed(channel, err) {
+  const failures = (db.getTicket(channel.id)?.ai?.failures ?? 0) + 1;
+  if (db.getTicket(channel.id)?.status === 'open') patchAi(channel.id, { failures });
+  const { kind, breaks } = await noteFailure(channel, err, `${failures} z ${MAX_FAILURES}`);
   // The break is for every ticket; what is said here only if the ticket is still open and no staff member took over.
   if (!stillAnswering(channel)) return;
   if (breaks) return takeBreak(channel, kind);
   if (kind === 'transient' && failures < MAX_FAILURES) {
     await channel
-      .send({ content: `⚠️ Mam chwilowy problem z odpowiedzią. Napisz proszę jeszcze raz za chwilę – albo napisz „człowiek”, a zawołam zespół.\n${FOOTER}`, allowedMentions: { parse: [] } })
+      .send({ content: `⚠️ Mam chwilowy problem z odpowiedzią. Napisz proszę jeszcze raz za chwilę – albo napisz „człowiek”, a zawołam zespół.\n${format.signature(channel.guild)}`, allowedMentions: { parse: [] } })
       .catch(() => null);
     return;
   }
   await escalate(channel, { reason: 'Asystent AI ma problem techniczny i nie może teraz odpowiedzieć.', source: 'error' });
+}
+
+/**
+ * The opening answer couldn't be had (an error, every model's free limit used up, nothing usable): the ticket gets the
+ * fixed greeting instead – no error notice and no ping for a ticket that has just opened. The break, if it is one,
+ * starts as usual: the author's first message then gets the break notice (which calls the team) – or, once the break
+ * is over, an answer.
+ */
+async function openingFailed(channel, err) {
+  await noteFailure(channel, err, 'odpowiedź na formularz przy otwarciu ticketu');
+  const ticket = stillAnswering(channel);
+  if (!ticket || ticket.ai?.greeted) return;
+  await greet(channel, config.getType(ticket.typeId));
+  if (ticket.typeId === 'reward' && !db.getTicket(channel.id)?.ai?.panelId) await showRewardPanel(channel); // the greeting points to it
 }
 
 /**
@@ -866,6 +960,7 @@ function status(guild, channel = null) {
     activeTickets: open.filter((t) => t.ai?.active).length,
     ticket: ticket ? { open: ticket.status === 'open', ...(ticket.ai ?? {}) } : null,
     maxReplies: MAX_REPLIES,
+    knowledge: knowledge.stats(),
   };
 }
 
@@ -875,12 +970,15 @@ hooks.on('ticketOpened', async ({ guild, channel, ticket, type }) => {
   if (!guild || !channel || !ticket || !profile.launcher || !eligible(type)) return;
   if (activeIn(guild.id)) {
     const compact = ai.compact();
-    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, replies: 0, msgIds: [], failures: 0, greeted: compact, answeredUpTo: null, since: Date.now() });
-    if (!compact) return schedule(channel, timing.open); // Claude reads the form and answers it right away
-    // Free providers: a fixed greeting – the model is asked only once the author writes (every request counts).
-    await sendReply(channel, GREETINGS[type.id] ?? GREETINGS.default, { counted: false });
-    if (type.id === 'reward') await showRewardPanel(channel); // the claim buttons cost nothing and never get it wrong
-    return;
+    patchAi(channel.id, { mode: 'ai', active: true, stopped: null, replies: 0, msgIds: [], failures: 0, greeted: false, answeredUpTo: null, since: Date.now() });
+    // Free providers spend a request only where there is a question: a „Odbierz nagrodę” ticket has its claim buttons
+    // (they cost nothing and never get it wrong), a form without a question gets the fixed greeting.
+    if (compact && (type.id === 'reward' || !hasQuestion(ticket))) {
+      await greet(channel, type);
+      if (type.id === 'reward') await showRewardPanel(channel);
+      return;
+    }
+    return schedule(channel, timing.open); // the form is the first question – answered right away
   }
   // No-AI mode (no key, a break, or switched off): prizes with buttons, „człowiek” still calls the team.
   patchAi(channel.id, { mode: 'noai', active: false, stopped: null, since: Date.now() });
@@ -955,6 +1053,9 @@ hooks.route('ai', {
 
 hooks.on('ready', () => {
   if (!profile.launcher) return;
+  // The team's questions and answers: an empty file on the first start (it is not in the bot's package – an update never
+  // overwrites what the team wrote there).
+  if (knowledge.ensure()) console.log(`🤖 Asystent AI: utworzono pusty plik ${path.basename(knowledge.DEFAULT_FILE)} – dopisuj tam pytania i odpowiedzi zespołu (README → „Baza wiedzy asystenta”).`);
   const p = ai.problem();
   if (p === 'no-key') {
     console.warn('🤖 Asystent AI: brak klucza w .env – asystent w ticketach jest wyłączony. Nagrody z giveawayów odbiera się przyciskami, a „człowiek” woła zespół. Darmowy klucz: GROQ_API_KEY z console.groq.com (README → „Asystent AI w ticketach”).');

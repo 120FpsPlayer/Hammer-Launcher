@@ -188,7 +188,7 @@
       HS.plusUi.autoBackupRow(),
       on
         ? [h('div.sub-head', icon('cloud'), h('div.grow', h('h3', 'Chmura'), h('p.muted', 'Twoje ustawienia na każdym komputerze, na którym masz Hammer Launcher.'))), HS.plusUi.cloudBox()]
-        : HS.plusUi.row('Chmura', 'Wygląd launchera, listy serwerów i układ HUD na każdym Twoim komputerze.', h('div.row', sample('upload', 'Wyślij do chmury'), sample('cloud-down', 'Pobierz z chmury'))),
+        : HS.plusUi.row('Chmura', 'Wygląd launchera i postaci, listy serwerów i układ HUD na każdym Twoim komputerze.', h('div.row', sample('upload', 'Wyślij do chmury'), sample('cloud-down', 'Pobierz z chmury'))),
     );
   }
 

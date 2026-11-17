@@ -87,3 +87,46 @@ test('one pack file that cannot be fetched stops the rest: nothing more is downl
   assert.deepEqual(instances.list(), []);
   assert.deepEqual(fs.readdirSync(paths.instances).filter((d) => !d.startsWith('.') && d !== 'instances.json'), [], 'no orphan folder');
 });
+
+test('services: a modpack being installed is on the list as „Instalowanie…” – it cannot be started, edited, copied or removed', async () => {
+  const { createServices } = require('../src/main/services');
+  const routes = mockFetch([{ match: /cdn\.modrinth\.com\/.*mod\.jar$/, body: MOD }]);
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  let begin;
+  const downloading = new Promise((resolve) => (begin = resolve));
+  // The pack's files come slowly: held until the test lets them go.
+  const fetchFn = async (url, init) => {
+    begin();
+    await gate;
+    return routes(url, init);
+  };
+  const events = [];
+  const s = createServices({ root: tmpDir(), config: { brand: 'HammerShop' }, accounts: { launchAuth: async () => Promise.reject(new Error('Zaloguj się kontem Microsoft.')) }, fetchFn, emit: (channel, payload) => events.push({ channel, ...payload }) });
+  const file = pack({ files: [{ path: 'mods/mod.jar', hashes: { sha1: sha1(MOD) }, downloads: ['https://cdn.modrinth.com/data/x/mod.jar'], env: { client: 'required' } }] });
+  const progress = [];
+  const job = s.modpacks.installFile(file, { onProgress: (p) => progress.push(p) });
+  await downloading;
+  const [listed] = s.instances.list();
+  assert.deepEqual([listed.name, listed.pending], ['Paczka Testowa', 'modpack']);
+  assert.deepEqual(events.filter((e) => e.channel === 'instances:changed').map((e) => e.instanceId), [listed.id]);
+  const refused = /Ta paczka modów jeszcze się instaluje – poczekaj, aż launcher skończy\./;
+  await assert.rejects(s.launch(listed.id), refused);
+  assert.throws(() => s.whenIdle(listed.id, 'instancja jest właśnie w użyciu'), refused); // Usuń (main.js asks this first)
+  assert.throws(() => s.instances.remove(listed.id), refused);
+  assert.throws(() => s.instances.update(listed.id, { name: 'Inna' }), refused);
+  await assert.rejects(s.instances.duplicate(listed.id), refused);
+  assert.throws(() => s.repairInstance(listed.id), refused);
+  release();
+  const instance = await job;
+  assert.equal(instance.unfinished, undefined, 'complete: the mark is gone from instance.json');
+  assert.equal(s.instances.list()[0].pending, undefined);
+  assert.ok(progress.every((p) => p.instanceId === instance.id), 'the progress names the instance, so its card shows the bar');
+  assert.deepEqual(events.filter((e) => e.channel === 'instances:changed').map((e) => e.instanceId), [instance.id, instance.id]);
+  await assert.rejects(s.launch(instance.id), /Zaloguj się kontem Microsoft/, 'free once installed');
+
+  // An install that fails still removes the half-made instance – and leaves nothing marked behind.
+  const broken = pack({ files: [{ path: 'mods/a.jar', hashes: { sha1: sha1(MOD) }, downloads: ['https://evil.example/mod.jar'] }] });
+  await assert.rejects(s.modpacks.installFile(broken), /niedozwolonego źródła/);
+  assert.deepEqual(s.instances.list().map((i) => [i.id, i.pending]), [[instance.id, undefined]]);
+});

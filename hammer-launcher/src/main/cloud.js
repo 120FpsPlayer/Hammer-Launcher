@@ -5,7 +5,9 @@
  * computer looks and plays like the first:
  *
  *   { v: 1,
- *     launcher:  { accent, accentColor, heroStyle },                   the launcher's look
+ *     launcher:  { accent, accentColor, heroStyle, theme, themeMotion,  the launcher's look,
+ *                  hammerCape, capeOn, lastMojangCape,                  the cape
+ *                  cosmeticWings, cosmeticHalo, cosmeticHat },          and the cosmetics Hammer Client draws
  *     instances: { "<instance name>": { servers: [{ name, address }],  the server list
  *                                       hud: { … } } } }               config/hammerclient.json (the mod's HUD layout)
  *
@@ -23,12 +25,18 @@ const path = require('node:path');
 const { readJson, writeJson } = require('./store');
 const serverList = require('./servers');
 const { MAX_BODY } = require('./shopapi');
+const { PLUS_ONLY } = require('./settings');
 
 const VERSION = 1;
 const MAX_DOC = MAX_BODY - 6 * 1024; // room for the envelope around the document
 const MAX_HUD = 128 * 1024;
 const HUD_FILE = path.join('config', 'hammerclient.json');
-const LOOK = ['accent', 'accentColor', 'heroStyle'];
+// The settings that travel, with the type each must have. The first three are all an older launcher sends – a key
+// that is not in a copy is left as it is here, so an older launcher's copy never resets the rest. The cape and
+// the cosmetics are launcher settings (the shop only gets a copy of them to show other players), so a second computer
+// wears the same instead of telling the shop "none" at its next start.
+const LOOK = { accent: 'string', accentColor: 'string', heroStyle: 'string', theme: 'string', themeMotion: 'boolean', hammerCape: 'string', capeOn: 'boolean', lastMojangCape: 'string', cosmeticWings: 'string', cosmeticHalo: 'boolean', cosmeticHat: 'string' };
+const LOOK_KEYS = Object.keys(LOOK);
 
 const isObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
@@ -64,7 +72,7 @@ function readHud(instance) {
  * running): it goes in as it was in `previous`, the document agreed on last time.
  */
 function collect({ settings, instances, skip = () => false, previous = null }) {
-  const doc = { v: VERSION, launcher: Object.fromEntries(LOOK.map((k) => [k, settings[k]])), instances: {} };
+  const doc = { v: VERSION, launcher: Object.fromEntries(LOOK_KEYS.filter((k) => settings[k] !== undefined).map((k) => [k, settings[k]])), instances: {} };
   for (const instance of [...instances].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
     if (Object.hasOwn(doc.instances, instance.name)) continue; // two instances with one name: the first one counts
     if (skip(instance)) {
@@ -94,16 +102,19 @@ function summarize(doc) {
 /**
  * Makes this computer equal to a document from the cloud. `settings` is the launcher's settings object (get / set).
  * Returns { look (changed), changed: [instance names], skipped: [names of running instances], missing: [names in
- * the copy that are not on this computer] }. Whatever the copy holds is checked like input from the window.
+ * the copy that are not on this computer] }. Whatever the copy holds is checked like input from the window: a value
+ * this launcher does not know (a theme of a newer one) is ignored, and without Hammer+ (`plusActive` false) a
+ * Hammer+ look – a theme, an animated background, a paid cape – stays as it is here, like when it is picked by hand.
  */
-function apply(doc, { settings, instances, skip = () => false }) {
+function apply(doc, { settings, instances, skip = () => false, plusActive = true }) {
   if (!isObject(doc) || doc.v !== VERSION) throw new Error('Kopia w chmurze pochodzi z nowszego launchera. Zaktualizuj launcher i spróbuj ponownie.');
   const result = { look: false, changed: [], skipped: [], missing: [] };
   if (isObject(doc.launcher)) {
     const before = settings.get();
-    const patch = Object.fromEntries(LOOK.filter((k) => typeof doc.launcher[k] === 'string').map((k) => [k, doc.launcher[k]]));
+    const paid = (k, v) => Boolean(PLUS_ONLY[k]) && !PLUS_ONLY[k][0](v);
+    const patch = Object.fromEntries(LOOK_KEYS.filter((k) => typeof doc.launcher[k] === LOOK[k] && (plusActive || !paid(k, doc.launcher[k]))).map((k) => [k, doc.launcher[k]]));
     const after = settings.set(patch);
-    result.look = LOOK.some((k) => after[k] !== before[k]);
+    result.look = LOOK_KEYS.some((k) => after[k] !== before[k]);
   }
   const mine = new Map();
   for (const instance of instances) if (!mine.has(instance.name)) mine.set(instance.name, instance);

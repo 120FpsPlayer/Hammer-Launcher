@@ -207,7 +207,7 @@ test('content: a dropped file only goes in when its list shows that kind – a p
 
 /* ── instances ── */
 
-test('instances: a copy that fails half-way leaves no broken instance behind, and a world\'s session.lock is not copied', () => {
+test('instances: a copy that fails half-way leaves no broken instance behind, and a world\'s session.lock is not copied', async () => {
   const instances = createInstances(createPaths(tmpDir()));
   const original = instances.create({ name: 'Hammer', mcVersion: '1.21.1', loader: 'fabric' });
   const world = path.join(original.dir, 'saves', 'Nasz świat');
@@ -216,22 +216,22 @@ test('instances: a copy that fails half-way leaves no broken instance behind, an
   fs.writeFileSync(path.join(world, 'session.lock'), '☃'); // on Windows a running game does not let anybody read it
   fs.writeFileSync(path.join(original.dir, 'mods', 'sodium.jar'), 'jar');
 
-  const copy = instances.duplicate(original.id);
+  const copy = await instances.duplicate(original.id);
   assert.deepEqual(fs.readdirSync(path.join(copy.dir, 'saves', 'Nasz świat')), ['level.dat']);
   assert.equal(fs.readFileSync(path.join(copy.dir, 'mods', 'sodium.jar'), 'utf8'), 'jar');
   instances.remove(copy.id);
 
-  // The disk fills up in the middle of the copy.
-  const real = fs.cpSync;
-  fs.cpSync = (from, to) => {
-    fs.mkdirSync(path.join(to, 'mods'), { recursive: true });
-    fs.writeFileSync(path.join(to, 'mods', 'sodium.jar'), 'ja');
-    throw Object.assign(new Error("ENOSPC: no space left on device, copyfile 'a' -> 'b'"), { code: 'ENOSPC' });
+  // The disk fills up in the middle of the copy: the first file is there, the second one does not fit.
+  const real = fsp.copyFile;
+  let copied = 0;
+  fsp.copyFile = async (from, to) => {
+    if ((copied += 1) > 1) throw Object.assign(new Error("ENOSPC: no space left on device, copyfile 'a' -> 'b'"), { code: 'ENOSPC' });
+    return real(from, to);
   };
   try {
-    assert.throws(() => instances.duplicate(original.id), /^Error: Nie udało się skopiować instancji: na dysku zabrakło miejsca\.$/);
+    await assert.rejects(instances.duplicate(original.id), /^Error: Nie udało się skopiować instancji: na dysku zabrakło miejsca\.$/);
   } finally {
-    fs.cpSync = real;
+    fsp.copyFile = real;
   }
   assert.deepEqual(instances.list().map((i) => i.name), ['Hammer'], 'no half-made „Hammer (kopia)” on the list');
   assert.deepEqual(fs.readdirSync(path.dirname(original.dir)), [original.id], '… nor on the disk');

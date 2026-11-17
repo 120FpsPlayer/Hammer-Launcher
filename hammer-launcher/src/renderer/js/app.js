@@ -262,6 +262,9 @@
     taskTimer = setTimeout(() => clear(taskBox), pct === 100 ? 1500 : 30000);
   });
   api.on('toast', (t) => toast(t.kind ?? 'info', t.text));
+  // An instance appeared or is complete: a copy („Duplikuj”) or a modpack install that began or ended – also one
+  // started from another screen. The lists show it as „Kopiowanie…” / „Instalowanie…” while it is being made.
+  api.on('instances:changed', () => state.refreshInstances().catch(() => {}));
 
   /* ── Test FPS: the game of a test closed – the result (or why there is none) goes to the card in Optymalizacja ── */
   api.on('benchmark:done', (res) => {

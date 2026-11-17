@@ -47,6 +47,7 @@ async function server() {
     await buildServer({ guild, mode: 'add', invokerId: guild.ownerId });
   }
   assistant._reset();
+  require('../src/features/ai/knowledge').setFile(require('node:path').join(process.env.HS_DATA_DIR, 'wiedza-asystenta.md')); // not the owner's file
   db.guild(guild.id).aiAssistant = { enabled: true };
   return guild;
 }
@@ -138,11 +139,14 @@ test('a new ticket: the assistant reads the form and writes first – Opus 5.5, 
   const context = req.messages.at(-1);
   assert.equal(context.role, 'system', 'the per-ticket context comes after the history (the cached prefix stays the same)');
   assert.match(context.content, /ticket typu support/);
-  assert.match(context.content, /pierwsza wiadomość/);
+  assert.match(context.content, /pierwsza odpowiedź/);
 
+  // The owner's format: the bot's introduction, the answer (the model's own „Cześć! Jestem asystentem AI.” taken out),
+  // the signature with the server's logo emoji and the hint.
   const [greeting] = aiMessages(channel);
-  assert.match(greeting.content, /^Cześć! Jestem asystentem AI/);
-  assert.match(greeting.content, /-# 🤖 Asystent AI – może się pomylić\. Napisz „człowiek”/);
+  const lines = greeting.content.split('\n');
+  assert.deepEqual(lines.slice(0, 3), ['Cześć! Jestem asystentem AI Hammera.', '', 'Czarny ekran to zwykle mody – wyślij proszę log.']);
+  assert.match(lines.at(-1), /^-# <:\w+_logo:\d+> Asystent AI · napisz „człowiek”, a zawołam zespół$/);
   assert.deepEqual(greeting.body.allowedMentions, { parse: [] });
   assert.deepEqual(customIds(greeting.body), ['ai:human', 'ai:off']);
 
@@ -154,11 +158,13 @@ test('a new ticket: the assistant reads the form and writes first – Opus 5.5, 
   assert.deepEqual(next.system, req.system);
   const turns = next.messages.filter((m) => m.role !== 'system');
   assert.deepEqual(turns.map((m) => m.role), ['user', 'assistant', 'user']);
-  assert.equal(turns[1].content[0].text, 'Cześć! Jestem asystentem AI. Czarny ekran to zwykle mody – wyślij proszę log.', 'footer stripped');
+  assert.equal(turns[1].content[0].text, 'Czarny ekran to zwykle mody – wyślij proszę log.', 'the introduction and the signature are not part of its turn');
   assert.match(turns[2].content[0].text, /mclo\.gs\/abc/);
-  assert.doesNotMatch(next.messages.at(-1).content, /pierwsza wiadomość/);
+  assert.doesNotMatch(next.messages.at(-1).content, /pierwsza odpowiedź/);
   assert.equal(aiMessages(channel).length, 2);
   assert.deepEqual(customIds(aiMessages(channel)[1].body), [], 'the buttons are only on the first message');
+  assert.deepEqual(aiMessages(channel)[1].content.split('\n'), ['Dzięki!', aiMessages(channel)[1].content.split('\n').at(-1)], 'no introduction the second time');
+  assert.match(aiMessages(channel)[1].content, /\n-# <:\w+_logo:\d+> Asystent AI$/, 'the signature without the hint');
   assert.equal(aiOf(channel).replies, 2);
 });
 
@@ -228,7 +234,7 @@ test('giveaway prize: tool_use → tool_result round trips – a Hammer+ winner 
   const log = ticketLog().find((t) => /Asystent AI wydał nagrodę/.test(t));
   assert.match(log, /Steve/);
   assert.doesNotMatch(log, /HP1\./, 'the code is never written into the log');
-  assert.match(aiMessages(channel).at(-1).content, /^Gotowe!/);
+  assert.match(aiMessages(channel).at(-1).content, /^Cześć! Jestem asystentem AI Hammera\.\n\nGotowe!/);
 
   // A second claim of the same prize is refused – one code only.
   const before = hammerplus.codes(guild.id).length;
@@ -542,7 +548,7 @@ test('with the real SDK: the request goes out with the fallback beta header, fal
   assert.equal(req.body.model, 'claude-opus-5-5');
   assert.deepEqual(req.body.output_config, { effort: 'low' });
   assert.deepEqual(req.body.system[0].cache_control, { type: 'ephemeral' });
-  assert.match(aiMessages(channel)[0].content, /^Cześć! Jestem asystentem AI\./);
+  assert.match(aiMessages(channel)[0].content, /^Cześć! Jestem asystentem AI Hammera\.\n\n/);
 });
 
 test('after a refusal fallback the blocks before the switch are not sent back – except text and the fallback block itself', () => {
