@@ -100,7 +100,7 @@ test('/build makes the Hammer Launcher server: its name, its mark as the icon, i
     assert.ok(channel(key), `#${key}`);
   }
   for (const key of ['shop', 'howToBuy', 'payments', 'restocks', 'vouches', 'proofs', 'sales', 'statShop', 'statVouches']) assert.equal(db.channelId(guild.id, key), null, `no #${key}`);
-  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 35); // + 🎮 Gra na serwerach, 📋 plany
+  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 35); // + 🕹️ Gra teraz, 🗺️ plany
   // No #zrzuty-ekranu; the download channel has the 📥 tray; #czat and #serwery are for talking – no bot cards there.
   assert.equal(db.channelId(guild.id, 'screenshots'), null, 'no #zrzuty-ekranu');
   assert.match(channel('launcher').name, /📥/);
@@ -133,7 +133,7 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
   assert.match(channelText('launcher'), /Hammer Launcher[\s\S]*wersja beta[\s\S]*FPS boost jednym kliknięciem/);
   assert.match(channelText('welcome'), /Witamy w Hammer Launcher[\s\S]*pobierz launcher na <#\d+>/);
   assert.match(channelText('plus'), /Hammer\+[\s\S]*Nie daje żadnej przewagi w grze[\s\S]*„Mam kod”/);
-  assert.match(channelText('bugs'), /Zgłoś błąd[\s\S]*Konsola → Udostępnij log/);
+  assert.match(channelText('bugs'), /Zgłoś błąd[\s\S]*Konsola → Wyślij logi/);
   assert.match(channelText('faq'), /Skąd pobrać launcher\?[\s\S]*SmartScreen[\s\S]*Java Edition/);
   assert.match(channelText('updates'), /każdą nową wersję/);
   assert.match(channelText('rules'), /Regulamin Hammer Launcher[\s\S]*§4 · Hammer\+[\s\S]*§7 · Prywatność/);

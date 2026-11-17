@@ -51,7 +51,7 @@ To zasady naszego serwera Discord i korzystania z **{brand}**. Będąc tutaj alb
 
 ## {e:question} §5 · Pomoc i zgłaszanie błędów
 > **5.1** Pomoc dostaniesz przez ticket na {#tickets}. Zanim napiszesz, zajrzyj na {#faq} – wiele odpowiedzi już tam jest.
-> **5.2** W zgłoszeniu podaj wersję launchera, wersję Minecrafta i opis krok po kroku. Najbardziej pomaga log: **Konsola → Udostępnij log** w launcherze. Jak zgłaszać błędy: {#bugs}.
+> **5.2** W zgłoszeniu podaj wersję launchera, wersję Minecrafta i opis krok po kroku. Najbardziej pomaga log: **Konsola → Wyślij logi** w launcherze. Jak zgłaszać błędy: {#bugs}.
 > **5.3** Pomagamy w godzinach pracy zespołu: {supportHours}. Poza nimi odpowiedź może przyjść później.
 > **5.4** Pomysły na nowe funkcje wrzucaj na {#suggestions} – czytamy wszystkie, ale nie każdy da się zrealizować.
 

@@ -90,7 +90,7 @@ let hooks = {
   contact: async () => null, // (message) → a card for the team on Discord (src/features/website.js contactCard)
   // The panel's „Ogłoszenia” tab: cards on #📢 ogłoszenia (src/features/website.js panelAnnouncements).
   announcements: { info: () => ({ channel: null, role: null, members: null, brand: null, bot: null, kinds: [] }), bannerFile: () => null, post: notConnected, remove: notConnected },
-  // The panel's „Plany” tab: the card on #📋 plany (src/features/website.js panelRoadmap → src/features/roadmap.js).
+  // The panel's „Plany” tab: the card on #🗺️ plany (src/features/website.js panelRoadmap → src/features/roadmap.js).
   roadmap: { info: () => ({ channel: null, url: null }), publish: notConnected },
 };
 const products = () => hooks.catalog();

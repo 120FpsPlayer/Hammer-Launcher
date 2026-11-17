@@ -1,7 +1,7 @@
 'use strict';
 
-// The Hammer Launcher server (BOT_PROFILE=launcher): the „Gra na serwerach” stat channel (how many play on a server
-// with Hammer Client right now), #📋 plany with one card the bot edits in place from the admin panel's „Plany” tab –
+// The Hammer Launcher server (BOT_PROFILE=launcher): the „Gra teraz” stat channel (how many play right now
+// with Hammer Client right now), #🗺️ plany with one card the bot edits in place from the admin panel's „Plany” tab –
 // over real HTTP against a local copy of the website – and /zbuduj tylko:update adding both to an older server.
 process.env.HS_TEST_PROFILE = 'launcher';
 
@@ -115,17 +115,17 @@ async function playing(n) {
   }
 }
 
-test('layout: „Gra na serwerach” is the last stat channel, #📋 plany comes right after #aktualności, read-only for members', () => {
+test('layout: „Gra teraz” is the last stat channel, #🗺️ plany comes right after #aktualności, read-only for members', () => {
   assert.deepEqual(CATEGORIES.find((c) => c.key === 'catStats').channels.map((c) => c.key), ['statMembers', 'statVersion', 'statDownloads', 'statPlaying']);
   assert.deepEqual(order(guild, 'catStats'), ['statMembers', 'statVersion', 'statDownloads', 'statPlaying']);
   assert.deepEqual(order(guild, 'catLauncher'), ['launcher', 'updates', 'news', 'roadmap', 'plus', 'faq']);
   const stat = channel('statPlaying');
   assert.equal(stat.type, ChannelType.GuildVoice);
   assert.equal(bareName(stat.name), bareName(stats.STAT_NAMES.statPlaying(0)));
-  assert.match(stat.name, /^🎮/);
+  assert.match(stat.name, /^🕹️/);
   const plany = channel('roadmap');
   assert.equal(plany.type, ChannelType.GuildText);
-  assert.match(plany.name, /📋/);
+  assert.match(plany.name, /^🗺/);
   assert.match(plany.topic, /pracujemy/);
   const visitor = guild.addMember('300000000000000590', []);
   const member = guild.members.cache.get(MEMBER.id);
@@ -136,7 +136,7 @@ test('layout: „Gra na serwerach” is the last stat channel, #📋 plany comes
   assert.equal(plany.messageList.length, 1);
   assert.deepEqual(db.panels(guild.id, 'roadmap').map((p) => p.messageId), [card().id]);
   assert.deepEqual(db.build(guild.id).posts.roadmap, [{ type: 'panel', id: card().id, kind: 'roadmap' }]);
-  assert.match(cardText(), /# 📋 Plany/);
+  assert.match(cardText(), /# 🗺️ Plany/);
   assert.match(cardText(), /Plany są w drodze/);
   assert.match(cardText(), new RegExp(`<#${db.channelId(guild.id, 'suggestions')}>`));
   assert.doesNotMatch(cardText(), /Ostatnia zmiana/, 'no date while nothing is planned');
@@ -160,7 +160,7 @@ test('the shop server gets neither channel, no „Plany” tab and no chat hints
   assert.deepEqual([shop.tab, shop.section, shop.hints], [false, false, false]);
 });
 
-test('„Gra na serwerach” counts who the game reports as playing, renames only on a change and never over Discord\'s limit', async (t) => {
+test('„Gra teraz” counts who the game reports as playing, renames only on a change and never over Discord\'s limit', async (t) => {
   const stat = channel('statPlaying');
   const shown = () => bareName(stat.name);
   const wanted = (n) => bareName(stats.STAT_NAMES.statPlaying(n));
@@ -203,6 +203,40 @@ test('„Gra na serwerach” counts who the game reports as playing, renames onl
   await stats.updateStatChannels(guild.client, { keys: ['statPlaying'] });
   assert.equal(shown(), wanted(4));
   assert.equal(stat.renames, 3);
+});
+
+/** A launcher says a game runs (or ended) – PUT playing with its random session id. */
+async function report(session, playing = true, from = `10.98.0.${++ip % 250}`) {
+  return fetch(`${base}/api/launcher/playing`, { method: 'PUT', headers: { 'content-type': 'application/json', 'x-forwarded-for': from }, body: JSON.stringify({ session, playing }) });
+}
+
+test('„Gra teraz” counts the games launchers report – singleplayer and vanilla too – and Hammer Client players from older launchers, never both twice', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 60 * 60_000 }); // everybody from the test above is gone
+  assert.equal(stats.playingNow(), 0);
+  const a = crypto.randomUUID();
+  const b = crypto.randomUUID();
+  assert.equal((await report(a)).status, 200);
+  assert.equal((await report(b)).status, 200);
+  assert.equal((await report(a)).status, 200, 'the same game again (every two minutes) – still one');
+  assert.equal(stats.playingNow(), 2);
+  // Two Hammer Client players on a server: they are launcher games too – the larger number counts, not the sum.
+  await playing(2);
+  assert.equal(stats.playingNow(), 2);
+  await playing(1); // one more on an older launcher that doesn't report its game
+  assert.equal(stats.playingNow(), 3);
+  // A game ends: the launcher says so at once.
+  t.mock.timers.tick(5 * 60_000 + 1000); // (the Hammer Client players stopped saying "I am playing")
+  assert.equal(stats.playingNow(), 0, 'nobody said anything for 5 minutes');
+  await report(a);
+  await report(b);
+  assert.equal(stats.playingNow(), 2);
+  assert.equal((await report(b, false)).status, 200);
+  assert.equal(stats.playingNow(), 1);
+  // Only a random id goes in – nothing else is accepted, and one address cannot report a crowd.
+  for (const bad of ['', 'krótkie', 'a'.repeat(65), 'zła spacja w środku ok', null, 12]) assert.equal((await report(bad)).status, 400, String(bad));
+  const many = [];
+  for (let i = 0; i < 9; i += 1) many.push((await report(crypto.randomUUID(), true, '10.97.0.1')).status);
+  assert.deepEqual(many, [200, 200, 200, 200, 200, 200, 200, 200, 400]);
 });
 
 test('the „Plany” tab: only for the panel\'s people, every change from the panel itself, every field checked', async () => {
@@ -302,10 +336,10 @@ test('every change is on Discord at once: the same card edited in place, no ping
 
   // Each change is in the log channel, with who did it.
   const log = logText();
-  assert.match(log, new RegExp(`📋 Plany: dodano „Jasny motyw” \\(🚀 W następnej wersji\\) · <@${ADMIN.id}>`));
-  assert.match(log, /📋 Plany: przesunięto „Tryb dla słabszych komputerów” w górę/);
-  assert.match(log, /📋 Plany: zmieniono „Jasny i ciemny motyw” \(teraz: ✅ Ostatnio zrobione\)/);
-  assert.match(log, /📋 Plany: usunięto „\\\*\\\*Gruby/);
+  assert.match(log, new RegExp(`🗺️ Plany: dodano „Jasny motyw” \\(🚀 W następnej wersji\\) · <@${ADMIN.id}>`));
+  assert.match(log, /🗺️ Plany: przesunięto „Tryb dla słabszych komputerów” w górę/);
+  assert.match(log, /🗺️ Plany: zmieniono „Jasny i ciemny motyw” \(teraz: ✅ Ostatnio zrobione\)/);
+  assert.match(log, /🗺️ Plany: usunięto „\\\*\\\*Gruby/);
 
   // Saved next to the other site data (data/web.json), with who changed it last.
   webStore.flush();
@@ -393,7 +427,7 @@ test('without the channel the change is still saved – the tab and the answer s
     const res = await add({ section: 'now', title: 'Zapisane mimo wszystko' });
     assert.equal(res.status, 200);
     assert.equal(res.body.discord.ok, false);
-    assert.match(res.body.discord.error, /nie ma kanału #📋 plany.*\/zbuduj tylko:update/);
+    assert.match(res.body.discord.error, /nie ma kanału #🗺️ plany.*\/zbuduj tylko:update/);
     assert.ok(webStore.roadmap().items.some((i) => i.title === 'Zapisane mimo wszystko'));
     assert.match(logText(), /dodano „Zapisane mimo wszystko” \(🔨 Teraz robimy\) – karta na Discordzie się nie zmieniła/);
     const shown = await plans();
@@ -409,10 +443,10 @@ test('without the channel the change is still saved – the tab and the answer s
   assert.match(cardText(), /Zapisane mimo wszystko/);
 });
 
-test('/zbuduj tylko:update on a server built before them: the stat channel and #📋 plany with its card appear in their places', async () => {
+test('/zbuduj tylko:update on a server built before them: the stat channel and #🗺️ plany with its card appear in their places', async () => {
   const old = new FakeGuild({ ownerId: '1' });
   await buildServer({ guild: old, mode: 'add', invokerId: old.ownerId });
-  // The server as it was: no „Gra na serwerach”, no #plany, no card.
+  // The server as it was: no „Gra teraz”, no #plany, no card.
   const b = db.build(old.id);
   for (const key of ['statPlaying', 'roadmap']) await channel(key, old).delete();
   for (const p of db.panels(old.id, 'roadmap')) db.removePanel(old.id, p.messageId);
@@ -425,8 +459,8 @@ test('/zbuduj tylko:update on a server built before them: the stat channel and #
   await handle(i, commands);
   const out = textOf(lastResponse(i));
   assert.match(out, /Serwer zaktualizowany/, out);
-  assert.match(out, /🎮/);
-  assert.match(out, /📋/);
+  assert.match(out, /🕹️/);
+  assert.match(out, /🗺/);
   assert.deepEqual(order(old, 'catStats'), ['statMembers', 'statVersion', 'statDownloads', 'statPlaying']);
   assert.deepEqual(order(old, 'catLauncher'), ['launcher', 'updates', 'news', 'roadmap', 'plus', 'faq']);
   assert.equal(channel('statPlaying', old).type, ChannelType.GuildVoice);
@@ -434,11 +468,11 @@ test('/zbuduj tylko:update on a server built before them: the stat channel and #
   assert.equal(plany.messageList.length, 1, 'the card is there');
   assert.deepEqual(db.panels(old.id, 'roadmap').map((p) => p.messageId), [plany.messageList[0].id]);
   assert.deepEqual(db.build(old.id).posts.roadmap, [{ type: 'panel', id: plany.messageList[0].id, kind: 'roadmap' }]);
-  assert.match(textOf(plany.messageList[0].body), /📋 Plany/);
+  assert.match(textOf(plany.messageList[0].body), /🗺️ Plany/);
   // Run again: nothing new.
   const j = createInteraction({ guild: old, member: old.members.cache.get(old.ownerId), kind: 'command', commandName: 'build', options: { only: 'update' } });
   await handle(j, commands);
-  assert.equal(old.channels.cache.filter((c) => c.name === channel('roadmap', old).name).size, 1); // (📋 is #logi-serwera's emoji too)
-  assert.equal(old.channels.cache.filter((c) => c.name === channel('statPlaying', old).name).size, 1); // (🎮 is #serwery's too)
+  assert.equal(old.channels.cache.filter((c) => c.name === channel('roadmap', old).name).size, 1);
+  assert.equal(old.channels.cache.filter((c) => c.name === channel('statPlaying', old).name).size, 1);
   assert.equal(channel('roadmap', old).messageList.length, 1);
 });

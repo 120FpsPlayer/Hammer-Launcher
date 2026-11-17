@@ -39,6 +39,7 @@ const { createBundles } = require('./bundles');
 const { createSkins, MAX_LIBRARY, PLUS_LIBRARY } = require('./skins');
 const { createPlus, cleanUuid } = require('./plus');
 const { createShopApi } = require('./shopapi');
+const { createPlaying } = require('./playing');
 const cloudSync = require('./cloud');
 const { createBackgrounds, createMenuBackground, EXTENSIONS, pngSize } = require('./background');
 const { loadCapes, CUSTOM: CUSTOM_CAPE } = require('./capes');
@@ -154,6 +155,8 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   const bundles = createBundles({ modrinth, content });
   const skinStore = createSkins({ dir: path.join(root, 'skins'), fetchFn, t, limit: () => (plus.status().active ? PLUS_LIBRARY : MAX_LIBRARY) });
   const games = new GameManager(launchFn ? { launchFn } : {});
+  // „Gra teraz” on the Discord server: a random id per game session tells the website a game runs here (playing.js).
+  const playingNow = createPlaying({ games, shop });
   const community = createCommunity({ config, fetchFn });
   const busy = new Set(); // instances being prepared
   const making = new Map(); // instance id → 'copy' | 'modpack': still being copied or installed – on the list, not usable yet
@@ -1207,6 +1210,7 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
   const stamp = (v) => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= 64) ? v : undefined;
 
   return {
+    playingNow,
     paths,
     settings,
     instances: {

@@ -913,7 +913,7 @@
     }).catch(function () { /* signed out or offline: the number just stays */ });
   }
 
-  // ── Plany: the card on #📋 plany (the launcher's site only). Every change is saved and on Discord at once – the bot
+  // ── Plany: the card on #🗺️ plany (the launcher's site only). Every change is saved and on Discord at once – the bot
   // edits the same message and pings nobody – so there is no draft to forget: the preview is what the channel shows. ──
   (function () {
     if (!$('tab-plany')) return;
@@ -1020,7 +1020,7 @@
     function drawPreview() {
       var md = $('plan-md');
       md.textContent = '';
-      md.appendChild(el('h1', { text: '📋 Plany' }));
+      md.appendChild(el('h1', { text: '🗺️ Plany' }));
       md.appendChild(el('div', { text: 'Nad czym teraz pracujemy i co pojawi się w kolejnych wersjach launchera.' }));
       md.appendChild(el('hr', { class: 'dc-sep' }));
       var ideas = el('span', { class: 'dc-mention', text: '#propozycje' });
@@ -1050,8 +1050,8 @@
       var d = plan.discord || {};
       $('plan-open').hidden = !d.url;
       if (d.url) $('plan-open').href = d.url;
-      $('plan-channel').textContent = d.channel ? '#' + d.channel.name : '#📋 plany';
-      var problem = !d.channel ? 'Na serwerze nie ma jeszcze kanału #📋 plany – dodaj go na Discordzie komendą /zbuduj tylko:update. Do tego czasu zmiany zapisują się tylko w panelu.' : '';
+      $('plan-channel').textContent = d.channel ? '#' + d.channel.name : '#🗺️ plany';
+      var problem = !d.channel ? 'Na serwerze nie ma jeszcze kanału #🗺️ plany – dodaj go na Discordzie komendą /zbuduj tylko:update. Do tego czasu zmiany zapisują się tylko w panelu.' : '';
       $('plan-setup').textContent = problem;
       $('plan-setup').hidden = !problem;
       $('plan-publish').disabled = !d.channel;

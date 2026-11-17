@@ -22,7 +22,7 @@
  *                order on the website shows it too.
  *   - admin      the admin panel (/admin, src/web/admin.js) asks the bot who may use it (the server's owner and
  *                OWNER_IDS – everything; the bot's admins – the rest), posts news and new launcher versions on Discord
- *                and announcements on #📢 ogłoszenia („Ogłoszenia” tab), keeps the card on #📋 plany up to date („Plany”
+ *                and announcements on #📢 ogłoszenia („Ogłoszenia” tab), keeps the card on #🗺️ plany up to date („Plany”
  *                tab, Hammer Launcher server) and writes every change to the log channel.
  *   - contact    a message from the website's contact form (src/web/contact.js) becomes a card on the team's chat –
  *                nobody is pinged (contactCard).
@@ -745,7 +745,7 @@ const panelAnnouncements = {
   },
 };
 
-// ───────────── The panel's „Plany” tab: the card on #📋 plany (src/features/roadmap.js) ─────────────
+// ───────────── The panel's „Plany” tab: the card on #🗺️ plany (src/features/roadmap.js) ─────────────
 const panelRoadmap = {
   /** Where the card is: { channel: { id, name, url } | null, url (the message) | null }. */
   info: () => require('./roadmap').status(guildOf()),

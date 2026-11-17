@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * #📋 plany (the Hammer Launcher server): one card with what the team is doing now, what comes in the next version,
+ * #🗺️ plany (the Hammer Launcher server): one card with what the team is doing now, what comes in the next version,
  * later, and what was done lately. The admin panel's „Plany” tab edits the list (src/web/admin.js → the website's
  * hooks in src/features/website.js → publish here); the bot then edits the same message in place – it never posts a
  * second card and never pings anybody. A card someone deleted is posted again by the next publish, and remembered.
@@ -35,7 +35,7 @@ function card(guild) {
   const ideas = db.channelId(guild.id, 'suggestions') ? `<#${db.channelId(guild.id, 'suggestions')}>` : '#propozycje';
   const list = roadmap.listText(items ?? []);
   const c = container(COLORS.brand);
-  c.addTextDisplayComponents(text('# 📋 Plany\nNad czym teraz pracujemy i co pojawi się w kolejnych wersjach launchera.'));
+  c.addTextDisplayComponents(text('# 🗺️ Plany\nNad czym teraz pracujemy i co pojawi się w kolejnych wersjach launchera.'));
   c.addSeparatorComponents(divider());
   if (!list) {
     // Nothing planned yet: a friendly word instead of an empty card (and no date of a change that never happened).
@@ -50,7 +50,7 @@ function card(guild) {
 
 panels.register(KIND, (guild) => card(guild));
 
-/** #📋 plany – null when the server has none (the shop server, or a server built before the channel existed). */
+/** #🗺️ plany – null when the server has none (the shop server, or a server built before the channel existed). */
 function channelOf(guild) {
   const channel = guild?.channels.cache.get(db.channelId(guild.id, 'roadmap') ?? '');
   return channel?.isTextBased?.() ? channel : null;
@@ -79,7 +79,7 @@ function remember(guild, channel, message, oldIds) {
 
 async function doPublish(guild) {
   const channel = channelOf(guild);
-  if (!channel) throw problem(409, 'Na serwerze nie ma kanału #📋 plany – dodaj go na Discordzie komendą /zbuduj tylko:update.');
+  if (!channel) throw problem(409, 'Na serwerze nie ma kanału #🗺️ plany – dodaj go na Discordzie komendą /zbuduj tylko:update.');
   const payload = card(guild);
   const gone = [];
   for (const id of cardIds(guild, channel)) {

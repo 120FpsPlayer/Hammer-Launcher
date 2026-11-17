@@ -189,7 +189,7 @@ function faq(x) {
     ['Windows ostrzega przy instalacji. Czy to bezpieczne?', 'Tak. W wersji beta instalator nie ma jeszcze płatnego certyfikatu wydawcy, dlatego SmartScreen pokazuje okno „System Windows ochronił ten komputer”. Kliknij **Więcej informacji → Uruchom mimo to**.'],
     ['Czy potrzebuję oryginalnego Minecrafta?', 'Tak – Minecraft: Java Edition na koncie Microsoft. Logujesz się oficjalną stroną Microsoftu w oknie launchera. Kont nieoryginalnych nie obsługujemy.'],
     ['Jak działają aktualizacje?', `Launcher sam pobiera nową wersję w tle i instaluje ją, gdy go zamkniesz. O każdej wersji piszemy na ${x.ch('updates')}.`],
-    ['Gra nie startuje albo się wysypuje', `Otwórz w launcherze **Konsola → Udostępnij log** i wyślij nam link w tickecie **Pomoc z launcherem** na ${x.ch('tickets')}. Podaj wersję Minecrafta i listę modów.`],
+    ['Gra nie startuje albo się wysypuje', `Otwórz w launcherze **Konsola → Wyślij logi** i wyślij nam link w tickecie **Pomoc z launcherem** na ${x.ch('tickets')}. Podaj wersję Minecrafta i listę modów.`],
     ['Jak zwiększyć FPS?', 'Zakładka **Optymalizacja** → **Zoptymalizuj wszystko**. Launcher dobierze pamięć, ustawienia Javy i mody wydajnościowe. Wynik sprawdzisz **Testem FPS**.'],
     ['Co daje Hammer+ i jak go aktywować?', `Wygląd i wygodę – bez przewagi w grze. Wszystko opisaliśmy na ${x.ch('plus')}. Kod wpisujesz w launcherze: **Hammer+ → „Mam kod”**.`],
     ['Jak dostać Hammer+ za darmo?', 'Zaproś znajomych: na stronie launchera (strona **Polecaj**) masz swój link. Za każdego znajomego, który pobierze z niego launcher i kupi Hammer+, dostajesz **+7 dni Hammer+**.'],
@@ -214,7 +214,7 @@ function bugs(x) {
       '### Co nam najbardziej pomaga\n' +
         '> **1.** Wersja launchera (lewy dolny róg okna) oraz wersja Minecrafta i loader instancji\n' +
         '> **2.** Co robisz **krok po kroku** i co się wtedy dzieje\n' +
-        '> **3.** Log: w launcherze **Konsola → Udostępnij log** – wklej link, który dostaniesz\n' +
+        '> **3.** Log: w launcherze **Konsola → Wyślij logi** – wklej link, który dostaniesz\n' +
         '> **4.** Zrzut ekranu, jeśli coś źle wygląda\n' +
         `-# Lukę w bezpieczeństwie zgłoś **tylko** ticketem – nigdy publicznie. Pomysły na nowe funkcje: ${x.ch('suggestions')}.`,
     ),
@@ -303,7 +303,7 @@ function staff(x) {
     text(
       `# ${x.E('shield')} Poradnik zespołu\nWszystko, czego potrzebujesz, żeby prowadzić **${x.brand}**.\n` +
         `### ${x.E('ticket')} Tickety\n> Przejmij ticket, zanim odpowiesz · gotowe odpowiedzi wysyłasz przez \`${slash('reply')}\` (prośba o log, o wersję, jak wpisać kod Hammer+…)\n` +
-        '> Przy błędzie zawsze poproś o **wersję launchera, wersję Minecrafta i log** (Konsola → Udostępnij log)\n' +
+        '> Przy błędzie zawsze poproś o **wersję launchera, wersję Minecrafta i log** (Konsola → Wyślij logi)\n' +
         `> Transkrypcje trafiają na ${x.ch('transcripts')}, każda akcja na ${x.ch('ticketLogs')}\n` +
         `### ${x.E('star')} Hammer+\n> \`${slash('hammerplus grant')}\` – kod dla nicku (sprawdzany w Mojang) · \`${slash('hammerplus check')}\` – czyj jest kod i do kiedy działa · \`${slash('hammerplus list')}\`\n` +
         '> Kod kupiony na stronie przychodzi graczowi sam (strona + DM). Zły nick albo kod nie działa → sprawdź kod, w razie potrzeby wystaw nowy\n' +

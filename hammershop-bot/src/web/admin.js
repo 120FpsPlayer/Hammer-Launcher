@@ -33,7 +33,7 @@
  *   GET    roadmap               → „Plany”: { items, sections, limits, updatedAt, by, discord { channel, url } }
  *   POST   roadmap               { section, title, note? }        PUT roadmap/<id> { section?, title?, note? }
  *   DELETE roadmap/<id>          POST roadmap/<id>/move { dir: 'up' | 'down' } (within its section)
- *                                – every change is saved and the card on #📋 plany is edited right away:
+ *                                – every change is saved and the card on #🗺️ plany is edited right away:
  *                                → { items, updatedAt, discord { ok, url, reposted, error } }
  *   POST   roadmap/publish       puts the card on Discord again (edits it, or posts it when it was deleted) → { url, reposted }
  *   GET    messages              → „Wiadomości”: { messages (the contact form's, newest first), unread, topics,
@@ -153,7 +153,7 @@ function announcementRow(a) {
   return { id: a.id, title: a.title, kind: a.kind, ping: a.ping, at: a.at, by: user(a.by), url: a.url, crossposted: Boolean(a.crossposted), deletedAt: a.deletedAt ?? null, deletedBy: user(a.deletedBy) };
 }
 
-// ── „Plany”: the card on #📋 plany (src/lib/roadmap.js, the bot side in src/features/roadmap.js) ──
+// ── „Plany”: the card on #🗺️ plany (src/lib/roadmap.js, the bot side in src/features/roadmap.js) ──
 /** The form, checked → { section?, title?, note? } (partial: only what was sent). */
 function roadmapFields(body, { partial = false } = {}) {
   const out = {};
@@ -479,7 +479,7 @@ async function api(req, res, url, h) {
     }
   }
 
-  // ── „Plany”: the card on #📋 plany. Every change is saved and put on Discord at once – the bot edits the same message
+  // ── „Plany”: the card on #🗺️ plany. Every change is saved and put on Discord at once – the bot edits the same message
   // and pings nobody, so there is no draft that could be forgotten: what the tab shows is what the channel shows. ──
   if (head === 'roadmap') {
     const items = store.roadmap().items;
@@ -494,14 +494,14 @@ async function api(req, res, url, h) {
       } catch (err) {
         discord = { ok: false, error: err.message };
       }
-      await log(`📋 Plany: ${what}${discord.ok ? (discord.reposted ? ' – kartę wysłano od nowa' : '') : ' – karta na Discordzie się nie zmieniła'}`);
+      await log(`🗺️ Plany: ${what}${discord.ok ? (discord.reposted ? ' – kartę wysłano od nowa' : '') : ' – karta na Discordzie się nie zmieniła'}`);
       return h.send(res, 200, { items: r.items.map(roadmapRow), updatedAt: r.updatedAt, discord });
     };
     const quoted = (item) => `„${roadmap.plain(item.title)}”`;
     if (method === 'POST' && arg === 'publish') {
       if (h.limited(req, 'roadmap-publish', 10)) return h.fail(res, 429, 'Za dużo prób naraz – odczekaj minutę.');
       const posted = await h.roadmap.publish();
-      await log(`📋 Plany: karta na Discordzie ${posted.reposted ? 'wysłana od nowa' : 'odświeżona'} – ${posted.url}`);
+      await log(`🗺️ Plany: karta na Discordzie ${posted.reposted ? 'wysłana od nowa' : 'odświeżona'} – ${posted.url}`);
       return h.send(res, 200, { url: posted.url, reposted: Boolean(posted.reposted) });
     }
     if (method === 'POST' && !arg) {

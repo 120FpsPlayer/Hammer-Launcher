@@ -26,13 +26,13 @@ const STAT_NAMES = {
   statVersion: (v) => channelName(`🚀 Wersja: ${v ?? 'beta'}`),
   statDownloads: (n) => channelName(`📥 Pobrania: ${n.toLocaleString('en-US')}`),
   // Players in a multiplayer world with Hammer Client right now (playingNow) – singleplayer doesn't report itself.
-  statPlaying: (n) => channelName(`🎮 Gra na serwerach: ${n.toLocaleString('en-US')}`),
+  statPlaying: (n) => channelName(`🕹️ Gra teraz: ${n.toLocaleString('en-US')}`),
 };
 
 /**
- * How many accounts play on a server with Hammer Client right now: the in-game client says "I am playing" every 90 s
- * while it is in a multiplayer world (hammer-client Presence.java), and the website keeps that for 5 minutes, in memory
- * only (src/web/launcher.js onlineNow, PRESENCE_MS) – so someone who quit still counts for a few minutes.
+ * How many people play right now: the launcher (2.11.3+) says "a game runs here" every two minutes while one runs and
+ * "it ended" when it ends; older launchers are counted through Hammer Client on servers (it says "I am playing" every
+ * 90 s in a multiplayer world). The website keeps both for 5 minutes, in memory only (src/web/launcher.js onlineNow).
  */
 function playingNow() {
   try {

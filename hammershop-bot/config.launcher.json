@@ -30,7 +30,7 @@
     "rules": [
       "Podaj wersję launchera i wersję Minecrafta",
       "Opisz krok po kroku, co robisz i co się wtedy dzieje",
-      "Dołącz log: w launcherze Konsola → Udostępnij log",
+      "Dołącz log: w launcherze Konsola → Wyślij logi",
       "Jedna sprawa = jeden ticket"
     ]
   },
@@ -57,7 +57,7 @@
       "questions": [
         { "id": "subject", "label": "Temat", "style": "short", "placeholder": "Np. gra nie uruchamia się po instalacji modów", "required": true, "maxLength": 100 },
         { "id": "version", "label": "Wersja launchera i Minecrafta", "style": "short", "placeholder": "Np. launcher 2.6.0, Minecraft 1.21.4 Fabric", "required": true, "maxLength": 100 },
-        { "id": "details", "label": "Opisz dokładnie, co się dzieje", "style": "paragraph", "placeholder": "Co robisz, co widzisz i co już zostało sprawdzone? Wklej link do logu: Konsola → Udostępnij log.", "required": true, "maxLength": 1000 }
+        { "id": "details", "label": "Opisz dokładnie, co się dzieje", "style": "paragraph", "placeholder": "Co robisz, co widzisz i co już zostało sprawdzone? Wklej link do logu: Konsola → Wyślij logi.", "required": true, "maxLength": 1000 }
       ]
     },
     {
@@ -72,7 +72,7 @@
         { "id": "subject", "label": "Co nie działa?", "style": "short", "placeholder": "Np. edytor HUD nie zapisuje pozycji", "required": true, "maxLength": 100 },
         { "id": "version", "label": "Wersja launchera i Minecrafta", "style": "short", "placeholder": "Np. launcher 2.6.0, Minecraft 1.21.4 Fabric", "required": true, "maxLength": 100 },
         { "id": "steps", "label": "Jak wywołać błąd – krok po kroku", "style": "paragraph", "placeholder": "1. Otwieram… 2. Klikam… 3. Dzieje się…", "required": true, "maxLength": 1000 },
-        { "id": "log", "label": "Link do logu albo zrzutu ekranu", "style": "short", "placeholder": "Konsola → Udostępnij log (opcjonalnie)", "required": false, "maxLength": 300 }
+        { "id": "log", "label": "Link do logu albo zrzutu ekranu", "style": "short", "placeholder": "Konsola → Wyślij logi (opcjonalnie)", "required": false, "maxLength": 300 }
       ]
     },
     {
@@ -120,7 +120,7 @@
   ],
   "snippets": [
     { "id": "greeting", "name": "👋 Powitanie", "content": "Cześć {user}! Tu {staff} – zajmę się Twoim ticketem. Daj mi chwilę, już sprawdzam." },
-    { "id": "log", "name": "📋 Prośba o log", "content": "Żeby to sprawdzić, potrzebuję logu: w launcherze otwórz **Konsola → Udostępnij log** i wklej tutaj link, który dostaniesz." },
+    { "id": "log", "name": "📋 Prośba o log", "content": "Żeby to sprawdzić, potrzebuję logu: w launcherze otwórz **Konsola → Wyślij logi** i wklej tutaj link, który dostaniesz." },
     { "id": "version", "name": "🔢 Prośba o wersję", "content": "Podaj proszę wersję launchera (lewy dolny róg okna) oraz wersję Minecrafta i loader instancji, na której to się dzieje." },
     { "id": "update", "name": "⬆️ Zaktualizuj launcher", "content": "To jest już naprawione w najnowszej wersji. Otwórz **Ustawienia → Aktualizacje launchera → Sprawdź teraz** i daj znać, czy po aktualizacji działa." },
     { "id": "pluscode", "name": "⭐ Jak wpisać kod Hammer+", "content": "Kod Hammer+ wpisujesz w launcherze: **Hammer+ → „Mam kod” → wklej → Aktywuj**. Działa na koncie Minecraft, dla którego został wystawiony – upewnij się, że to konto jest wybrane w launcherze." },

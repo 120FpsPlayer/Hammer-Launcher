@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * #📋 plany on the Hammer Launcher server: what the team is doing now and what comes next. The admin panel's „Plany”
+ * #🗺️ plany on the Hammer Launcher server: what the team is doing now and what comes next. The admin panel's „Plany”
  * tab edits the list (src/web/admin.js, kept in data/web.json – src/web/store.js) and the bot keeps one card on the
  * channel up to date (src/features/roadmap.js). This file is what both need: the sections, the limits and the text of
  * the list – so the panel refuses an item the card would have no room for.

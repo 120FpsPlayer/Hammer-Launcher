@@ -44,7 +44,7 @@ const CATEGORIES = [
       voice('statVersion', '🚀 Wersja: beta', { profile: 'stats' }), // the newest published launcher – src/features/stats.js
       voice('statDownloads', '📥 Pobrania: 0', { profile: 'stats' }),
       // Who plays on a server with Hammer Client right now (what the game reports, the last few minutes) – src/features/stats.js
-      voice('statPlaying', '🎮 Gra na serwerach: 0', { profile: 'stats' }),
+      voice('statPlaying', '🕹️ Gra teraz: 0', { profile: 'stats' }),
     ],
   },
   {
@@ -71,7 +71,7 @@ const CATEGORIES = [
       news('updates', '🚀 aktualizacje', { topic: 'Nowe wersje launchera i lista zmian.', post: 'updates' }),
       news('news', '📰 aktualności', { topic: 'Wiadomości, które widać też na ekranie głównym launchera.', post: 'news' }),
       // One card the bot edits in place from the admin panel's „Plany” tab – src/features/roadmap.js.
-      text('roadmap', '📋 plany', { profile: 'readonly', topic: 'Nad czym teraz pracujemy i co pojawi się w kolejnych wersjach.', post: 'roadmap' }),
+      text('roadmap', '🗺️ plany', { profile: 'readonly', topic: 'Nad czym teraz pracujemy i co pojawi się w kolejnych wersjach.', post: 'roadmap' }),
       text('plus', '⭐ hammer-plus', { profile: 'readonly', topic: 'Hammer+ – co daje i jak go zdobyć.', post: 'plus' }),
       text('faq', '❓ faq', { profile: 'readonly', topic: 'Najczęściej zadawane pytania o launcher.', post: 'faq' }),
     ],

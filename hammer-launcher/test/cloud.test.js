@@ -25,6 +25,11 @@ function fakeShop({ codes = [] } = {}) {
     const method = init.method ?? 'GET';
     const code = String(init.headers?.authorization ?? '').replace('Bearer ', '');
     const minecraft = init.headers?.['x-minecraft-token'] ?? null;
+    // „Gra teraz” (src/main/playing.js) – a public beat during games, nothing to do with the cloud: counted apart.
+    if (String(url) === `${BASE}/playing`) {
+      shop.beats = (shop.beats ?? 0) + 1;
+      return json(200, { ok: true });
+    }
     shop.calls.push({ method, url: String(url), code, ...(minecraft ? { minecraft } : {}), body: init.body ? JSON.parse(init.body) : undefined });
     if (shop.mode === 'down') throw new TypeError('fetch failed');
     if (shop.mode === 'html') return new Response('<html><body>Domena zaparkowana</body></html>', { status: 200, headers: { 'content-type': 'text/html' } });

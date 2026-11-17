@@ -579,7 +579,7 @@ function removeMessage(id) {
 }
 Object.assign(module.exports, { MAX_MESSAGES, messageList, getMessage, unreadMessages, addMessage, updateMessage, removeMessage });
 
-// ── The admin panel's „Plany” tab: the #📋 plany card on the Hammer Launcher server (src/lib/roadmap.js) ──
+// ── The admin panel's „Plany” tab: the #🗺️ plany card on the Hammer Launcher server (src/lib/roadmap.js) ──
 /*
  * roadmap = { items [{ id, section ('now'|'next'|'later'|'done'), title, note, at, by (Discord user ID) }] – in the
  *             card's order, updatedAt (ms), by (who changed it last) } – the key is there once somebody saved anything

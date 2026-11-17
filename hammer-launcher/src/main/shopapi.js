@@ -11,6 +11,7 @@
  *
  *   GET  <base>/featured                   → { servers: [{ id, name, address, description, tags, icon, mc, loader, pack }] }
  *   GET  <base>/news                       → { news: [...], alert: {...} | null, release: {...} | null }   (news.js)
+ *   PUT  <base>/playing { session, playing } → { ok }   a game runs here (playing.js) – only a random id, no account
  *
  * base = <shopApi or website from launcher.config.json>/api/launcher. Errors come as { error: "<Polish text>" }.
  * The shop may not be online (yet): no answer, a server error or a page that is not this API all end in one
@@ -159,7 +160,17 @@ function createShopApi({ config = {}, fetchFn = (...a) => fetch(...a), timeoutMs
     return { code: typeof body.code === 'string' ? body.code.slice(0, 1000) : null, until: Number.isInteger(body.until) ? body.until : null };
   }
 
-  return { base, getCloud, putCloud, putCape, putFreeCape, getFeatured, getNews, freshPlus };
+  /**
+   * „Gra teraz” on the Discord server: a game runs here (playing true, every two minutes) or it has ended (false).
+   * `session` is a random id made for this one game session – nothing about the player goes with it.
+   */
+  async function putPlaying(session, playing) {
+    const { status } = await call('PUT', '/playing', null, { session, playing: Boolean(playing) }, { open: true });
+    if (status !== 200) throw offline(status);
+    return true;
+  }
+
+  return { base, getCloud, putCloud, putCape, putFreeCape, getFeatured, getNews, freshPlus, putPlaying };
 }
 
 module.exports = { createShopApi, apiBase, ShopError, OFFLINE_NOTE, MAX_BODY };

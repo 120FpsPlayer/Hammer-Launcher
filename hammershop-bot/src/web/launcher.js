@@ -29,6 +29,10 @@
  *                         memory for five minutes, never written down); the answer names those of `uuids` who play on
  *                         Hammer Client now: "h", or "p" when their Hammer+ is running. The mod draws the H / H+ badge
  *                         in front of their names in the player list (Tab) from it.
+ *   PUT playing           { session: "<random id>", playing: true | false } → { ok } – public. A launcher (2.11.3+) says
+ *                         "a game is running here" every two minutes while one runs, and false when it ends. `session`
+ *                         is a random id made for that one game session – no account, no name. Kept in memory for five
+ *                         minutes, never written down: the „Gra teraz” stat channel on Discord counts them.
  *
  * Bearer = a Hammer+ code (src/lib/plus.js) in "Authorization: Bearer HP1.…": its signature and expiry are checked with
  * the configured key, and the account is the Minecraft UUID inside it. Without a key those endpoints answer 503.
@@ -217,7 +221,7 @@ async function minecraftAccount(token) {
 }
 
 /** Which methods each path under /api/launcher/ takes. */
-const ROUTES = { health: ['GET'], featured: ['GET'], news: ['GET'], capes: ['GET'], presence: ['PUT'], cloud: ['GET', 'PUT'], cape: ['PUT'], plus: ['GET'] };
+const ROUTES = { health: ['GET'], featured: ['GET'], news: ['GET'], capes: ['GET'], presence: ['PUT'], playing: ['PUT'], cloud: ['GET', 'PUT'], cape: ['PUT'], plus: ['GET'] };
 
 // ── Who plays on Hammer Client right now: account → until when. Only in memory – gone with a restart, back within a minute. ──
 const present = new Map();
@@ -249,11 +253,50 @@ function announce(mc, address, now = Date.now()) {
 }
 
 const isPresent = (mc, now = Date.now()) => (present.get(mc) ?? 0) > now;
-/** How many accounts play on Hammer Client right now (for the admin panel). */
-function onlineNow(now = Date.now()) {
+
+// ── Games running through the launcher right now: session id → until when (PUT playing). Only in memory. ──
+const sessions = new Map();
+const sessionsOf = new Map(); // address (hashed) → Set(session): one address cannot report a crowd
+const SESSION_ID = /^[A-Za-z0-9_-]{16,64}$/;
+const MAX_SESSIONS = 200_000;
+
+/** A launcher says a game runs (or ended) there. false when the id is no session id or the address reports too many. */
+function reportPlaying(id, playing, address, now = Date.now()) {
+  if (typeof id !== 'string' || !SESSION_ID.test(id)) return false;
+  const key = visitorKey(address);
+  const mine = sessionsOf.get(key) ?? new Set();
+  for (const other of mine) if ((sessions.get(other) ?? 0) <= now) mine.delete(other);
+  if (!playing) {
+    sessions.delete(id);
+    mine.delete(id);
+    if (mine.size) sessionsOf.set(key, mine);
+    else sessionsOf.delete(key);
+    return true;
+  }
+  if (!mine.has(id) && mine.size >= MAX_ANNOUNCED) return false;
+  if (sessions.size >= MAX_SESSIONS) {
+    for (const [other, until] of sessions) if (until <= now) sessions.delete(other);
+    if (sessions.size >= MAX_SESSIONS) sessions.clear(); // flooded: forget, real launchers are back within two minutes
+  }
+  mine.add(id);
+  sessionsOf.set(key, mine);
+  sessions.set(id, now + PRESENCE_MS);
+  return true;
+}
+
+const alive = (map, now) => {
   let n = 0;
-  for (const until of present.values()) if (until > now) n += 1;
+  for (const until of map.values()) if (until > now) n += 1;
   return n;
+};
+
+/**
+ * How many people play right now: the games launchers report (PUT playing), or – while older launchers that don't
+ * report yet are still around – the Hammer Client players on servers (PUT presence), whichever is more. The two can't
+ * be added up: a Hammer Client player is also a launcher session. For the admin panel and the „Gra teraz” channel.
+ */
+function onlineNow(now = Date.now()) {
+  return Math.max(alive(sessions, now), alive(present, now));
 }
 const MAX_NEWS = 12;
 // Who started the launcher today is only ever kept as a salted hash, in memory, until midnight – enough to count
@@ -323,6 +366,13 @@ async function api(req, res, url, { send, fail, limited, featured, publicUrl = (
       if (mc && isPresent(mc)) players[uuid] = plusOf(mc) ? 'p' : 'h';
     }
     return send(res, 200, { players }, { 'cache-control': 'no-store' });
+  }
+
+  if (route === 'playing') {
+    if (limited(req, 'launcher-playing', 20)) return fail(res, 429, SLOW_DOWN);
+    const body = await jsonBody(req, PRESENCE_LIMIT);
+    if (!reportPlaying(body.session, body.playing !== false, ip(req))) return fail(res, 400, 'Nieprawidłowe zgłoszenie gry.');
+    return send(res, 200, { ok: true }, { 'cache-control': 'no-store' });
   }
 
   // A free cape without Hammer+: the account's own Minecraft sign-in proves whose cape it is.
