@@ -37,8 +37,6 @@ const MC = { Steve: '8667ba71b85a4004af54457a9734eed7', Alex: '6ab4317889fd49059
 const SITE = [
   ['/', 'Hammer Launcher – nasz własny launcher Minecrafta', /Graj więcej\./],
   ['/funkcje', 'Funkcje – Hammer Launcher', /Wszystko do grania/],
-  ['/hammer-client', 'Hammer Client – Hammer Launcher', /Twój Minecraft, tylko lepszy/],
-  ['/wyglad', 'Wygląd: motywy i peleryny – Hammer Launcher', /Wygląd po Twojemu/],
   ['/hammer-plus', 'Hammer+ – Hammer Launcher', /Launcher po Twojemu/],
   ['/polecaj', 'Zaproś znajomego – Hammer Launcher', /\+7 dni Hammer\+/],
   ['/aktualnosci', 'Aktualności – Hammer Launcher', /Aktualności/],
@@ -144,7 +142,7 @@ test('every page answers with its own title, description and address – and mar
     // One <h1>, the page's own; nothing of the sources' markers is left; no inline script or style (the CSP forbids them).
     assert.equal(html.match(/<h1[ >]/g).length, 1, address);
     assert.match(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html)[1], h1, address);
-    assert.doesNotMatch(html, /\{\{|<!--|data-nav=|<style|style="|<script(?! src="\/assets\/_v\/[0-9a-f]{8}\/launcher(?:-redirect)?\.js"><\/script>)/, address);
+    assert.doesNotMatch(html, /\{\{|<!--|data-nav=|<style|style="|<script(?! src="\/assets\/_v\/[0-9a-f]{8}\/launcher(?:-head)?\.js"><\/script>)/, address);
     // The current page's link is marked – in the header's menu and in the footer.
     const current = [...html.matchAll(/<a [^>]*href="([^"]*)"[^>]* aria-current="page"/g)].map((m) => m[1]);
     assert.ok(current.length >= 2 && current.every((href) => href === address), `${address}: aria-current on ${current}`);
@@ -198,6 +196,13 @@ test('old addresses: what the server can see goes to the page that has that part
     ['/launcher?invited=1', '/?invited=1'],
     ['/launcher/hammer-plus', '/hammer-plus'],
     ['/launcher/polecaj?connected=1', '/polecaj?connected=1'],
+    // Hammer Client and Wygląd were pages of their own for a while – they are parts of Funkcje now.
+    ['/hammer-client', '/funkcje#hammer-client'],
+    ['/hammer-client/', '/funkcje#hammer-client'],
+    ['/wyglad', '/funkcje#wyglad'],
+    ['/wyglad?connected=1', '/funkcje?connected=1#wyglad'],
+    ['/launcher/hammer-client', '/funkcje#hammer-client'],
+    ['/launcher/wyglad', '/funkcje#wyglad'],
     // Back from Stripe to the old page (a payment page made before the change stays open for an hour).
     ['/?payment=return&session_id=cs_test_1', '/hammer-plus?payment=return&session_id=cs_test_1'],
     ['/?payment=cancelled', '/hammer-plus?payment=cancelled'],
@@ -209,13 +214,41 @@ test('old addresses: what the server can see goes to the page that has that part
   assert.equal(viaOld.location, '/?payment=return&session_id=cs_test_1'); // … and from there to /hammer-plus, as above
   // A # never reaches the server: the start page loads the script that sends #plus, #polecaj … on – before anything else.
   const start = (await call('GET', '/')).body;
-  assert.ok(start.indexOf('launcher-redirect.js') > 0 && start.indexOf('launcher-redirect.js') < start.indexOf('</head>'), 'in the <head> of the start page');
-  assert.doesNotMatch((await call('GET', '/hammer-plus')).body, /launcher-redirect\.js/);
-  const script = fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher-redirect.js'), 'utf8');
-  for (const [hash, page] of [['plus', 'hammer-plus'], ['polecaj', 'polecaj'], ['faq', 'pomoc'], ['funkcje', 'funkcje'], ['klient', 'hammer-client'], ['wyglad', 'wyglad'], ['aktualnosci', 'aktualnosci'], ['hammershop', 'hammershop']]) {
-    assert.match(script, new RegExp(`${hash}(: | = )'${page}'`), `#${hash} → /${page}`);
+  assert.ok(start.indexOf('launcher-head.js') > 0 && start.indexOf('launcher-head.js') < start.indexOf('</head>'), 'in the <head> of the start page');
+  assert.doesNotMatch((await call('GET', '/hammer-plus')).body, /launcher-head\.js/);
+  const script = fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher-head.js'), 'utf8');
+  const funkcje = (await call('GET', '/funkcje')).body;
+  for (const [hash, to] of [['plus', 'hammer-plus'], ['polecaj', 'polecaj'], ['faq', 'pomoc'], ['funkcje', 'funkcje'], ['klient', 'funkcje#hammer-client'], ['wyglad', 'funkcje#wyglad'], ['start', 'funkcje#start'], ['aktualnosci', 'aktualnosci'], ['hammershop', 'hammershop']]) {
+    const [page, part] = to.split('#');
+    assert.match(script, new RegExp(`${hash}(: | = )'${to}'`), `#${hash} → /${to}`);
     assert.ok(pages.PAGES.some((p) => p.id === page), `/${page} is a page`);
+    if (part) assert.ok(funkcje.includes(` id="${part}"`), `/${page} has #${part}`);
   }
+  // Nothing is left of the two pages: no file, no id, no sign-in target.
+  assert.deepEqual(['hammer-client.html', 'wyglad.html'].filter((f) => fs.existsSync(path.join(pages.DIR, f))), []);
+  assert.deepEqual(pages.PAGES.filter((p) => ['hammer-client', 'wyglad'].includes(p.id)), []);
+});
+
+test('Funkcje is one page with three parts: the switcher and the parts are in the page, which one shows is the browser\'s business', async () => {
+  const html = (await call('GET', '/funkcje')).body;
+  // The switcher: plain links to the parts (they work without scripts); the parts follow in this order.
+  assert.deepEqual([...html.matchAll(/<a class="part-tab" id="(part-tab-[a-z-]+)" href="(#[a-z-]+)"/g)].map((m) => [m[1], m[2]]), [['part-tab-launcher', '#launcher'], ['part-tab-hammer-client', '#hammer-client'], ['part-tab-wyglad', '#wyglad']]);
+  assert.deepEqual([...html.matchAll(/<div class="part" id="([a-z-]+)">/g)].map((m) => m[1]), ['launcher', 'hammer-client', 'wyglad']);
+  assert.match(html, /<div class="part" id="launcher">[\s\S]*Zobacz launcher w&nbsp;akcji[\s\S]*role="tablist"[\s\S]*id="start"[\s\S]*<div class="part" id="hammer-client">[\s\S]*Twój Minecraft, tylko lepszy[\s\S]*<div class="part" id="wyglad">[\s\S]*Wygląd po Twojemu/);
+  // Nothing says which part is open – without scripts all three are simply there; the script in the <head> decides
+  // before the first paint (so a link to #wyglad never shows the launcher part first).
+  assert.doesNotMatch(html, /data-part=/);
+  assert.ok(html.indexOf('launcher-head.js') > 0 && html.indexOf('launcher-head.js') < html.indexOf('</head>'));
+  const css = fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher.css'), 'utf8');
+  assert.match(css, /html\[data-part\] \.part \{ display: none;/);
+  for (const part of ['launcher', 'hammer-client', 'wyglad']) assert.ok(css.includes(`html[data-part="${part}"] #${part}`), part);
+  // The menu: one item for all three parts; the footer and the start page lead straight to a part.
+  assert.match(html, /<nav class="nav"[^>]*>[\s\S]*?<a href="\/funkcje" aria-current="page">Funkcje<\/a>\s*<a href="\/hammer-plus">Hammer\+<\/a>\s*<a href="\/polecaj">Polecaj<\/a>\s*<a href="\/aktualnosci">Aktualności<\/a>\s*<a href="\/pomoc">Pomoc<\/a>\s*<a href="\/kontakt">Kontakt<\/a>/);
+  assert.doesNotMatch(html, /href="\/(hammer-client|wyglad)"/);
+  assert.match(html, /<a href="\/funkcje#hammer-client">Hammer Client<\/a>\s*<a href="\/funkcje#wyglad">Wygląd<\/a>/);
+  const start = (await call('GET', '/')).body;
+  for (const href of ['/funkcje', '/funkcje#hammer-client', '/funkcje#wyglad']) assert.ok(start.includes(`<a class="go-card pic reveal"`) && start.includes(`href="${href}">`), `the start page leads to ${href}`);
+  assert.ok((await call('GET', '/hammer-plus')).body.includes('<a href="/funkcje#wyglad">Wygląd</a>'));
 });
 
 test('sign-in comes back to the page it started on – only to pages of this site; downloads, links and Stripe use the new addresses', async () => {
@@ -229,7 +262,7 @@ test('sign-in comes back to the page it started on – only to pages of this sit
   assert.equal(signIn.landed, '/?download=1&connected=1');
   await signIn(GUEST, 'admin');
   assert.equal(signIn.landed, '/admin?connected=1');
-  for (const outside of ['https://evil.example', '//evil.example', '/kontakt', 'hammer-plus/../admin', 'constructor', '__proto__']) {
+  for (const outside of ['https://evil.example', '//evil.example', '/kontakt', 'hammer-plus/../admin', 'constructor', '__proto__', 'hammer-client', 'wyglad', 'funkcje#wyglad']) {
     await signIn(GUEST, outside);
     assert.equal(signIn.landed, '/?connected=1', outside);
   }
@@ -351,7 +384,7 @@ test('the real pages in a browser: the menu, old #links, „Twoje kody” withou
 
       // Old links (installed launchers open /launcher#plus and /launcher#polecaj): straight to the new page.
       await visitor('10.9.2');
-      for (const [old, to] of [['/launcher#plus', '/hammer-plus'], ['/launcher#polecaj', '/polecaj'], ['/#faq', '/pomoc'], ['/#hammershop', '/hammershop'], ['/#funkcje', '/funkcje'], ['/#klient', '/hammer-client'], ['/#wyglad', '/wyglad'], ['/#start', '/funkcje#start'], ['/#aktualnosci', '/aktualnosci'], ['/?connected=1#polecaj', '/polecaj'], ['/launcher?auth=failed#plus', '/hammer-plus']]) {
+      for (const [old, to] of [['/launcher#plus', '/hammer-plus'], ['/launcher#polecaj', '/polecaj'], ['/#faq', '/pomoc'], ['/#hammershop', '/hammershop'], ['/#funkcje', '/funkcje'], ['/#klient', '/funkcje#hammer-client'], ['/#wyglad', '/funkcje#wyglad'], ['/#start', '/funkcje#start'], ['/hammer-client', '/funkcje#hammer-client'], ['/wyglad', '/funkcje#wyglad'], ['/#aktualnosci', '/aktualnosci'], ['/?connected=1#polecaj', '/polecaj'], ['/launcher?auth=failed#plus', '/hammer-plus']]) {
         await tab.goto(base + old, { waitUntil: 'commit' });
         await tab.waitForFunction((address) => location.pathname + location.search + location.hash === address, to).catch(() => null);
         assert.equal(where(), to, old);
@@ -469,6 +502,177 @@ test('the real pages in a browser: the menu, old #links, „Twoje kody” withou
       assert.equal(problems.length, 1);
       await context.close();
     }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('Funkcje in a browser: three parts, one at a time – the switcher, deep links, Back and Forward, clips only in the open part; all three without scripts', { skip: !pw && 'Playwright is not installed' }, async () => {
+  const browser = await pw.chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
+  const shots = process.env.HS_SHOTS;
+  try {
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      const context = await browser.newContext({ viewport });
+      const w = viewport.width;
+      await context.setExtraHTTPHeaders({ 'x-forwarded-for': `10.9.5.${w % 250}` });
+      const tab = await context.newPage();
+      const problems = [];
+      tab.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
+      tab.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text()}`));
+      const where = () => new URL(tab.url()).pathname + new URL(tab.url()).search + new URL(tab.url()).hash;
+      const fits = () => tab.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+      /** The parts that are on the screen (laid out at all) and the tab the switcher marks. */
+      const open = () => tab.evaluate(() => ({
+        shown: [...document.querySelectorAll('.part')].filter((p) => p.getClientRects().length).map((p) => p.id),
+        selected: [...document.querySelectorAll('.part-tab[aria-selected="true"]')].map((t) => t.id),
+      }));
+      const isOpen = async (part, address) => {
+        await tab.waitForFunction((id) => document.documentElement.getAttribute('data-part') === id, part);
+        assert.deepEqual(await open(), { shown: [part], selected: [`part-tab-${part}`] }, `${part} is the one part on the screen`);
+        if (address) assert.equal(where(), address);
+        assert.equal(await fits(), true, `${part} at ${w}: no sideways scrolling`);
+      };
+      const playing = () => tab.evaluate(() => [...document.querySelectorAll('video.clip')].filter((v) => !v.paused).map((v) => v.closest('.part').id));
+      const switcherOnScreen = async () => {
+        const box = await tab.locator('#parts').boundingBox();
+        return box.y >= 0 && box.y + box.height <= viewport.height;
+      };
+
+      // The page opens on the launcher part; the switcher is a tab list, the parts are its panels, the menu marks Funkcje.
+      await tab.goto(`${base}/funkcje`);
+      await isOpen('launcher', '/funkcje');
+      assert.equal(await tab.locator('#parts').getAttribute('role'), 'tablist');
+      assert.deepEqual(await tab.locator('.part-tab').evaluateAll((tabs) => tabs.map((t) => [t.getAttribute('role'), t.getAttribute('aria-controls'), t.tabIndex, document.getElementById(t.getAttribute('aria-controls')).getAttribute('aria-labelledby') === t.id])), [['tab', 'launcher', 0, true], ['tab', 'hammer-client', -1, true], ['tab', 'wyglad', -1, true]]);
+      assert.deepEqual(await tab.locator('.part').evaluateAll((parts) => parts.map((p) => p.getAttribute('role'))), ['tabpanel', 'tabpanel', 'tabpanel']);
+      assert.equal(await tab.locator('#nav a[aria-current="page"]').first().getAttribute('href'), '/funkcje');
+      assert.equal(await tab.locator('h1').count(), 1);
+      // The tabs inside the launcher part are their own thing: a click there changes the pane, not the part or the address.
+      await tab.locator('#tab-mody').click();
+      assert.equal(await tab.locator('#pane-mody').getAttribute('class'), 'tabpanel is-active');
+      await isOpen('launcher', '/funkcje');
+      await tab.locator('#pane-mody video').scrollIntoViewIfNeeded();
+      await tab.waitForFunction(() => !document.querySelector('#pane-mody video').paused);
+      assert.deepEqual(await playing(), ['launcher']);
+      if (shots) await tab.screenshot({ path: `${shots}/funkcje-launcher-${w}.png` });
+
+      // The switcher: another part, the address follows, the page does not jump, the launcher's clip stops.
+      await tab.locator('#part-tab-hammer-client').click();
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+      assert.equal(await switcherOnScreen(), true, 'the switcher stays where it was clicked');
+      await tab.waitForFunction(() => [...document.querySelectorAll('video.clip')].every((v) => v.paused));
+      assert.equal(await tab.locator('#hammer-client h2').first().textContent(), 'Twój Minecraft, tylko lepszy');
+      if (shots) await tab.screenshot({ path: `${shots}/funkcje-hammer-client-${w}.png` });
+      await tab.locator('#part-tab-wyglad').click();
+      await isOpen('wyglad', '/funkcje#wyglad');
+      await tab.locator('.theme-pick[data-theme="end"]').click();
+      assert.equal(await tab.locator('#theme-stage').getAttribute('data-theme'), 'end');
+      await tab.locator('.live video').first().scrollIntoViewIfNeeded();
+      await tab.waitForFunction(() => [...document.querySelectorAll('#wyglad video')].some((v) => !v.paused));
+      assert.deepEqual([...new Set(await playing())], ['wyglad'], 'clips run only in the open part');
+      if (shots) await tab.screenshot({ path: `${shots}/funkcje-wyglad-${w}.png` });
+      // A click on the open part adds no step; Back and Forward walk through the parts.
+      await tab.locator('#part-tab-wyglad').click();
+      await tab.goBack();
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+      await tab.goBack();
+      await isOpen('launcher', '/funkcje');
+      await tab.goForward();
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+
+      // The keyboard: arrows, Home and End move between the parts (focus follows), Space opens like a click.
+      await tab.locator('#part-tab-hammer-client').focus();
+      await tab.keyboard.press('ArrowRight');
+      await isOpen('wyglad', '/funkcje#wyglad');
+      assert.equal(await tab.evaluate(() => document.activeElement.id), 'part-tab-wyglad');
+      await tab.keyboard.press('ArrowRight');
+      await isOpen('launcher', '/funkcje');
+      await tab.keyboard.press('End');
+      await isOpen('wyglad', '/funkcje#wyglad');
+      await tab.keyboard.press('Home');
+      await isOpen('launcher', '/funkcje');
+      await tab.locator('#part-tab-hammer-client').focus();
+      await tab.keyboard.press('Space');
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+
+      // A link further down the page that leads to another part: that part, from its top, the switcher in sight.
+      await tab.locator('#part-tab-launcher').click();
+      await tab.locator('a.btn[href="#hammer-client"]').click();
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+      await tab.waitForFunction(() => window.scrollY === 0);
+      assert.equal(await tab.evaluate(() => document.activeElement.id), 'part-tab-hammer-client');
+      await tab.locator('#hammer-client a[href="#wyglad"]').first().click();
+      await isOpen('wyglad', '/funkcje#wyglad');
+      // The footer's links to the parts switch on the spot – the page is not loaded again.
+      await tab.evaluate(() => { window.samePage = true; });
+      await tab.locator('footer a[href="/funkcje#hammer-client"]').click();
+      await isOpen('hammer-client', '/funkcje#hammer-client');
+      await tab.waitForFunction(() => window.scrollY === 0);
+      assert.equal(await tab.evaluate(() => window.samePage), true);
+      // A # typed into the address: the part it names – or the part that holds what it names (#start is in the launcher part).
+      await tab.evaluate(() => { location.hash = '#wyglad'; });
+      await isOpen('wyglad', '/funkcje#wyglad');
+      await tab.evaluate(() => { location.hash = '#start'; });
+      await isOpen('launcher', '/funkcje#start');
+      await tab.waitForFunction(() => { const r = document.getElementById('start').getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; });
+
+      // A link from somewhere else straight to a part: only that part, from the top of the page.
+      for (const [address, part, to] of [
+        ['/funkcje#wyglad', 'wyglad', '/funkcje#wyglad'],
+        ['/funkcje#hammer-client', 'hammer-client', '/funkcje#hammer-client'],
+        ['/funkcje#launcher', 'launcher', '/funkcje#launcher'],
+        // the old addresses: pages of their own for a while, and before that sections of the one long page
+        ['/hammer-client', 'hammer-client', '/funkcje#hammer-client'],
+        ['/wyglad', 'wyglad', '/funkcje#wyglad'],
+        ['/#klient', 'hammer-client', '/funkcje#hammer-client'],
+        ['/#wyglad', 'wyglad', '/funkcje#wyglad'],
+        ['/#funkcje', 'launcher', '/funkcje'],
+      ]) {
+        await tab.goto('about:blank');
+        await tab.goto(base + address, { waitUntil: 'commit' });
+        await tab.waitForFunction((there) => location.pathname + location.search + location.hash === there, to);
+        await tab.waitForLoadState('load');
+        await isOpen(part, to);
+        assert.equal(await tab.evaluate(() => window.scrollY), 0, `${address}: the page starts at its top`);
+        assert.equal(await switcherOnScreen(), true, address);
+      }
+      await tab.goto('about:blank');
+      await tab.goto(`${base}/#start`, { waitUntil: 'commit' });
+      await tab.waitForFunction(() => location.pathname + location.hash === '/funkcje#start');
+      await tab.waitForLoadState('load');
+      await isOpen('launcher', '/funkcje#start');
+      await tab.waitForFunction(() => { const r = document.getElementById('start').getBoundingClientRect(); return r.top < window.innerHeight && r.bottom > 0; });
+      // The start page's cards lead to the parts.
+      await tab.goto(`${base}/`);
+      await tab.locator('.go-card[href="/funkcje#wyglad"]').click();
+      await tab.waitForURL(`${base}/funkcje#wyglad`);
+      await isOpen('wyglad', '/funkcje#wyglad');
+
+      // A sign-in started on a part comes back to Funkcje – and the page opens that part again.
+      fakes.state.user = GUEST;
+      await tab.locator('#login').click();
+      await tab.waitForFunction(() => document.querySelector('#who > span') && document.querySelector('#who > span').textContent === 'Gosc');
+      await isOpen('wyglad', '/funkcje#wyglad');
+
+      assert.deepEqual(problems, [], `no errors at ${w}`);
+      await context.close();
+    }
+
+    // Without scripts: nothing is hidden – the three parts follow one another and the switcher's links jump to them.
+    const plain = await browser.newContext({ viewport: { width: 1366, height: 768 }, javaScriptEnabled: false });
+    const page = await plain.newPage();
+    await page.goto(`${base}/funkcje`);
+    assert.equal(await page.locator('html').getAttribute('data-part'), null);
+    for (const part of ['launcher', 'hammer-client', 'wyglad']) assert.equal(await page.locator(`#${part}`).isVisible(), true, `${part} without scripts`);
+    assert.deepEqual(await page.locator('.part-tab').evaluateAll((tabs) => tabs.map((t) => [t.getAttribute('href'), t.getAttribute('role')])), [['#launcher', null], ['#hammer-client', null], ['#wyglad', null]]);
+    await page.locator('#part-tab-wyglad').click();
+    assert.equal(new URL(page.url()).hash, '#wyglad');
+    let top = Infinity; // (the page scrolls there smoothly – it takes a moment)
+    for (let i = 0; i < 40 && top >= 200; i++) {
+      await page.waitForTimeout(100);
+      top = (await page.locator('#wyglad').boundingBox()).y;
+    }
+    assert.ok(top < 200, 'the link jumps to the part');
+    await plain.close();
   } finally {
     await browser.close();
   }

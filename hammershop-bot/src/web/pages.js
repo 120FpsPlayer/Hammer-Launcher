@@ -4,9 +4,8 @@
  * The launcher's part of the website – one short page per subject (it used to be one long page):
  *
  *   start          /               the download button, the numbers, where to go next
- *   funkcje        /funkcje        what the launcher does (the clips) and how to start in 3 steps
- *   hammer-client  /hammer-client  the client in the game, what others see on your character
- *   wyglad         /wyglad         themes, capes and cosmetics in the launcher
+ *   funkcje        /funkcje        three parts, one shown at a time: the launcher (the clips, 3 steps to play),
+ *                                  #hammer-client (the client in the game) and #wyglad (themes, capes, cosmetics)
  *   hammer-plus    /hammer-plus    what Hammer+ gives, the plans, „Twoje kody”
  *   polecaj        /polecaj        „Zaproś znajomego”
  *   aktualnosci    /aktualnosci    the current version and the news
@@ -26,8 +25,9 @@
  *   <!--contact-->…<!--/contact-->                               only when a contact address is set (config.contact.email)
  *   data-nav="<page>"      on links: the current page's link gets aria-current="page"
  *
- * Addresses the one long page had (/launcher, /#plus, ?payment=return …) still work: what the server can see is
- * answered here (`resolve`), a # is handled by the start page itself (web/public/assets/launcher-redirect.js).
+ * Addresses the one long page had (/launcher, /#plus, ?payment=return …) still work, and so do /hammer-client and
+ * /wyglad, which were pages of their own for a while (MOVED): what the server can see is answered here (`resolve`),
+ * a # is handled by the start page itself (web/public/assets/launcher-head.js).
  */
 
 const fs = require('node:fs');
@@ -40,29 +40,21 @@ const DIR = path.join(__dirname, '..', '..', 'web', 'pages');
 const BASE = profile.launcher ? '' : '/launcher';
 const HOME = BASE || '/';
 const BRAND = 'Hammer Launcher';
+/** Loaded in the <head> of the pages that need something done before anything is drawn (web/public/assets/launcher-head.js). */
+const HEAD_SCRIPT = '<script src="/assets/launcher-head.js"></script>';
 
 /** title: what the tab and a shared link say; description: the line under it in a search result or on Discord. */
 const PAGES = [
   {
-    id: 'start', slug: '', file: 'start.html', head: '<script src="/assets/launcher-redirect.js"></script>',
+    id: 'start', slug: '', file: 'start.html', head: HEAD_SCRIPT,
     title: profile.launcher ? 'Hammer Launcher – nasz własny launcher Minecrafta' : 'Hammer Launcher – launcher Minecrafta od HammerShop',
     ogTitle: 'Hammer Launcher – nasz własny launcher Minecrafta',
     description: 'Hammer Launcher (beta) – nasz własny launcher Minecrafta: instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i własny klient w grze. Pobierz za darmo na Windows.',
   },
   {
-    id: 'funkcje', slug: 'funkcje', file: 'funkcje.html',
+    id: 'funkcje', slug: 'funkcje', file: 'funkcje.html', head: HEAD_SCRIPT,
     title: `Funkcje – ${BRAND}`,
-    description: 'Co potrafi Hammer Launcher: osobne instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i gra w 3 krokach. Zobacz krótkie nagrania z launchera.',
-  },
-  {
-    id: 'hammer-client', slug: 'hammer-client', file: 'hammer-client.html',
-    title: `Hammer Client – ${BRAND}`,
-    description: 'Hammer Client w grze: własne menu, ponad 50 modułów, edytor HUD, zoom, waypointy i znaczek Hammer na liście graczy. Launcher dodaje go sam w instancjach Fabric i Quilt.',
-  },
-  {
-    id: 'wyglad', slug: 'wyglad', file: 'wyglad.html',
-    title: `Wygląd: motywy i peleryny – ${BRAND}`,
-    description: 'Motywy launchera z ruchomym tłem – Nether, End, Ocean, Wiśniowy gaj i Głęboki mrok – oraz peleryny i dodatki na postać. Sam wygląd, zero przewagi w grze.',
+    description: 'Co potrafi Hammer Launcher: instancje, ponad tysiąc modów z Modrinth i FPS boost jednym kliknięciem, Hammer Client w grze oraz motywy i peleryny. Zobacz krótkie nagrania z launchera.',
   },
   {
     id: 'hammer-plus', slug: 'hammer-plus', file: 'hammer-plus.html',
@@ -101,6 +93,8 @@ const NOT_FOUND = { id: 'nie-ma', slug: null, file: '404.html', title: `Nie ma t
 
 const byId = new Map(PAGES.map((p) => [p.id, p]));
 const bySlug = new Map(PAGES.map((p) => [p.slug, p]));
+/** Addresses that were pages of their own and are parts of a page now: the old address → [the page, its part]. */
+const MOVED = new Map([['hammer-client', ['funkcje', 'hammer-client']], ['wyglad', ['funkcje', 'wyglad']]]);
 
 /** The address of a page: pathOf('hammer-plus') → '/hammer-plus' (or '/launcher/hammer-plus'); the start page for an unknown one. */
 const pathOf = (id) => {
@@ -110,25 +104,34 @@ const pathOf = (id) => {
 
 /**
  * Which page an address is: { page } – one of PAGES, or NOT_FOUND for an address in the launcher's part of the site
- * that is nothing; { redirect } – an address from before the pages were split; null – not the launcher's (the shop's
- * own page, a file …). On the launcher's own site every address that is no file belongs to it.
+ * that is nothing; { redirect, hash } – an old address and where it lives now (hash: the part of that page, when it
+ * is one); null – not the launcher's (the shop's own page, a file …). On the launcher's own site every address that
+ * is no file belongs to it.
  */
 function resolve(pathname) {
   const clean = String(pathname).replace(/\/+$/, '') || '/';
+  /** A page's address by its slug: the page, a part of a page it has become, or nothing. */
+  const bySlugOrMoved = (slug) => {
+    if (bySlug.has(slug)) return { page: bySlug.get(slug) };
+    if (MOVED.has(slug)) return { redirect: pathOf(MOVED.get(slug)[0]), hash: MOVED.get(slug)[1] };
+    return { page: NOT_FOUND };
+  };
   if (profile.launcher) {
     if (clean === '/') return { page: byId.get('start') };
     // The page's old addresses: installed launchers, Discord cards and bookmarks open /launcher (#plus, #polecaj).
     if (['/launcher', '/launcher.html', '/index.html'].includes(clean)) return { redirect: HOME };
     const old = /^\/launcher\/([a-z0-9-]+)$/.exec(clean);
-    if (old) return bySlug.has(old[1]) ? { redirect: pathOf(bySlug.get(old[1]).id) } : { page: NOT_FOUND };
-    const page = bySlug.get(clean.slice(1));
-    if (page) return { page };
-    return clean.startsWith('/assets/') ? null : { page: NOT_FOUND };
+    if (old) {
+      const hit = bySlugOrMoved(old[1]);
+      return hit.page && !hit.page.missing ? { redirect: pathOf(hit.page.id) } : hit;
+    }
+    if (clean.startsWith('/assets/')) return null;
+    return /^\/[a-z0-9-]+$/.test(clean) ? bySlugOrMoved(clean.slice(1)) : { page: NOT_FOUND };
   }
   if (clean === BASE) return { page: byId.get('start') };
   if (clean === '/launcher.html') return { redirect: HOME };
   if (!clean.startsWith(`${BASE}/`)) return null;
-  return { page: bySlug.get(clean.slice(BASE.length + 1)) ?? NOT_FOUND };
+  return bySlugOrMoved(clean.slice(BASE.length + 1));
 }
 
 /**

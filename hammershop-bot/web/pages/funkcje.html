@@ -3,23 +3,31 @@
     <div class="wrap">
       <p class="eyebrow">Funkcje</p>
       <h1 id="page-h">Wszystko do grania w&nbsp;jednym oknie</h1>
-      <p class="sub">Bez szukania modów po stronach, bez kombinowania z&nbsp;Javą i&nbsp;grzebania w&nbsp;folderach. Wybierasz, klikasz, grasz.</p>
+      <nav class="parts" id="parts" aria-label="Części strony Funkcje">
+        <a class="part-tab" id="part-tab-launcher" href="#launcher"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg></span><span class="part-name"><b>Launcher</b><small>Instancje, mody, FPS boost</small></span></a>
+        <a class="part-tab" id="part-tab-hammer-client" href="#hammer-client"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg></span><span class="part-name"><b>Hammer Client</b><small>Menu, HUD i&nbsp;moduły w&nbsp;grze</small></span></a>
+        <a class="part-tab" id="part-tab-wyglad" href="#wyglad"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-palette"/></svg></span><span class="part-name"><b>Wygląd</b><small>Motywy, peleryny, dodatki</small></span></a>
+      </nav>
     </div>
   </section>
 
-  <section class="section first" id="funkcje" aria-label="Funkcje launchera">
+  <div class="part" id="launcher">
+  <section class="section first" aria-labelledby="launcher-h">
     <div class="wrap">
       <div class="showcase reveal" data-tabs>
-        <div class="tablist" role="tablist" aria-label="Funkcje launchera">
-          <button class="tab" role="tab" type="button" id="tab-graj" aria-controls="pane-graj" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Graj</button>
-          <button class="tab" role="tab" type="button" id="tab-instancje" aria-controls="pane-instancje" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Instancje</button>
-          <button class="tab" role="tab" type="button" id="tab-mody" aria-controls="pane-mody" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-box"/></svg>Mody</button>
-          <button class="tab" role="tab" type="button" id="tab-opt" aria-controls="pane-opt" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>Optymalizacja</button>
+        <div class="showcase-head">
+          <h2 id="launcher-h">Zobacz launcher w&nbsp;akcji</h2>
+          <div class="tablist" role="tablist" aria-label="Funkcje launchera">
+            <button class="tab" role="tab" type="button" id="tab-graj" aria-controls="pane-graj" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Graj</button>
+            <button class="tab" role="tab" type="button" id="tab-instancje" aria-controls="pane-instancje" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Instancje</button>
+            <button class="tab" role="tab" type="button" id="tab-mody" aria-controls="pane-mody" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-box"/></svg>Mody</button>
+            <button class="tab" role="tab" type="button" id="tab-opt" aria-controls="pane-opt" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>Optymalizacja</button>
+          </div>
         </div>
         <div class="tabpanels">
           <div class="tabpanel is-active" role="tabpanel" id="pane-graj" aria-labelledby="tab-graj" tabindex="0">
             <div class="pane-copy">
-              <h2>Jeden przycisk i grasz</h2>
+              <h3>Jeden przycisk i grasz</h3>
               <p>Wybierasz instancję, klikasz GRAJ – launcher sam pobiera grę, właściwą Javę i&nbsp;loader modów, a&nbsp;Ty widzisz, co się dzieje.</p>
               <ul class="checks">
                 <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Pobieranie i instalacja bez Twojej pomocy</li>
@@ -31,7 +39,7 @@
           </div>
           <div class="tabpanel" role="tabpanel" id="pane-instancje" aria-labelledby="tab-instancje" tabindex="0">
             <div class="pane-copy">
-              <h2>Osobny Minecraft na każdą okazję</h2>
+              <h3>Osobny Minecraft na każdą okazję</h3>
               <p>Każda instancja ma własne mody, światy i&nbsp;ustawienia – survival, PvP i&nbsp;paczka modów nigdy sobie nie przeszkadzają.</p>
               <ul class="checks">
                 <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Vanilla, Fabric, Quilt, Forge i&nbsp;NeoForge – dowolna wersja gry</li>
@@ -43,7 +51,7 @@
           </div>
           <div class="tabpanel" role="tabpanel" id="pane-mody" aria-labelledby="tab-mody" tabindex="0">
             <div class="pane-copy">
-              <h2>Ponad tysiąc modów, zero szukania</h2>
+              <h3>Ponad tysiąc modów, zero szukania</h3>
               <p>Mody, paczki tekstur, shadery i&nbsp;paczki modów z&nbsp;Modrinth – wyszukujesz i&nbsp;instalujesz prosto w&nbsp;launcherze.</p>
               <ul class="checks">
                 <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Zależności instalują się same</li>
@@ -55,7 +63,7 @@
           </div>
           <div class="tabpanel" role="tabpanel" id="pane-opt" aria-labelledby="tab-opt" tabindex="0">
             <div class="pane-copy">
-              <h2>FPS boost jednym kliknięciem</h2>
+              <h3>FPS boost jednym kliknięciem</h3>
               <p>Przycisk <b>Zoptymalizuj wszystko</b> dobiera pamięć, ustawienia Javy i&nbsp;mody wydajnościowe pod Twój komputer i&nbsp;wersję gry.</p>
               <ul class="checks">
                 <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Sodium, Lithium, FerriteCore i&nbsp;inne sprawdzone mody</li>
@@ -91,6 +99,110 @@
         <li class="step reveal" data-d="1"><span class="step-n" aria-hidden="true">2</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg></span><h3>Zaloguj się kontem Microsoft</h3><p>Oficjalnym oknem Microsoftu – launcher nie widzi Twojego hasła. Potrzebujesz Minecraft: Java Edition.</p></li>
         <li class="step reveal" data-d="2"><span class="step-n" aria-hidden="true">3</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg></span><h3>Wybierz instancję i&nbsp;graj</h3><p>Kliknij Graj – launcher sam pobierze grę, Javę i&nbsp;mody. Ty tylko grasz.</p></li>
       </ol>
-      <div class="start-cta reveal"><a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a><a class="btn big ghost" href="{{base}}/hammer-client">Zobacz Hammer Client<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      <div class="start-cta reveal"><a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a><a class="btn big ghost" href="#hammer-client">Zobacz Hammer Client<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
     </div>
   </section>
+  </div>
+
+  <div class="part" id="hammer-client">
+  <section class="section first client" aria-labelledby="client-h">
+    <div class="wrap">
+      <div class="client-grid">
+        <div class="client-copy reveal">
+          <p class="eyebrow">Hammer Client w&nbsp;grze</p>
+          <h2 id="client-h">Twój Minecraft, tylko lepszy</h2>
+          <p class="sub">W instancjach Fabric i&nbsp;Quilt launcher sam dodaje Hammer Client – własne menu, panel modułów i&nbsp;HUD po polsku. Od Minecrafta 1.21 do najnowszej wersji.</p>
+          <figure class="tab-card">
+            <img loading="lazy" src="/assets/launcher/tab-znaczki.webp" width="1010" height="350" alt="Lista graczy w grze ze znaczkami Hammer (młotek) i Hammer+ (młotek z plusem) przed nickami">
+            <figcaption><b>Znaczek Hammer w&nbsp;Tab</b> Na liście graczy widać, kto też gra na Hammerze – młotek z&nbsp;logo, a&nbsp;młotek z&nbsp;plusem ma Hammer+.</figcaption>
+          </figure>
+        </div>
+        <div class="client-visual reveal" data-d="1">
+          <figure class="shot client-shot"><picture><source type="image/webp" srcset="/assets/launcher/klient.webp"><img loading="lazy" src="/assets/launcher/klient.jpg" width="1100" height="619" alt="Menu główne Hammer Client w grze: Jeden gracz, Wiele graczy, Hammer Mody i lista zmian"></picture></figure>
+        </div>
+      </div>
+      <ul class="client-list">
+        <li class="reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg></span><div><b>Ponad 50 modułów</b><span>Panel pod prawym Shiftem – każdy moduł z&nbsp;własnymi ustawieniami i&nbsp;profilami.</span></div></li>
+        <li class="reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-hud"/></svg></span><div><b>Edytor HUD</b><span>FPS, CPS, klawisze, koordynaty, kompas, pancerz i&nbsp;efekty – tam, gdzie chcesz.</span></div></li>
+        <li class="reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-zoom"/></svg></span><div><b>Zoom, freelook i&nbsp;fullbright</b><span>Zoom pod C, przełączany sprint, własny celownik, pora dnia i&nbsp;pogoda.</span></div></li>
+        <li class="reveal" data-d="3"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg></span><div><b>Waypointy</b><span>Zaznacz dom, bazę albo miejsce śmierci i&nbsp;zawsze trafisz z&nbsp;powrotem.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cosm-h">
+    <div class="wrap">
+      <div class="cosm">
+        <div class="cosm-copy reveal">
+          <h2 id="cosm-h">Peleryny i&nbsp;dodatki widać w&nbsp;grze</h2>
+          <p>Skrzydła, aureolę, czapki i&nbsp;ruchome peleryny rysuje Hammer Client – widzisz je Ty i&nbsp;gracze, którzy też mają Hammer Client. Wybierasz je w&nbsp;launcherze, w&nbsp;części <a href="#wyglad">Wygląd</a>.</p>
+          <div class="cape-ring" role="group" aria-label="Peleryny Hammer">
+            <div class="ring-track">
+              <div class="cape moving"><i class="cape-art c-flame" aria-hidden="true"></i><b>Płomień</b><span>ruchoma</span></div>
+              <div class="cape moving"><i class="cape-art c-sparks" aria-hidden="true"></i><b>Iskry</b><span>ruchoma</span></div>
+              <div class="cape moving"><i class="cape-art c-waves" aria-hidden="true"></i><b>Fale</b><span>ruchoma</span></div>
+              <div class="cape"><i class="cape-art c-gold" aria-hidden="true"></i><b>Złota</b><span>Hammer+</span></div>
+              <div class="cape"><i class="cape-art c-royal" aria-hidden="true"></i><b>Królewska</b><span>Hammer+</span></div>
+              <div class="cape"><i class="cape-art c-frost" aria-hidden="true"></i><b>Mróz</b><span>Hammer+</span></div>
+              <div class="cape"><i class="cape-art c-crimson" aria-hidden="true"></i><b>Karmazyn</b><span>Hammer+</span></div>
+              <div class="cape free"><i class="cape-art c-hammer" aria-hidden="true"></i><b>Hammer</b><span>za darmo</span></div>
+              <div class="cape free"><i class="cape-art c-ember" aria-hidden="true"></i><b>Żar</b><span>za darmo</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="cosm-grid">
+          <figure class="cosm-card reveal"><img loading="lazy" src="/assets/launcher/kosm-anielskie.webp" width="340" height="360" alt="Postać w grze z anielskimi skrzydłami, koroną i peleryną Płomień"><figcaption>Anielskie skrzydła · Korona · Płomień</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="1"><img loading="lazy" src="/assets/launcher/kosm-smocze.webp" width="340" height="360" alt="Postać w grze ze smoczymi skrzydłami, aureolą, koroną i peleryną Płomień"><figcaption>Smocze skrzydła · Aureola · Korona</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="2"><img loading="lazy" src="/assets/launcher/kosm-aureola.webp" width="340" height="360" alt="Postać w grze z aureolą, czapką Mikołaja, anielskimi skrzydłami i peleryną Fale"><figcaption>Aureola · Czapka Mikołaja · Fale</figcaption></figure>
+          <figure class="cosm-card reveal" data-d="3"><img loading="lazy" src="/assets/launcher/kosm-cylinder.webp" width="340" height="360" alt="Postać w grze z cylindrem, smoczymi skrzydłami i peleryną Iskry"><figcaption>Cylinder · Smocze skrzydła · Iskry</figcaption></figure>
+        </div>
+      </div>
+      <div class="start-cta reveal"><a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a><a class="btn big ghost" href="#wyglad">Zobacz motywy i&nbsp;wygląd<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+    </div>
+  </section>
+  </div>
+
+  <div class="part" id="wyglad">
+  <section class="section first look" aria-labelledby="look-h">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg>Hammer+</p>
+        <h2 id="look-h">Wygląd po Twojemu</h2>
+        <p class="sub">Motywy z&nbsp;ruchomym tłem, peleryny i&nbsp;dodatki na postać. Sam wygląd – zero przewagi w&nbsp;grze.</p>
+      </header>
+      <div class="themes reveal">
+        <div class="theme-picks" role="group" aria-label="Motyw launchera">
+          <button type="button" class="theme-pick" data-theme="domyslny" aria-pressed="true"><i aria-hidden="true"></i>Domyślny</button>
+          <button type="button" class="theme-pick" data-theme="nether" aria-pressed="false"><i aria-hidden="true"></i>Nether</button>
+          <button type="button" class="theme-pick" data-theme="end" aria-pressed="false"><i aria-hidden="true"></i>End</button>
+          <button type="button" class="theme-pick" data-theme="ocean" aria-pressed="false"><i aria-hidden="true"></i>Ocean</button>
+          <button type="button" class="theme-pick" data-theme="wisnia" aria-pressed="false"><i aria-hidden="true"></i>Wiśniowy gaj</button>
+          <button type="button" class="theme-pick" data-theme="mrok" aria-pressed="false"><i aria-hidden="true"></i>Głęboki mrok</button>
+        </div>
+        <div class="theme-stage" id="theme-stage" data-theme="domyslny">
+          <div class="theme-glow" aria-hidden="true"></div>
+          <div class="theme-deck" id="theme-deck"><figure class="shot theme-card" data-theme="domyslny"><img loading="lazy" src="/assets/launcher/motyw-domyslny.webp" width="1240" height="372" alt="Hammer Launcher w motywie Domyślny"></figure><figure class="shot theme-card" data-theme="nether"><img loading="lazy" src="/assets/launcher/motyw-nether.webp" width="1240" height="372" alt="Hammer Launcher w motywie Nether"></figure><figure class="shot theme-card" data-theme="end"><img loading="lazy" src="/assets/launcher/motyw-end.webp" width="1240" height="372" alt="Hammer Launcher w motywie End"></figure><figure class="shot theme-card" data-theme="ocean"><img loading="lazy" src="/assets/launcher/motyw-ocean.webp" width="1240" height="372" alt="Hammer Launcher w motywie Ocean"></figure><figure class="shot theme-card" data-theme="wisnia"><img loading="lazy" src="/assets/launcher/motyw-wisnia.webp" width="1240" height="372" alt="Hammer Launcher w motywie Wiśniowy gaj"></figure><figure class="shot theme-card" data-theme="mrok"><img loading="lazy" src="/assets/launcher/motyw-mrok.webp" width="1240" height="372" alt="Hammer Launcher w motywie Głęboki mrok"></figure></div>
+          <p class="theme-caption" id="theme-caption" aria-live="polite"><b>Domyślny</b> Ciepły pomarańcz Hammera – za darmo dla każdego.</p>
+        </div>
+      </div>
+
+      <div class="live">
+        <figure class="live-card reveal"><figure class="shot clip-frame"><video class="clip" muted loop playsinline preload="none" width="1280" height="800" data-poster="/assets/launcher/clips/motywy-poster.webp" aria-label="Nagranie z launchera: przełączanie motywów Nether, End, Ocean, Wiśniowy gaj i Głęboki mrok"><source src="/assets/launcher/clips/motywy.webm" type="video/webm"><source src="/assets/launcher/clips/motywy.mp4" type="video/mp4"></video><button class="clip-toggle" type="button" hidden><span class="sr-only">Zatrzymaj nagranie</span></button></figure><figcaption><b>Motywy na żywo</b> Ruchome tło za całym launcherem – lawa, gwiazdy Endu, bąbelki, płatki i&nbsp;sculk.</figcaption></figure>
+        <figure class="live-card reveal" data-d="1"><figure class="shot clip-frame"><video class="clip" muted loop playsinline preload="none" width="1280" height="800" data-poster="/assets/launcher/clips/skorka-poster.webp" aria-label="Nagranie z launchera: ruchome peleryny i dodatki na podglądzie postaci"><source src="/assets/launcher/clips/skorka.webm" type="video/webm"><source src="/assets/launcher/clips/skorka.mp4" type="video/mp4"></video><button class="clip-toggle" type="button" hidden><span class="sr-only">Zatrzymaj nagranie</span></button></figure><figcaption><b>Peleryny i&nbsp;dodatki</b> Ruchome peleryny, skrzydła, aureola i&nbsp;czapki – od razu na podglądzie postaci.</figcaption></figure>
+      </div>
+
+      <div class="look-more reveal">
+        <a class="go-card" href="#hammer-client">
+          <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-shirt"/></svg></span>
+          <span class="go-text"><b>Jak to wygląda w&nbsp;grze?</b><span>Peleryny, skrzydła i&nbsp;aureolę rysuje Hammer Client – zobacz zdjęcia z&nbsp;gry.</span></span>
+          <span class="go-arrow" aria-hidden="true"><svg class="ico"><use href="#i-arrow"/></svg></span>
+        </a>
+        <a class="go-card gold" href="{{base}}/hammer-plus">
+          <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg></span>
+          <span class="go-text"><b>Motywy i&nbsp;ruchome peleryny są w&nbsp;Hammer+</b><span>Motyw Domyślny oraz peleryny Hammer i&nbsp;Żar masz za darmo.</span></span>
+          <span class="go-arrow" aria-hidden="true"><svg class="ico"><use href="#i-arrow"/></svg></span>
+        </a>
+      </div>
+    </div>
+  </section>
+  </div>

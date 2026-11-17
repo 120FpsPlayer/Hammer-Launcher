@@ -1,7 +1,7 @@
 /* One script for all the launcher's pages (web/pages/, put together by src/web/pages.js). Every part starts only when
    the page has its elements: the header (who is signed in, the menu on small screens), the download buttons (after a
    Discord sign-in), the news, Hammer+ bought by card and „Twoje kody”, „Zaproś znajomego”, the contact form. At the
-   end: the look (scroll reveal, the feature tabs and clips, 3D, the theme deck). */
+   end: the look (scroll reveal, the feature tabs and clips, the three parts of the Funkcje page, 3D, the theme deck). */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -572,7 +572,9 @@
     clips.forEach(function (video) {
       var panel = video.closest('.tabpanel');
       var hiddenTab = panel && document.querySelector('[data-tabs].tabs-ready') && !panel.classList.contains('is-active');
-      var go = !calm && !document.hidden && seen.get(video) && !hiddenTab && !video.userPaused;
+      var part = video.closest('.part');
+      var hiddenPart = part && root.hasAttribute('data-part') && root.getAttribute('data-part') !== part.id; // a part of Funkcje that is not shown
+      var go = !calm && !document.hidden && seen.get(video) && !hiddenTab && !hiddenPart && !video.userPaused;
       if (go && video.paused) {
         var playing = video.play();
         if (playing && playing.catch) playing.catch(function () { /* autoplay refused – the poster stays */ });
@@ -631,6 +633,103 @@
     box.classList.add('tabs-ready');
     syncClips();
   });
+
+  // ── Funkcje: one page, three parts (Launcher, Hammer Client, Wygląd) – one shown at a time ──
+  // launcher-head.js has written the part the address names on <html data-part> before the first paint (launcher.css
+  // hides the other two). Here the switcher becomes a tab list (arrows, Home, End), the address follows the part
+  // (/funkcje#hammer-client, #wyglad – so Back, Forward and a shared link work) and a link to something inside
+  // another part opens that part first.
+  var partTabs = all('.part-tab');
+  if (partTabs.length && root.hasAttribute('data-part')) {
+    var parts = partTabs.map(function (tab) { return $(tab.getAttribute('href').slice(1)); });
+    /** The part an id belongs to – the part itself or the one that holds that element; the first part for anything else. */
+    var partOf = function (id) {
+      var target = id ? $(id) : null;
+      var part = target && target.closest('.part');
+      return part && parts.indexOf(part) >= 0 ? part : parts[0];
+    };
+    var showPart = function (part) {
+      root.setAttribute('data-part', part.id);
+      partTabs.forEach(function (tab, i) {
+        var on = parts[i] === part;
+        tab.setAttribute('aria-selected', String(on));
+        tab.tabIndex = on ? 0 : -1;
+      });
+      try { sessionStorage.setItem('hs_part', part.id); } catch (e) { /* private mode */ } // a sign-in started here comes back to this part
+      syncClips();
+    };
+    /**
+     * Where the page stands after a part has been opened: at its top (target null), or at something inside the part.
+     * At once – another part is like another page, and the site's smooth scrolling would glide over content that has
+     * just been swapped (and gets cut short by it).
+     */
+    var jumpTo = function (target) {
+      root.style.scrollBehavior = 'auto';
+      if (target) target.scrollIntoView();
+      else window.scrollTo(0, 0);
+      root.style.scrollBehavior = '';
+    };
+    /** The address of a part (the first one is the page itself) or of something inside one. */
+    var addressOf = function (part, id) { return location.pathname + location.search + (id === part.id && part === parts[0] ? '' : '#' + id); };
+    $('parts').setAttribute('role', 'tablist');
+    partTabs.forEach(function (tab, i) {
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', parts[i].id);
+      parts[i].setAttribute('role', 'tabpanel');
+      parts[i].setAttribute('aria-labelledby', tab.id);
+      tab.addEventListener('keydown', function (event) {
+        if (event.key === ' ') { event.preventDefault(); return tab.click(); } // a tab answers to Space like a button
+        var next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: parts.length - 1 }[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        next = (next + parts.length) % parts.length;
+        history.replaceState(null, '', addressOf(parts[next], parts[next].id));
+        showPart(parts[next]);
+        partTabs[next].focus();
+      });
+    });
+    // A click on the switcher, or on any link of this page that leads into a part („Zobacz Hammer Client”, the footer).
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest ? event.target.closest('a[href*="#"]') : null;
+      if (!link || event.defaultPrevented || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (link.pathname !== location.pathname || link.search !== location.search || link.target === '_blank') return;
+      var id = link.hash.slice(1);
+      var target = id ? $(id) : null;
+      var part = target && target.closest('.part');
+      if (!part || parts.indexOf(part) < 0) return;
+      event.preventDefault();
+      var address = addressOf(part, id);
+      if (address !== location.pathname + location.search + location.hash) history.pushState(null, '', address); // (a click on the open part adds no step)
+      showPart(part);
+      if (target !== part) return jumpTo(target);
+      if (partTabs.indexOf(link) >= 0) return; // the switcher itself: the page stays where it is
+      jumpTo(null); // from further down the page: up to the switcher and the start of the part
+      partTabs[parts.indexOf(part)].focus({ preventScroll: true });
+    });
+    // Back, Forward, or a # typed into the address: the part the address names now.
+    var follow = function (scroll) {
+      var id = location.hash.slice(1);
+      var target = id ? $(id) : null;
+      var part = partOf(id);
+      var changed = root.getAttribute('data-part') !== part.id;
+      showPart(part);
+      if (!scroll || !changed) return;
+      jumpTo(target && target !== part ? target : null);
+    };
+    var viaHistory = false; // Back and Forward restore their own scroll position – only a new address scrolls
+    window.addEventListener('popstate', function () {
+      viaHistory = true;
+      follow(false);
+      setTimeout(function () { viaHistory = false; }, 0);
+    });
+    window.addEventListener('hashchange', function () { if (!viaHistory) follow(true); });
+    // The start: what the head script chose (it knows the three parts), or the part that holds what the # names.
+    var startId = location.hash.slice(1);
+    var startPart = startId ? partOf(startId) : $(root.getAttribute('data-part')) || parts[0];
+    showPart(startPart);
+    if (!startId && startPart !== parts[0]) history.replaceState(null, '', addressOf(startPart, startPart.id)); // (back from a sign-in on that part)
+    if (startId && $(startId) && $(startId) !== startPart && startPart !== parts[0]) jumpTo($(startId));
+  }
 
   // ── 3D: the app in the hero follows the mouse and lifts with the scroll; cards tilt toward the mouse ──
   var stage = $('stage-3d');

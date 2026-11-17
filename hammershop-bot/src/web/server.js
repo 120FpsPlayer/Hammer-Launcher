@@ -485,7 +485,7 @@ function serveStatic(req, res, pathname) {
   // a real 404. The addresses of the one long page it used to be lead to the page that has that part now.
   const hit = pages.resolve(pathname);
   const query = new URL(req.url, 'http://local').search;
-  if (hit?.redirect) return redirect(res, hit.redirect + query);
+  if (hit?.redirect) return redirect(res, hit.redirect + query + (hit.hash ? `#${hit.hash}` : '')); // (/wyglad → /funkcje#wyglad)
   if (hit && !hit.page.missing) {
     // Back from Stripe to an address made before Hammer+ had its own page (a payment page stays open for an hour).
     if (hit.page.id === 'start' && /[?&]payment=/.test(query)) return redirect(res, pages.pathOf('hammer-plus') + query);

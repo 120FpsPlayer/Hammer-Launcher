@@ -35,13 +35,14 @@ test('the launcher\'s pages: clips, posters, pictures, fonts, scripts and styles
   assert.match(html, /href="\/assets\/_v\/[0-9a-f]{8}\/launcher\.css"/);
   assert.doesNotMatch(html, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, 'no unstamped asset address left in attributes');
   // Every page: its styles, its script and – on the start page – the script for old addresses, all stamped.
-  for (const page of ['/', '/hammer-client', '/wyglad', '/hammer-plus', '/kontakt']) {
+  for (const page of ['/', '/hammer-plus', '/polecaj', '/kontakt']) {
     const other = await (await fetch(base + page)).text();
     assert.match(other, /href="\/assets\/_v\/[0-9a-f]{8}\/launcher\.css"/, page);
     assert.match(other, /src="\/assets\/_v\/[0-9a-f]{8}\/launcher\.js"/, page);
     assert.doesNotMatch(other, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, page);
   }
-  assert.match(await (await fetch(`${base}/`)).text(), /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-redirect\.js"><\/script>/);
+  assert.match(await (await fetch(`${base}/`)).text(), /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-head\.js"><\/script>/);
+  assert.match(html, /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-head\.js"><\/script>/, 'the Funkcje page loads it too');
   // The stamped address serves the very file – also in parts (Range), as browsers ask for videos.
   const res = await fetch(`${base}/assets/_v/${clip[1]}/${clip[2]}`, { headers: { range: 'bytes=0-15' } });
   assert.ok([200, 206].includes(res.status));

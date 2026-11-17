@@ -21,8 +21,6 @@ const GUEST = { id: '200000000000000031', username: 'gosc', global_name: 'Gosc',
 const SITE = [
   ['/launcher', 'Hammer Launcher – launcher Minecrafta od HammerShop'],
   ['/launcher/funkcje', 'Funkcje – Hammer Launcher'],
-  ['/launcher/hammer-client', 'Hammer Client – Hammer Launcher'],
-  ['/launcher/wyglad', 'Wygląd: motywy i peleryny – Hammer Launcher'],
   ['/launcher/hammer-plus', 'Hammer+ – Hammer Launcher'],
   ['/launcher/polecaj', 'Zaproś znajomego – Hammer Launcher'],
   ['/launcher/aktualnosci', 'Aktualności – Hammer Launcher'],
@@ -106,6 +104,13 @@ test('the shop keeps its front page and its own unknown addresses; under /launch
   // The sources are not files of the site; the old file name leads to the start page.
   for (const raw of ['/layout.html', '/start.html', '/pages/start.html', '/web/pages/start.html']) assert.doesNotMatch((await get(raw)).body, /\{\{main\}\}|\{\{base\}\}|<!--shop-->/, raw);
   assert.deepEqual([(await get('/launcher.html')).status, (await get('/launcher.html')).location], [302, '/launcher']);
+  // Hammer Client and Wygląd are parts of Funkcje now – their old addresses lead to the part, the query kept.
+  assert.deepEqual([(await get('/launcher/hammer-client')).status, (await get('/launcher/hammer-client')).location], [302, '/launcher/funkcje#hammer-client']);
+  assert.equal((await get('/launcher/wyglad?connected=1')).location, '/launcher/funkcje?connected=1#wyglad');
+  const funkcje = (await get('/launcher/funkcje')).body;
+  assert.deepEqual([...funkcje.matchAll(/<div class="part" id="([a-z-]+)">/g)].map((m) => m[1]), ['launcher', 'hammer-client', 'wyglad']);
+  assert.match(funkcje, /<a href="\/launcher\/funkcje#hammer-client">Hammer Client<\/a>\s*<a href="\/launcher\/funkcje#wyglad">Wygląd<\/a>/);
+  assert.match(funkcje, /<a href="\/">Sklep<\/a>\s*<a href="\/launcher">Launcher<\/a>\s*<a href="\/launcher\/funkcje" aria-current="page">Funkcje<\/a>\s*<a href="\/launcher\/hammer-plus">Hammer\+<\/a>\s*<a href="\/launcher\/polecaj">Polecaj<\/a>\s*<a href="\/launcher\/aktualnosci">Aktualności<\/a>/);
   assert.equal((await get('/assets/nie-ma.png')).status, 404);
 });
 
@@ -114,6 +119,7 @@ test('sign-in, the download, a friend\'s link and an old payment address use the
   assert.equal(await signIn('launcher'), '/launcher?connected=1');
   assert.equal(await signIn('download'), '/launcher?download=1&connected=1');
   assert.equal(await signIn('hammershop'), '/?connected=1', 'not a page of this site');
+  assert.equal(await signIn('wyglad'), '/?connected=1', 'a part of Funkcje, not a page');
   assert.equal(await signIn('https://evil.example/launcher'), '/?connected=1');
   assert.equal(await signIn(null), '/?connected=1', 'the shop\'s own sign-in comes back to the shop');
   assert.equal((await get('/download')).location, '/launcher?download=none');
