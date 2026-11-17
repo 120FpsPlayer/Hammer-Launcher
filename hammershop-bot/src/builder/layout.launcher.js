@@ -70,8 +70,17 @@ const CATEGORIES = [
       news('news', '📰 aktualności', { topic: 'Wiadomości, które widać też na ekranie głównym launchera.', post: 'news' }),
       text('plus', '⭐ hammer-plus', { profile: 'readonly', topic: 'Hammer+ – co daje i jak go zdobyć.', post: 'plus' }),
       text('faq', '❓ faq', { profile: 'readonly', topic: 'Najczęściej zadawane pytania o launcher.', post: 'faq' }),
-      // Our co-creator's own channel: what HammerShop is and where to find it (config.launcher.json → partner).
-      text('hammershop', '🤝 hammershop', { profile: 'readonly', topic: 'HammerShop – współtwórca Hammer Launchera: pluginy, skrypty i wiele więcej.', post: 'hammershop' }),
+    ],
+  },
+  {
+    // Our co-creator has a category of its own, between the launcher's channels and the help channels.
+    key: 'catPartner',
+    name: '🛒 HAMMERSHOP',
+    profile: 'public',
+    channels: [
+      // What HammerShop is and where to find it (config.launcher.json → partner). The channel was in LAUNCHER for a
+      // moment (movedFrom): /build only:update takes it from there into this category.
+      text('hammershop', '🤝 hammershop', { profile: 'readonly', topic: 'HammerShop – współtwórca Hammer Launchera: pluginy, skrypty i wiele więcej.', post: 'hammershop', movedFrom: ['catLauncher'] }),
     ],
   },
   {

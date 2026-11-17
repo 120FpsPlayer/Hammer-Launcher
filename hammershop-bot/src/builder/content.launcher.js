@@ -60,7 +60,8 @@ function information(x, build) {
         `> ${x.ch('rules')} – zasady serwera i launchera\n> ${x.ch('announcements')} – oficjalne ogłoszenia\n> ${x.ch('roles')} – role i powiadomienia\n` +
         `### ${x.E('rocket')} Launcher\n` +
         `> ${x.ch('launcher')} – pobierz launcher\n> ${x.ch('updates')} – nowe wersje i lista zmian\n> ${x.ch('news')} – aktualności, które widać też w launcherze\n` +
-        `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n> ${x.ch('hammershop')} – HammerShop, nasz współtwórca\n` +
+        `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n` +
+        `### ${x.E('cart')} HammerShop\n> ${x.ch('hammershop')} – HammerShop, nasz współtwórca\n` +
         `### ${x.E('ticket')} Pomoc\n` +
         `> ${x.ch('tickets')} – otwórz ticket\n> ${x.ch('bugs')} – jak zgłosić błąd\n> ${x.ch('suggestions')} – Twoje pomysły na nowe funkcje\n` +
         `### ${x.E('chat')} Społeczność\n` +

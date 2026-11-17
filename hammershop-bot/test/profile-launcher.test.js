@@ -107,7 +107,7 @@ test('/build makes the Hammer Launcher server: its name, its mark as the icon, i
   assert.match(channel('statDownloads').name, /^📥/);
   assert.equal(channel('chat').messageList.length, 0, 'no cards in #czat');
   assert.equal(channel('servers').messageList.length, 0, 'no cards in #serwery');
-  assert.deepEqual(CATEGORIES.map((c) => c.key), ['catStats', 'catWelcome', 'catLauncher', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
+  assert.deepEqual(CATEGORIES.map((c) => c.key), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
 
   const names = guild.roles.cache.map((r) => r.name);
   for (const name of ['🔨 Hammer Launcher', '👑 CEO', '💻 Developer', '🧪 Tester', '✅ Członek', '🚀 Aktualizacje']) assert.ok(names.includes(name), name);
@@ -147,7 +147,7 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
   assert.match(channelText('roles'), /Aktualizacje\*\* – każda nowa wersja launchera/);
   assert.doesNotMatch(channelText('roles'), /Dostawy|Klient/);
 
-  // HammerShop is named only as our co-creator: on its own channel (#hammershop) and in the channel guide's line about it.
+  // HammerShop is named only as our co-creator: on its own channel (#hammershop) and under its heading in the channel guide.
   assert.match(channelText('hammershop'), /HammerShop – nasz współtwórca[\s\S]*Pluginy/);
   assert.deepEqual(files('hammershop'), ['hammerlauncher-hammershop.png']);
   const partner = channel('hammershop').id;
@@ -155,7 +155,7 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
     .filter((c) => c.id !== partner)
     .map((c) => (c.messageList ?? []).map((m) => textOf(m.body)).join('\n'))
     .join('\n')
-    .replace(/<#\d+> – HammerShop, nasz współtwórca/, '');
+    .replace(/### \S+ HammerShop\n> <#\d+> – HammerShop, nasz współtwórca/, '');
   for (const shopWord of [/HammerShop/, /PaysafeCard/, /\bSklep\b/, /Kup\*\*/, /opini[eę]/i, /koszyk/i, /saldo/i]) assert.doesNotMatch(all, shopWord);
 });
 

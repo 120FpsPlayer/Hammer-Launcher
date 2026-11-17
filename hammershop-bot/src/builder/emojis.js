@@ -17,6 +17,8 @@ function fileFor(name) {
   const own = require('../lib/profile').launcher ? path.join(ASSETS, 'emojis-launcher', `${name}.png`) : null;
   return own && fs.existsSync(own) ? own : path.join(ASSETS, 'emojis', `${name}.png`);
 }
+/** Does this server draw the emoji its own way (the Hammer Launcher server's logo)? */
+const ownPicture = (name) => path.basename(path.dirname(fileFor(name))) !== 'emojis';
 
 /** Emoji name prefixes of earlier versions – their emojis are replaced by the current ones. */
 const LEGACY_PREFIXES = ['nox_'];
@@ -46,7 +48,9 @@ function outdatedEmojis(guild, existing) {
   for (const [name, id] of Object.entries(db.emojiIds(guild.id))) {
     const em = existing.get(id);
     if (!em) continue;
-    const stale = !EMOJI_PRIORITY.includes(name) || em.name !== emojiName(name) || (art[name] && artOf(name) && art[name] !== artOf(name));
+    // (An emoji this server draws its own way, uploaded before pictures were remembered, may still show the shared
+    // picture – it is replaced once; from then on its picture is known.)
+    const stale = !EMOJI_PRIORITY.includes(name) || em.name !== emojiName(name) || (art[name] && artOf(name) && art[name] !== artOf(name)) || (!art[name] && artOf(name) && ownPicture(name));
     if (stale) out.set(em.id, { em, name });
   }
   for (const em of existing.values()) {

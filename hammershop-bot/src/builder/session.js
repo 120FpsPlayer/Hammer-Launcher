@@ -244,16 +244,22 @@ async function runUpdate(interaction) {
     const added = await addMissing(guild, { reason });
     const removed = await removeRetired(guild, { reason, keepChannelId: interaction.channelId });
     const names = await restyleNames(guild);
+    // Emojis whose picture changed with this version (e.g. a new logo) are replaced before the cards are drawn again –
+    // a card names its emojis by ID, so the other order would leave the old picture (or a dead emoji) on the cards.
+    const emojis = await syncEmojis(guild, { reason, shouldAbort: () => running.get(guild.id)?.abort }).catch((err) => ({ replaced: 0, uploaded: 0, errors: [`Emotki: ${err.message}`] }));
     const panels = await refreshContent(guild);
     await require('../features/stats').updateStatChannels(guild.client).catch(() => null);
     const created = [...added.categories.map((n) => `📁 ${n}`), ...added.channels.map((n) => `# ${n}`), ...added.roles.map((n) => `🎭 ${n}`)];
     const restyled = added.restyled ?? [];
     const gone = [...removed.channels.map((n) => `# ${n}`), ...removed.categories.map((n) => `📁 ${n}`), ...removed.roles.map((n) => `🎭 ${n}`)];
-    const errors = [...added.errors, ...removed.errors, ...names.errors, ...panels.errors];
+    const moved = added.moved ?? [];
+    const errors = [...added.errors, ...removed.errors, ...names.errors, ...(emojis.errors ?? []), ...panels.errors];
     const lines = [
       created.length ? `**Nowe:**\n${created.slice(0, 20).join('\n')}${created.length > 20 ? `\n…i jeszcze ${created.length - 20}` : ''}` : '**Nowe:** nic – serwer ma już wszystkie kanały i role.',
       gone.length ? `**Usunięte (nie są już częścią serwera):**\n${gone.slice(0, 20).join('\n')}${gone.length > 20 ? `\n…i jeszcze ${gone.length - 20}` : ''}` : null,
+      moved.length ? `**Przeniesione do właściwej kategorii:** ${moved.slice(0, 20).map((n) => `# ${n}`).join(', ')}` : null,
       restyled.length ? `**Role z nową nazwą / kolorem:** ${restyled.slice(0, 20).join(', ')}${restyled.length > 20 ? ` …i jeszcze ${restyled.length - 20}` : ''}` : null,
+      emojis.replaced || emojis.uploaded ? `**Emotki:** ${[emojis.replaced ? `zamienione na nowy wygląd: ${emojis.replaced}` : null, emojis.uploaded ? `wgrane: ${emojis.uploaded}` : null].filter(Boolean).join(' · ')}` : null,
       `**Nazwy:** zmienione: ${names.renamed}${names.later.length ? ` · ⏳ czekające na limit Discorda: ${names.later.length} – użyj \`${slash('build')} tylko:names\` za 10 minut` : ''}`,
       `**Panele:** zaktualizowane: ${panels.edited}${panels.sent ? ` · wysłane ponownie: ${panels.sent}` : ''}`,
     ];

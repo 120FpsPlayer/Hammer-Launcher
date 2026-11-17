@@ -780,7 +780,13 @@ class FakeGuild {
         guild.log.push(['channelCreate', channel.name, data.type]);
         return channel;
       },
-      async setPositions() {
+      async setPositions(list = []) {
+        for (const { channel, position, parent } of list) {
+          const c = this.cache.get(channel?.id ?? channel);
+          if (!c) throw apiError(10003, 'Unknown Channel');
+          if (typeof position === 'number') c.position = position;
+          if (parent !== undefined && c.type !== ChannelType.GuildCategory) c.parentId = parent?.id ?? parent;
+        }
         return guild;
       },
     };

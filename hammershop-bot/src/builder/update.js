@@ -19,13 +19,14 @@ const { createRole, roleOptions, overwriteResolver, channelOptions, channelOverw
 const { ensureBrandRole } = require('../features/brandrole');
 
 /**
- * @returns {Promise<{ roles: string[], restyled: string[], categories: string[], channels: string[], messages: number, errors: string[] }>}
- *   the names of everything that was created (restyled – old roles that got the new name / colour)
+ * @returns {Promise<{ roles: string[], restyled: string[], categories: string[], channels: string[], moved: string[], messages: number, errors: string[] }>}
+ *   the names of everything that was created (restyled – old roles that got the new name / colour; moved – channels
+ *   that went to the category layout.js has them in now)
  */
 async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` } = {}) {
   const build = db.build(guild.id);
   if (!build) throw new Error('Ten serwer nie został jeszcze zbudowany.');
-  const res = { roles: [], restyled: [], categories: [], channels: [], messages: 0, errors: [] };
+  const res = { roles: [], restyled: [], categories: [], channels: [], moved: [], messages: 0, errors: [] };
   const roles = { ...build.roles };
   const categories = { ...build.categories };
   const channels = { ...build.channels };
@@ -85,10 +86,26 @@ async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` 
       if (!created) continue;
       categories[cat.key] = created.id;
       res.categories.push(name);
+      save();
+      // Discord puts a new category at the very bottom of the server – it goes where layout.js has it.
+      await attempt(`Miejsce kategorii ${name}`, () => placeCategory(guild, cat.key, categories));
     }
     const added = [];
     for (const ch of cat.channels.filter(channelWanted)) {
-      if (channels[ch.key] && guild.channels.cache.has(channels[ch.key])) continue;
+      const existing = guild.channels.cache.get(channels[ch.key] ?? '');
+      if (existing) {
+        // layout.js moved this channel to another category since the server was built: it follows – but only out of
+        // the category it used to be in, so a channel someone put elsewhere themselves stays where they want it.
+        const from = (ch.movedFrom ?? []).map((key) => categories[key]).filter(Boolean);
+        if (existing.parentId !== categories[cat.key] && from.includes(existing.parentId)) {
+          const moved = await attempt(`Przeniesienie #${existing.name}`, () => existing.setParent(categories[cat.key], { lockPermissions: false, reason }));
+          if (moved) {
+            res.moved.push(existing.name);
+            added.push(ch.key);
+          }
+        }
+        continue;
+      }
       const { opts } = channelOptions(cat, ch, { parentId: categories[cat.key], resolve, communityOn, reason });
       const channel = await attempt(`Kanał ${opts.name}`, () => guild.channels.create(opts));
       if (!channel) continue;
@@ -114,6 +131,27 @@ async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` 
   }
   save();
   return res;
+}
+
+/** The server's categories from top to bottom, the way Discord shows them (position, then age). */
+function sortedCategories(guild) {
+  const at = (c) => c.rawPosition ?? c.position ?? 0;
+  return [...guild.channels.cache.values()]
+    .filter((c) => c.type === ChannelType.GuildCategory)
+    .sort((a, b) => at(a) - at(b) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+}
+
+/**
+ * Puts the category `key` right under the nearest category that layout.js has before it and that exists on the
+ * server (at the top when there is none). Categories that are not the bot's keep their order among the others.
+ */
+async function placeCategory(guild, key, categories) {
+  const id = categories[key];
+  const index = CATEGORIES.findIndex((c) => c.key === key);
+  const above = CATEGORIES.slice(0, index).reverse().map((c) => categories[c.key]).find((other) => other && guild.channels.cache.has(other));
+  const order = sortedCategories(guild).map((c) => c.id).filter((other) => other !== id);
+  order.splice(above ? order.indexOf(above) + 1 : 0, 0, id);
+  await guild.channels.setPositions(order.map((channel, position) => ({ channel, position })));
 }
 
 /**

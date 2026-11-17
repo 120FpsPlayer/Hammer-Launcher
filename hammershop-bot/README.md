@@ -24,7 +24,8 @@ Ten sam bot prowadzi dwa różne serwery – który, wybierasz jedną linią w `
 ```
 〔 📊 STATYSTYKI 〕     👥┃ᴄᴢᴌᴏɴᴋᴏᴡɪᴇ: 123 · 🚀┃ᴡᴇʀꜱᴊᴀ: 2.6.0 · 📥┃ᴘᴏʙʀᴀɴɪᴀ: 456      (wersja i pobrania biorą się ze strony)
 〔 👋 WITAMY 〕         ✅┃ᴡᴇʀʏꜰɪᴋᴀᴄᴊᴀ · 📜┃ʀᴇɢᴜʟᴀᴍɪɴ · 👋┃ᴘᴏᴡɪᴛᴀɴɪᴀ · 📌┃ɪɴꜰᴏʀᴍᴀᴄᴊᴇ · 📢┃ᴏɢᴌᴏꜱᴢᴇɴɪᴀ · 🎭┃ʀᴏʟᴇ
-〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ · 🤝┃ʜᴀᴍᴍᴇʀꜱʜᴏᴘ
+〔 🔨 LAUNCHER 〕       📥┃ᴘᴏʙɪᴇʀᴢ · 🚀┃ᴀᴋᴛᴜᴀʟɪᴢᴀᴄᴊᴇ · 📰┃ᴀᴋᴛᴜᴀʟɴᴏꜱᴄɪ · ⭐┃ʜᴀᴍᴍᴇʀ-ᴘʟᴜꜱ · ❓┃ꜰᴀǫ
+〔 🛒 HAMMERSHOP 〕     🤝┃ʜᴀᴍᴍᴇʀꜱʜᴏᴘ
 〔 🎧 POMOC 〕          🎫┃ᴛɪᴄᴋᴇᴛʏ · 🐛┃ᴢɢᴌᴏꜱ-ʙᴌᴀᴅ · 💡┃ᴘʀᴏᴘᴏᴢʏᴄᴊᴇ
 〔 💬 SPOŁECZNOŚĆ 〕    💬┃ᴄᴢᴀᴛ · 🎮┃ꜱᴇʀᴡᴇʀʏ · 🎉┃ɢɪᴠᴇᴀᴡᴀʏᴇ · 🏆┃ʀᴀɴᴋɪɴɢ · 💎┃ʙᴏᴏꜱᴛᴇʀᴢʏ
 〔 🔒 ZESPÓŁ 〕 · 〔 📁 LOGI 〕 · 〔 🎫 TICKETY 〕 · 〔 🔐 ZAMKNIĘTE TICKETY 〕
@@ -32,7 +33,7 @@ Ten sam bot prowadzi dwa różne serwery – który, wybierasz jedną linią w `
 
 - **Role:** 🔨 Hammer Launcher (rola bota), CEO, Co-CEO, **Developer**, Support, potem **Tester**, **💎 Hammer+** (nadaje bot), Boty, Członek oraz powiadomienia: Ogłoszenia, **Aktualizacje** (ping przy nowej wersji) i Giveawaye. Role, kanały i karty usunięte z układu (Manager, Administrator, Moderator, Stażysta, #zrzuty-ekranu, karta na #serwery) znikają po `/zbuduj tylko:update` – tylko te, które utworzył bot. Na #czat i #serwery bot nie wysyła żadnych kart.
 - **Tickety:** *Pomoc z launcherem*, *Zgłoś błąd*, *Hammer+ i płatności*, *Odbierz nagrodę* i *Rekrutacja* (domyślnie wyłączona – `/tickety`) – z pytaniami o wersję launchera, Minecrafta i log. Bot **nie przypomina** tu o nieprzejętych ticketach (`staffReminders.enabled: false` w `config.launcher.json`).
-- **#hammershop:** kanał naszego współtwórcy z jego banerem i kartą (co sprzedaje, kto za co odpowiada, przycisk do jego strony). Nazwę, adres strony i zaproszenie na jego Discorda ustawiasz w `config.launcher.json` → `partner` (`name`, `url`, `discord` – pusty `discord` = bez przycisku). Na zbudowanym serwerze kanał dodaje `/zbuduj tylko:update`. Baner kanału (`assets/banners-launcher/hammershop.png`) to zmniejszony baner HammerShop z `assets/brand/hammershop-pl-banner-wide.png`.
+- **#hammershop:** kanał naszego współtwórcy we własnej kategorii (między LAUNCHER a POMOC) z jego banerem i kartą (co sprzedaje, kto za co odpowiada, przycisk do jego strony). Nazwę, adres strony i zaproszenie na jego Discorda ustawiasz w `config.launcher.json` → `partner` (`name`, `url`, `discord` – pusty `discord` = bez przycisku). Na zbudowanym serwerze kategorię i kanał dodaje `/zbuduj tylko:update` (kanał, który był już w kategorii LAUNCHER, przenosi). Ta sama komenda podmienia też emotki, których obrazek zmienił się w nowej wersji (np. logo), zanim odświeży karty. Baner kanału (`assets/banners-launcher/hammershop.png`) to zmniejszony baner HammerShop z `assets/brand/hammershop-pl-banner-wide.png`.
 - **Połączenie ze stroną i launcherem:** nowa wersja opublikowana w panelu admina pojawia się na **#aktualizacje** (z pingiem roli Aktualizacje), aktualność – na **#aktualności**, a kanały statystyk pokazują aktualną wersję i liczbę pobrań. `/launcher` pokazuje kartę launchera z aktualną wersją.
 - **Strona:** adres główny (`PUBLIC_URL`) to **strona launchera** z logo launchera (młot z wokseli) i nazwą Hammer Launcher – pobieranie (po zalogowaniu przez Discorda), aktualności, Hammer+ przez Stripe, program poleceń *Zaproś znajomego*; panel admina jest pod `/admin`.
 - **Te same emotki** co w HammerShop (jedyny wyjątek: emotka logo to młot launchera). Komend sklepu (`/produkt`, `/sklep`, `/promocja`, `/opinia`…) na tym serwerze nie ma, a `/pomoc` mówi o launcherze.
@@ -540,7 +541,7 @@ Trzymaj rolę integracji bota na samej górze w Ustawieniach serwera → Role �
 | Komenda | Co robi | Kto |
 |---|---|---|
 | `/zbuduj` | Buduje cały serwer (Zbuduj / Wyczyść i zbuduj) | Właściciel, admini |
-| `/zbuduj tylko:update` | **Po aktualizacji bota:** dodaje nowe kanały i role, stosuje styl nazw i odświeża każdy panel – Twoich własnych kanałów i ról nie rusza | Właściciel, admini |
+| `/zbuduj tylko:update` | **Po aktualizacji bota:** dodaje nowe kategorie, kanały i role (nową kategorię stawia tam, gdzie jest w układzie), stosuje styl nazw, podmienia emotki ze zmienionym obrazkiem i odświeża każdy panel – Twoich własnych kanałów i ról nie rusza | Właściciel, admini |
 | `/zbuduj tylko:emojis` | Wgrywa emotki, które się jeszcze nie zmieściły (np. po boostach) | Właściciel, admini |
 | `/zbuduj tylko:ikona` | Ustawia aktualne logo jako ikonę serwera (i baner przy boostach), potem odświeża wszystkie karty – ich miniaturki w rogu to ikona serwera, więc po nowym logo trzeba to zrobić raz. `tylko:update` celowo nie zmienia ikony | Właściciel, admini |
 | `/zbuduj tylko:panels` | Odświeża wszystkie banery i karty **w miejscu** po edycji `config.json` (opinii, giveawayów i ogłoszeń nigdy nie rusza) | Właściciel, admini |
