@@ -52,10 +52,18 @@
     let cache = new Map();
 
     const dateWords = (text) => String(text).replace(/\p{L}+/gu, (w) => dates.get(w.toLowerCase()) ?? w);
-    /** Translates a part of a sentence; the spaces around it stay where they are. */
+    /**
+     * Translates a part of a sentence; the spaces around it stay where they are. A part that closes its sentence
+     * carries the full stop ("Nie udało się zrobić kopii zapasowej: na dysku zabrakło miejsca.") – then the
+     * words before the stop are looked up, and the stop goes back on.
+     */
     const inner = (value, depth) => {
       const text = value.trim();
-      const out = text ? translate(text, depth + 1) : null;
+      let out = text ? translate(text, depth + 1) : null;
+      if (out == null && /[^.]\.$/.test(text)) {
+        const bare = translate(text.slice(0, -1), depth + 1);
+        if (bare != null) out = `${bare}.`;
+      }
       return out == null ? value : value.replace(text, () => out);
     };
     const transform = (value, how, depth) => {
