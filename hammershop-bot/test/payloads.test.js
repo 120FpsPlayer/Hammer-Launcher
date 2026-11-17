@@ -147,9 +147,12 @@ test('modals: verification, announcement, wipe confirmation', async () => {
 });
 
 test('slash command definitions are valid', () => {
-  const commands = require('../src/commands')();
+  const loadCommands = require('../src/commands');
+  const commands = loadCommands();
+  const launcherOnly = (f) => loadCommands.LAUNCHER_ONLY.has(f.slice(0, -3));
   const files = require('node:fs').readdirSync(require('node:path').join(__dirname, '..', 'src', 'commands')).filter((f) => f.endsWith('.js') && f !== 'index.js');
-  assert.equal(commands.size, files.length, 'every command file is loaded');
+  assert.equal(commands.size, files.filter((f) => !launcherOnly(f)).length, 'every command file is loaded (the Hammer Launcher server\'s own ones only there)');
+  for (const f of files.filter(launcherOnly)) commands.set(f.slice(0, -3), require(`../src/commands/${f}`)); // checked here too
   assert.ok(commands.size <= 100, 'Discord allows 100 slash commands');
   for (const [name, cmd] of commands) {
     const json = cmd.data.toJSON();

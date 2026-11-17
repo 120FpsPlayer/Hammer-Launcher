@@ -38,6 +38,7 @@ function launcherHelp(interaction, cmd) {
         cmd('ticket priority', 'ticket move', 'ticket rename', 'ticket request-close'),
         `${cmd('reply')} – gotowe odpowiedzi (prośba o log, o wersję, jak wpisać kod Hammer+) · ${cmd('blacklist', 'stats')}`,
         `${cmd('assistant status', 'assistant ticket')} – asystent AI w ticketach (milknie sam, gdy odpiszesz w tickecie)`,
+        `${cmd('knowledge add', 'knowledge list', 'knowledge test')} – pytania i odpowiedzi, z których korzysta asystent`,
       ].join('\n'),
     });
   }

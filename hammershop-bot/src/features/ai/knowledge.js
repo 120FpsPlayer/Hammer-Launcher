@@ -23,8 +23,9 @@
  * Matching is word overlap, Polish-aware: lowercase, letters without diacritics (people type „jak pobrac”), stop-words
  * left out, words with the same beginning count as one word (wersja / wersję / wersji), a few true synonyms are one
  * word (pobrać / ściągnąć), and one typo in a longer word is forgiven (launher). Every variant of an entry is scored on
- * its own. Guards against matching an unrelated ticket: words every ticket here has (launcher, gra, działa…) weigh
- * half and can't make a match alone, and a typo never counts unless another word matched exactly.
+ * its own. Guards against matching an unrelated ticket: words every ticket here has (launcher, gra, działa…) and the
+ * everyday verbs of a question (zmienić, dodać…) weigh half and can't make a match alone, and a typo never counts unless
+ * another word matched exactly.
  */
 
 const fs = require('node:fs');
@@ -107,6 +108,8 @@ const EXACT_SYNONYMS = new Map([
   ['mc', 'minecraft'],
   ['h+', 'hammer+'],
   ['hammerplus', 'hammer+'],
+  ['ramu', 'ram'],
+  ['ramem', 'ram'],
 ]);
 
 function canonical(word) {
@@ -126,11 +129,19 @@ const prefix = (a, b) => {
   while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
   return i;
 };
-/** Light stemming: the same word, or one with a long enough shared beginning (wersja / wersje / wersji, minecraft / minecrafta). */
+// Polish endings of short nouns (folded): mody / modów / modami, logi / logów, kod / kody, ban / bana. Not „o” – logo is
+// not logi – and not „ie” (ram / ramię).
+const ENDINGS = new Set(['', 'a', 'e', 'i', 'u', 'y', 'ow', 'om', 'ami', 'ach', 'em']);
+
+/**
+ * Light stemming: the same word, one with a long enough shared beginning (wersja / wersje / wersji, minecraft /
+ * minecrafta), or a short word with another ending (mody / modów – czat / czas stay apart).
+ */
 function same(a, b) {
   if (a === b) return true;
   const p = prefix(a, b);
-  return p >= 4 && p >= 0.7 * Math.min(a.length, b.length);
+  if (p >= 4 && p >= 0.7 * Math.min(a.length, b.length)) return true;
+  return p >= 3 && ENDINGS.has(a.slice(p)) && ENDINGS.has(b.slice(p));
 }
 
 /** a and b differ by exactly one letter typed wrong, missing, added or two swapped (Damerau, ≤ 1) – or not at all. */
@@ -154,18 +165,31 @@ function typo(a, b) {
   return oneEdit(s, l) || [s.length - 1, s.length, s.length + 1].some((n) => n >= 6 && n < l.length && oneEdit(s, l.slice(0, n)));
 }
 
-// Words nearly every ticket on a launcher server has – folded beginnings (and the forms of „gra” whole: too short for a
-// beginning). They weigh half and can't make a match on their own, so „launcher nie działa” doesn't pull in every
-// stored question that mentions the launcher.
-const COMMON_STEMS = ['launcher', 'minecraf', 'hammer', 'dzial', 'problem', 'serwer', 'pytani'];
-const COMMON_WORDS = new Set(['gra', 'gry', 'grze', 'gre', 'grac', 'gram', 'grania', 'granie', 'gierka', 'gierki', 'gierke', 'sprawa', 'sprawie', 'sprawy', 'sprawe']);
-const common = (w) => COMMON_WORDS.has(w) || COMMON_STEMS.some((s) => w.startsWith(s));
+// Words that don't say what a question is about – they weigh half and can't make a match on their own, so „launcher nie
+// działa” doesn't pull in every stored question that mentions the launcher, and „jak zmienić nick” doesn't get the answer
+// to „Jak zmienić wersję Minecrafta?”. Two kinds: what nearly every ticket on a launcher server has (folded beginnings,
+// and the forms of „gra” whole – too short for a beginning), and the everyday verbs of a how-to question (their common
+// forms whole – a beginning like „doda” would also catch „dodatki”, which is a topic).
+const COMMON_STEMS = ['launcher', 'minecraf', 'hammer', 'dzial', 'problem', 'pytani'];
+const COMMON_WORDS = new Set(
+  (
+    'gra gry grze gre grac gram grania granie gierka gierki gierke sprawa sprawie sprawy sprawe ' +
+    'zmienic zmienie zmienia zmieniam zmienilem zmienilam zmiana zmiany zmiane zmianie dodac dodam dodaje dodalem dodalam ' +
+    'dodanie dodaniu usunac usune usuwam usunalem usunelam usuniecie ustawic ustawie ustawiam ustawilem zrobic zrobie robie ' +
+    'zrobilem wlaczyc wlacze wlacza wlaczam wlaczylem wylaczyc wylacze wylacza wylaczam wylaczylem uruchomic uruchomie ' +
+    'uruchamiam uruchamia odpalic odpalam naprawic naprawie sprawdzic sprawdze zobaczyc znalezc znajde znajduje wyslac wysle ' +
+    'wysylam wpisac wpisze wpisuje dac daje dostac dostane dostalem miec uzyc uzywac uzywam wejsc wejde wchodze kliknac ' +
+    'klikam kliknalem'
+  ).split(' '),
+);
+const weak = (w) => COMMON_WORDS.has(w) || COMMON_STEMS.some((s) => w.startsWith(s));
 
 /**
- * How well one stored question (its words: own) fits the words of a ticket (asked) → { score, hits, ok, strong }.
- * score: the stored question's words found in the ticket, by weight (common words count half). ok – the assistant uses
+ * How well one stored question (its words: own) fits the words of a ticket (asked) → { score, hits, ok, strong,
+ * missing } (missing: its words the ticket doesn't have).
+ * score: the stored question's words found in the ticket, by weight (weak words count half). ok – the assistant uses
  * it: score ≥ MIN_SCORE, two words found (one when the question has one), at least one of them exactly (not only by a
- * typo) and – when the question has any – at least one that is not a common word.
+ * typo) and – when the question has any – at least one that is not a weak word.
  */
 function compare(own, asked) {
   let total = 0;
@@ -174,12 +198,16 @@ function compare(own, asked) {
   let exact = 0;
   let rare = 0;
   let rareOwn = 0;
+  const missing = [];
   for (const w of own) {
-    const weight = common(w) ? 0.5 : 1;
+    const weight = weak(w) ? 0.5 : 1;
     total += weight;
     if (weight === 1) rareOwn += 1;
     const kind = asked.some((a) => same(w, a)) ? 'word' : asked.some((a) => typo(w, a)) ? 'typo' : null;
-    if (!kind) continue;
+    if (!kind) {
+      missing.push(w);
+      continue;
+    }
     hits += 1;
     got += weight;
     if (kind === 'word') exact += 1;
@@ -187,7 +215,7 @@ function compare(own, asked) {
   }
   const score = total ? got / total : 0;
   const ok = hits >= Math.min(2, own.length) && score >= MIN_SCORE && exact >= 1 && (rareOwn ? rare >= 1 : own.length >= 2);
-  return { score, hits, ok, strong: ok && hits >= 2 && score >= STRONG_SCORE };
+  return { score, hits, ok, strong: ok && hits >= 2 && score >= STRONG_SCORE, missing };
 }
 
 // ───────────── Reading the file ─────────────
@@ -318,7 +346,7 @@ function check(guildId, { questions: rawQuestions, answer: rawAnswer }, id = nul
   for (const q of questions) {
     const w = words(q);
     if (!w.length) throw new UserError(`„${cut(q, 80)}” to same ogólne słowa – asystent nie rozpozna po nich, o co chodzi. Napisz całe pytanie, np. „Jak zmienić wersję Minecrafta?”.`);
-    if (w.length === 1 && common(w[0])) throw new UserError(`„${cut(q, 80)}” to za mało – takie słowo jest w prawie każdym tickecie. Napisz całe pytanie, np. „Jak zaktualizować launcher?”.`);
+    if (w.length === 1 && weak(w[0])) throw new UserError(`„${cut(q, 80)}” to za mało – samo takie słowo pasuje do prawie każdego ticketu. Napisz całe pytanie, np. „Jak zaktualizować launcher?”.`);
   }
   if (!answer) throw new UserError('Wpisz odpowiedź.');
   if (answer.length > LIMITS.answer) throw new UserError(`Odpowiedź jest za długa (${answer.length} znaków) – najwyżej ${LIMITS.answer}. Napisz ją krócej albo podziel na dwa wpisy.`);
@@ -403,9 +431,20 @@ function all(guildId = null) {
 
 const better = (a, b) => a.ok - b.ok || a.score - b.score || a.hits - b.hits;
 
+/** A question's words as it spells them (folded word → as written: wersje → wersję) – to show which ones a ticket lacks. */
+function spelled(question) {
+  const map = new Map();
+  for (const raw of String(question).match(/[\p{L}\p{N}+]+/gu) ?? []) {
+    const w = words(raw)[0];
+    if (w && !map.has(w)) map.set(w, raw);
+  }
+  return map;
+}
+
 /**
  * Every entry that shares a word with `query`, with its best-fitting question variant → [{ entry, question, score,
- * hits, ok, strong }], those the assistant uses (ok) first, then by score. For find() and /wiedza test.
+ * hits, ok, strong, missing }], those the assistant uses (ok) first, then by score. For find() and /wiedza test.
+ * missing: the variant's words (as written) that the query lacks.
  */
 function rank(query, { guildId = null } = {}) {
   const asked = words(query);
@@ -419,7 +458,9 @@ function rank(query, { guildId = null } = {}) {
       const r = compare(ownWords, asked);
       if (r.hits && (!best || better(r, best) > 0)) best = { ...r, question };
     }
-    if (best) found.push({ ...best, entry });
+    if (!best) continue;
+    const spelling = spelled(best.question);
+    found.push({ ...best, missing: best.missing.map((w) => spelling.get(w) ?? w), entry });
   }
   return found.sort((a, b) => better(b, a)); // stable: on a tie the command's entry stays before the file's
 }

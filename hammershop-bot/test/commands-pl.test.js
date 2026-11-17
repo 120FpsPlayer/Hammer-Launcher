@@ -9,6 +9,11 @@ const { localizeCommand, unlocalize, slash, MAP } = require('../src/lib/commands
 
 const NAME = /^[-_\p{Ll}\p{N}]{1,32}$/u;
 const commands = loadCommands();
+// The Hammer Launcher server's own commands (this file runs as the shop) are in Polish too.
+for (const file of loadCommands.LAUNCHER_ONLY) {
+  const command = require(`../src/commands/${file}.js`);
+  commands.set(command.data.name, command);
+}
 
 test('every slash command is in Polish: names, descriptions and choices, within Discord limits', () => {
   const pl = [...commands.values()].map((c) => localizeCommand(c.data.toJSON()));
@@ -61,4 +66,10 @@ test('slash() names commands the way people type them', () => {
   assert.equal(slash('shop auto'), '/sklep auto');
   assert.equal(slash('customer note add'), '/klient notatka dodaj');
   assert.equal(slash('unlock'), '/odblokuj');
+});
+
+test('the Hammer Launcher server\'s own commands are not registered on the shop server', () => {
+  const shop = loadCommands();
+  for (const file of loadCommands.LAUNCHER_ONLY) assert.equal(shop.has(require(`../src/commands/${file}.js`).data.name), false, file);
+  assert.equal(slash('knowledge add'), '/wiedza dodaj', 'its Polish name still works in texts');
 });

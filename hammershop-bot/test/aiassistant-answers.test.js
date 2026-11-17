@@ -364,7 +364,8 @@ test('knowledge file: the matches go into the request with what to do with them 
   const context = calls[0].body.messages.at(-1);
   assert.equal(context.role, 'system');
   assert.match(context.content, /Odpowiedzi zespołu z bazy wiedzy[\s\S]*Pytanie: Gra zamyka się po kliknięciu Graj\nOdpowiedź zespołu: Najpierw menu instancji → Napraw instancję/);
-  assert.match(context.content, /własnymi słowami[\s\S]*nie wklejaj jej słowo w słowo i nie zaprzeczaj jej\. Jeśli żadna nie pasuje, pomiń je\./);
+  // The form asks exactly this stored question – the model is told to answer from it, not only shown it.
+  assert.match(context.content, /Odpowiedź 1 wyraźnie pasuje do pytania w tickecie – odpowiedz na jej podstawie: powiedz to samo własnymi słowami[\s\S]*nie wklejaj jej słowo w słowo i nie zaprzeczaj jej\./);
   assert.doesNotMatch(context.content, /aktywować kod/, 'only what matches');
   const channel = fakes.ctx.guild.channels.cache.get(db.tickets((x) => x.ownerId === author.id)[0].channelId);
   await write(channel, author, 'a jak aktywowac kod hammer+?');

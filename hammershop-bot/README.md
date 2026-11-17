@@ -439,7 +439,7 @@ Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenA
 - Odpowiada krótko i konkretnie, prawdziwymi nazwami z launchera (np. **Optymalizacja → Zoptymalizuj wszystko**), a gdy
   czegoś brakuje, pyta dokładnie o to (np. link z **Konsola → Wyślij logi**). Nigdy nie wysyła urwanego zdania: gdy
   dostawca utnie odpowiedź, zostają jej pełne zdania; długa odpowiedź idzie w dwóch wiadomościach.
-- Przed każdą odpowiedzią zagląda do pliku **`wiedza-asystenta.md`** z pytaniami i odpowiedziami zespołu (niżej).
+- Przed każdą odpowiedzią zagląda do **bazy wiedzy** – pytań i odpowiedzi, które zespół dodaje komendą `/wiedza dodaj` (niżej).
 - Pomaga z launcherem, Hammer Client i Hammer+ (instalacja, SmartScreen, logi, FPS, kody…), podaje aktualną wersję
   launchera i cennik Hammer+ z panelu admina.
 - **Nagrody z giveawayów:** sprawdza, czy autor ticketu naprawdę wygrał. **Hammer+** wydaje od razu (kod na nick
@@ -489,25 +489,40 @@ odpowiada w tym tickecie dalej (chyba że w międzyczasie odpisał ktoś z zespo
 w kilka sekund, bot po prostu odczekuje. `/asystent status` pokazuje każdy model (✅ działa / ⏸️ limit do … / ❌ niedostępny)
 i ile dziś zapytań oraz tokenów zużył.
 
-<a id="baza-wiedzy-asystenta"></a>**Baza wiedzy asystenta – plik `wiedza-asystenta.md`** (w folderze bota, obok `config.json`). Wpisz tu pytania, które ludzie
-często zadają, i odpowiedzi zespołu. Przed każdą odpowiedzią (także tą na formularz) asystent szuka tu pytań podobnych do
-pytania w tickecie – bez względu na polskie znaki („jak pobrac” znajdzie „Jak pobrać…”) i odmianę słów – i jeśli któreś
-pasuje, przekazuje odpowiedź zespołu własnymi słowami, dopasowaną do rozmowy. Format: pytanie jako punkt `- `, pod nim
-odpowiedź jako punkt wcięty **tabulatorem** (albo dwiema spacjami):
-```
-- Jak zmienić wersję Minecrafta?
-	- W launcherze: Instancje → kliknij instancję → Edytuj → Wersja Minecrafta.
+<a id="baza-wiedzy-asystenta"></a>**Baza wiedzy asystenta – komenda `/wiedza`.** Pytania, które ludzie często zadają, i odpowiedzi
+zespołu dodajesz prosto na Discordzie – bez szukania i edytowania plików:
+- **`/wiedza dodaj`** otwiera okienko: **Pytanie** (można wpisać kilka sposobów zapytania – każdy w osobnej linii, np.
+  „Jak pobrać launcher?” i „Skąd ściągnąć Hammer Launcher?”) i **Odpowiedź** (do 1500 znaków; krótko, z prawdziwymi
+  nazwami z launchera). Działa od razu, bez ponownego uruchamiania. Bot potwierdza numer wpisu i zapisuje zmianę w
+  #📋 logi-serwera (bez pingów).
+- **`/wiedza lista`** – wszystkie wpisy z numerami (strony przyciskami) i ile razy asystent dostał każdy z nich do odpowiedzi.
+- **`/wiedza edytuj numer:`** – to samo okienko z obecną treścią; **`/wiedza usun numer:`** – usuwa (po potwierdzeniu).
+- **`/wiedza test pytanie:`** – pokazuje, które wpisy asystent weźmie przy takim pytaniu: 🟢 **pasuje** (odpowie na
+  jego podstawie), 🟡 **słabo** (dostanie go, ale sam oceni, czy pasuje), 🔴 **nie pasuje** (z brakującymi słowami –
+  dopisz takie pytanie jako kolejną wersję we wpisie). Mówi też, gdy asystent jest wyłączony albo nie ma klucza.
 
+Komenda jest tylko na serwerze Hammer Launcher i tylko dla zespołu. Wpisy są w danych bota (`data/db.json`), więc są
+w automatycznych kopiach zapasowych i żadna aktualizacja ich nie nadpisze. Limit: 300 wpisów, do 10 wersji pytania
+w jednym wpisie.
+
+Asystent szuka pytań podobnych do tego w tickecie – bez względu na polskie znaki („jak pobrac” znajdzie „Jak pobrać…”),
+odmianę słów, jedną literówkę w dłuższym słowie („launher”) i kilka synonimów („ściągnąć” = „pobrać”). Słowa, które
+są prawie w każdym tickecie („launcher”, „gra”, „działa”, „zmienić”…), same nie wystarczą, żeby wpis pasował – dzięki
+temu pytanie o zmianę nicku nie dostanie odpowiedzi o zmianie wersji. Gdy wpis wyraźnie pasuje, asystent odpowiada na
+jego podstawie (własnymi słowami, nigdy wbrew niemu). Do darmowego modelu idą najwyżej 3 najlepiej pasujące wpisy
+(ok. 1200 znaków). `/asystent status` pokazuje, ile wpisów jest z komendy, a ile z pliku.
+
+**Plik `wiedza-asystenta.md` (nieobowiązkowy).** Wpisy z pliku w folderze bota (obok `config.json`) też działają –
+asystent przeszukuje oba źródła, a `/wiedza lista` pokazuje je z dopiskiem „z pliku” (zmieniasz je w pliku). Bot tworzy
+pusty plik przy pierwszym starcie; nie ma go w paczce bota, więc aktualizacja go nie nadpisze. Format: pytanie jako punkt
+`- `, pod nim odpowiedź jako punkt wcięty **tabulatorem** (albo dwiema spacjami):
+```
 - Jak pobrać launcher?
 - Skąd pobrać launcher?
 	- Tylko z hammerclient.com – zaloguj się przez Discorda, a pobieranie ruszy samo.
-	  Nie uruchamiaj „launchera”, który ktoś wysłał Ci prywatnie.
 ```
-Kilka pytań jedno pod drugim ma wspólną odpowiedź; odpowiedź może mieć kilka linii (każda z wcięciem). Linie zaczynające
-się od `#` i komentarze `<!-- … -->` są pomijane. Zmiany działają od razu – bot sam wczytuje plik, gdy się zmieni, bez
-ponownego uruchamiania. `/asystent status` pokazuje, ile pytań ma plik, kiedy go wczytał i czy jakieś pytanie nie ma
-odpowiedzi (zwykle brak wcięcia). Do darmowego modelu idą najwyżej 3 najlepiej pasujące wpisy (ok. 1200 znaków).
-**Plik tworzy sam bot** przy pierwszym starcie (pusty, z opisem formatu na górze) – nie ma go w paczce bota, więc wgranie nowej wersji nigdy nie nadpisze Twoich pytań i odpowiedzi.
+Linie zaczynające się od `#` i komentarze `<!-- … -->` są pomijane; zmiany działają od razu. Jeśli edytor na hostingu
+psuje wcięcia (`/asystent status` pokaże wtedy pytania bez odpowiedzi), dodaj te wpisy przez `/wiedza dodaj`.
 
 **Uczciwie o prywatności:** na darmowych planach dostawca AI może wykorzystywać rozmowy do ulepszania swoich modeli.
 Dlatego w ticketach nikt nie prosi o hasła ani dane karty – zespół tego nie robi i asystent też nie.
@@ -593,6 +608,7 @@ Trzymaj rolę integracji bota na samej górze w Ustawieniach serwera → Role �
 | `/hammerplus nadaj / sprawdz / lista / klucz` | Kody Hammer+ do Hammer Launchera, przypisane do konta Minecraft (`nadaj nick: dni:`, `dni:0` = na zawsze, opcjonalnie `osoba:` – dostanie rangę 💎 Hammer+) i klucz publiczny dla launchera | Admini, sprzedawcy |
 | `/polecane dodaj / usun / lista` | Polecane serwery w Hammer Launcherze | Admini, sprzedawcy |
 | `/asystent wlacz / wylacz` · `/asystent status` · `/asystent ticket stan:` | Asystent AI w ticketach (serwer Hammer Launcher): włączenie i wyłączenie na całym serwerze (admini), status – dostawca, model, przerwa (zespół), włączenie i wyłączenie w jednym tickecie (zespół) | Admini, zespół |
+| `/wiedza dodaj` · `/wiedza lista` · `/wiedza edytuj numer:` · `/wiedza usun numer:` · `/wiedza test pytanie:` | Baza wiedzy asystenta AI (serwer Hammer Launcher): pytania i odpowiedzi zespołu, z których asystent korzysta w ticketach – dodawanie, lista, poprawki, usuwanie i sprawdzenie, które wpisy pasują do pytania | Zespół |
 | `/launcher` | Karta Hammer Launchera: co to jest, aktualna wersja z opisem zmian i przyciski *Pobierz launcher* / *Hammer+* | Wszyscy |
 | `/klient profil / notatka dodaj / notatka usun` | Profile klientów i prywatne notatki zespołu | Zespół |
 | `/zablokuj` · `/odblokuj` | Blokada serwera podczas raidu i jej zdjęcie | Moderatorzy+ |
@@ -822,7 +838,7 @@ test/                        testy z symulowanym serwerem Discord (npm test)
 ```bash
 npm test
 ```
-619 testów działa na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
+633 testy działają na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
 znaków na kartę, miejsca na emotki, uprawnienia, reguły AutoMod, tryb społeczności): pełna budowa, wyczyść i zbuduj,
 każde uprawnienie, ścieżka sklep → ticket → zamówienie → opinia, warianty, licznik sztuk, promocje błyskawiczne, odznaki, Zapłać,
 DM-y o statusie zamówienia, Moje zamówienia, przypomnienia dla zespołu, karty płatności, linki do płatności Stripe i PayPal,
