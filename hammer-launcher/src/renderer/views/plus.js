@@ -380,7 +380,7 @@
             h('div.eyebrow', 'Hammer+'),
             h('h1', headline),
             h(`p${!on && st.reason !== 'none' ? '.warn' : ''}`, lead),
-            on ? h('div.chips', HS.chip(`Aktywny ${until(st)}`, 'gold', 'check'), HS.chip(st.account.name, null, 'user')) : null,
+            on ? h('div.chips', HS.chip(`Aktywny ${until(st)}`, 'gold', 'check'), HS.raw(HS.chip(st.account.name, null, 'user'))) : null,
           ),
           h('div.plus-acts', on ? buy : (buyPlus ?? buy), on ? null : h('button.btn', { type: 'button', onclick: () => input.focus() }, icon('key'), 'Mam kod')),
         ),

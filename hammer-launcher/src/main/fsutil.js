@@ -92,6 +92,22 @@ function stamp(date = new Date()) {
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}_${p(date.getHours())}-${p(date.getMinutes())}`;
 }
 
+/**
+ * A rename that tries again a few times when Windows says a file is busy – an antivirus or the search indexer
+ * often holds a file for a moment right after it was read or written (a folder cannot be renamed while a file
+ * in it is open). Used wherever something just made is put in its place: a backup, an unpacked world, a download.
+ */
+async function move(from, to, tries = 4) {
+  for (let n = 1; ; n += 1) {
+    try {
+      return await fsp.rename(from, to);
+    } catch (err) {
+      if (n >= tries || !['EPERM', 'EBUSY', 'EACCES'].includes(err?.code)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 150 * n));
+    }
+  }
+}
+
 const REASONS = {
   ENOSPC: 'na dysku zabrakło miejsca',
   EACCES: 'brak uprawnień do plików',
@@ -122,4 +138,4 @@ function fileReason(err) {
   return REASONS[code] ?? (code.startsWith('Z_') ? 'archiwum jest uszkodzone' : String(err?.message ?? err));
 }
 
-module.exports = { walk, dirSize, mapLimit, isPlainName, cleanFolderName, freeName, stamp, explained, fileReason };
+module.exports = { walk, dirSize, mapLimit, isPlainName, cleanFolderName, freeName, stamp, move, explained, fileReason };

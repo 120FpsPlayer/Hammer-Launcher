@@ -167,7 +167,7 @@
       };
       return h(
         'section.card.skin-card',
-        h('div.card-head', icon('shirt'), h('h2.grow', 'Twoja skórka'), HS.chip(data.account.name, 'accent', 'user')),
+        h('div.card-head', icon('shirt'), h('h2.grow', 'Twoja skórka'), HS.raw(HS.chip(data.account.name, 'accent', 'user'))),
         src
           ? h('div.skin-stage', HS.skinView(src, { slim, height: 272, look: lookFor('front') }), HS.skinView(src, { slim, back: true, height: 272, cape: worn()?.src ?? null, capeFrames: worn()?.frames ?? 1, capeFps: worn()?.fps ?? 10, look: lookFor('back') }))
           : h('div.skin-stage.none', icon('user'), h('p', 'Masz domyślną skórkę Minecrafta.')),

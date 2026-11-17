@@ -315,7 +315,7 @@ for (const file of fs.readdirSync(path.join(OUT, 'assets'))) {
   if (/^img-[0-9a-f]{10}\./.test(file) && !html.includes(`/assets/${file}`)) fs.unlinkSync(path.join(OUT, 'assets', file)); // replaced by the HammerShop pictures
 }
 
-// 11. Hammer Launcher has its own page (/launcher, web/public/launcher.html) – a link to it in the navigation.
+// 11. Hammer Launcher has its own pages (/launcher, web/pages/ – src/web/pages.js) – a link to them in the navigation.
 const NAV_HOW = /\(0,(\w+)\.jsx\)\("a",\{href:"#how",onClick:\(\)=>\w+\(!1\),children:"[^"]+"\}\),/;
 if (!NAV_HOW.test(html)) console.warn('Could not find the navigation to add the Launcher link – was the design exported again with changes?');
 html = html.replace(NAV_HOW, (link, jsx) => `${link}(0,${jsx}.jsx)("a",{href:"/launcher",children:"Launcher"}),`);

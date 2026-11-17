@@ -16,6 +16,7 @@
       ...state.instances.map((i) => ({
         node: tile(i, 26),
         label: i.name,
+        raw: true, // a name the player typed – never translated
         hint: `${i.mcVersion}${i.loader !== 'vanilla' ? ` ${LOADERS[i.loader]?.name}` : ''}`,
         on: i.id === state.instance?.id,
         onClick: () => state.selectInstance(i.id),
@@ -60,7 +61,7 @@
         playArea,
         h(
           'div.play-bar',
-          h('button.instance-pick', { onclick: (e) => pickInstance(e.currentTarget), title: 'Zmień instancję' }, i ? tile(i, 40) : null, h('div', h('b', i?.name ?? 'Brak instancji'), h('small', instanceLine(i))), icon('chevron-down')),
+          h('button.instance-pick', { onclick: (e) => pickInstance(e.currentTarget), title: 'Zmień instancję' }, i ? tile(i, 40) : null, h('div', i ? HS.raw(h('b', i.name)) : h('b', 'Brak instancji'), h('small', instanceLine(i))), icon('chevron-down')),
           btn,
         ),
       );
@@ -204,7 +205,7 @@
           icon('arrow-up'),
           h('b.grow.ellipsis', many ? `Aktualizacje modów: ${u.total} w ${u.instances.length} instancjach` : `Aktualizacje modów: ${first.count} w „${first.name}”`),
           many
-            ? u.instances.slice(0, 3).map((x) => h('button.chip.accent', { type: 'button', title: `Zobacz aktualizacje w „${x.name}”`, onclick: () => HS.openUpdates(x.id) }, h('span.ellipsis', `${x.count} · ${x.name}`)))
+            ? u.instances.slice(0, 3).map((x) => h('button.chip.accent', { type: 'button', title: `Zobacz aktualizacje w „${x.name}”`, onclick: () => HS.openUpdates(x.id) }, HS.raw(h('span.ellipsis', `${x.count} · ${x.name}`))))
             : h('button.btn.sm', { type: 'button', onclick: () => HS.openUpdates(first.id) }, 'Zobacz listę', icon('chevron-right')),
         ),
       );

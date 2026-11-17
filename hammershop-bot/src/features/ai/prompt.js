@@ -7,7 +7,7 @@
  * may be in here; that goes into the conversation, see aiassistant.js → contextMessage). Short and plain, because the
  * free providers (Groq) run smaller models and count tokens per minute: numbered rules, one fact per line.
  *
- * Facts come from the launcher page (web/public/launcher.html), the server's cards (src/builder/content.launcher.js)
+ * Facts come from the launcher's pages of the website (web/pages/), the server's cards (src/builder/content.launcher.js)
  * and the ticket snippets in config.launcher.json. Prices and the current version are NOT written here – they change
  * in the admin panel, so the assistant asks the info_launchera tool for them.
  */

@@ -6,7 +6,24 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const AdmZip = require('adm-zip');
 
-const tmpDir = (name = 'hs') => fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
+// Every folder a test asks for is removed again when its test file ends: one run of the suite used to leave more
+// than a hundred megabytes in the system's temp folder, every time. (HS_KEEP_TMP=1 keeps them, to look inside.)
+const made = [];
+const tmpDir = (name = 'hs') => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
+  made.push(dir);
+  return dir;
+};
+process.on('exit', () => {
+  if (process.env.HS_KEEP_TMP) return;
+  for (const dir of made) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // (held by something – the system's own clean-up takes it)
+    }
+  }
+});
 const sha1 = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
 
 /** fetch stand-in: routes = [{ match: RegExp | (url, init) => bool, json?, body?, status?, once? }]. */

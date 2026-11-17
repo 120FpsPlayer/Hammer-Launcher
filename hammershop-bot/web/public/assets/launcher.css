@@ -23,7 +23,7 @@
   --logo: url(/assets/launcher/logo-mark.png); /* the mark (the voxel hammer, transparent): header, badge, the 3D blocks, footer */
   --logo-big: url(/assets/launcher/logo-mark-big.webp); /* the big mark of the last section */
   --logo-app: url(/assets/launcher/logo-app.png); /* the app icon (the hammer on a rounded tile) */
-  --logo-partner: url(/assets/launcher/logo-hammershop.png); /* HammerShop's mark (the partner): its gold H, transparent – no tile behind it */
+  --logo-partner: url(/assets/launcher/logo-hammershop.png); /* HammerShop's mark (the co-creator): its gold H, transparent – no tile behind it */
 
   --bg: #0b0806; --bg-2: #100b08; --surface: #16100c; --surface-2: #1c1510; --surface-3: #251b14; --card: #16100c; --card-2: #1c1510;
   --line: rgba(255, 196, 140, .09); --line-2: rgba(255, 196, 140, .17); --line-3: rgba(255, 196, 140, .3);
@@ -86,7 +86,7 @@ a:hover { color: var(--gold); }
 .who:has(> span) { padding: 3px 12px 3px 3px; border-radius: 999px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .03); color: var(--text); }
 .who:has(> span):not(:has(> img)) { padding-left: 12px; }
 .who img { width: 28px; height: 28px; }
-.who > span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who > span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* (a long Discord name must not push the menu into the logo) */
 #login, #ref-login { gap: 8px; }
 #login::before, #ref-login::before {
   content: ""; width: 18px; height: 18px; flex: none; background: currentColor;
@@ -461,11 +461,13 @@ a:hover { color: var(--gold); }
 .codes-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 12px; }
 .section .codes-head h2 { font-size: 16.5px; font-weight: 800; letter-spacing: -0.02em; }
 .codes-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.codes-grid .code-card { min-width: 0; grid-template-columns: minmax(0, 1fr); }
-.codes-grid .code-card .row { flex-wrap: nowrap; }
-.codes-grid .code-card .row b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.codes-grid .code-card .row .btn { margin-left: auto; }
-.codes-grid .code { padding: 9px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.codes-grid .code-card { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.codes-grid .code-card > * { grid-column: 1 / -1; }
+.codes-grid .code-card > .row:first-child { display: contents; } /* the account and its date above, the code and its button below */
+.codes-grid .code-card > .row:first-child b { grid-column: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.codes-grid .code-card > .row:first-child .pill { grid-column: 2; justify-self: end; }
+.codes-grid .code-card > .row:first-child .btn { grid-column: 2; grid-row: 2; }
+.codes-grid .code-card > .code { grid-column: 1; grid-row: 2; padding: 7px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #my-codes-more { margin-top: 12px; }
 /* How buying works, in three short steps */
 .plus-how { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
@@ -626,7 +628,7 @@ a:hover { color: var(--gold); }
 .lost-links a { text-decoration: none; }
 
 /* Footer */
-main > :last-child:not(.final) { margin-bottom: var(--section); } /* a page that ends with the band runs straight into the footer */
+main > :last-child:not(.final, dialog) { margin-bottom: var(--section); } /* a page that ends with the band runs straight into the footer */
 footer.foot { margin-top: 0; padding: 34px 0 22px; border-top: 1px solid var(--line); background: linear-gradient(180deg, #0d0907, #0a0705); color: var(--muted); font-size: 13.5px; }
 footer.foot .foot-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(3, minmax(0, 1fr)); gap: 22px 32px; align-items: start; }
 .foot-brand p { margin-top: 10px; max-width: 25rem; line-height: 1.6; }

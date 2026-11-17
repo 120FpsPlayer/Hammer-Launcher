@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const zlib = require('node:zlib');
 const { pipeline } = require('node:stream/promises');
+const { move } = require('./fsutil');
 
 const U32 = 0xffffffff;
 const SIG = { local: 0x04034b50, descriptor: 0x08074b50, central: 0x02014b50, end: 0x06054b50, end64: 0x06064b50, locator64: 0x07064b50 };
@@ -193,7 +194,7 @@ async function createZip(dest, files, { onProgress, zip64 = false } = {}) {
     tail.push(end);
     await write(Buffer.concat(tail));
     await handle.close();
-    await fsp.rename(tmp, dest);
+    await move(tmp, dest); // (tried again when Windows is still looking at the archive just written)
     return { files: entries.length, size: read, bytes: offset };
   } catch (err) {
     await handle.close().catch(() => null);

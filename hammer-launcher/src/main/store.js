@@ -49,4 +49,4 @@ function writeJson(file, data) {
   return data;
 }
 
-module.exports = { readJson, writeJson };
+module.exports = { readJson, writeJson, replaceFile: replace };

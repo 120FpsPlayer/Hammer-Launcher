@@ -17,9 +17,10 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const worldSaves = require('./worlds');
-const { walk, freeName, isPlainName, explained } = require('./fsutil');
+const { walk, freeName, isPlainName, move, explained } = require('./fsutil');
 const { compareVersions } = require('./hammerclient');
 const { mergeOptions } = require('./optimizer');
+const { replaceFile } = require('./store');
 
 const OPTIONS = 'options.txt';
 const OPTIONS_BACKUP = 'options.txt.przed-importem';
@@ -111,7 +112,7 @@ async function copyWorld(instance, officialDir, folder, { onProgress } = {}) {
         onProgress?.({ done: Math.min(done, total), total });
       }
       const name = freeName(saves, folder);
-      await fsp.rename(tmp, path.join(saves, name));
+      await move(tmp, path.join(saves, name)); // (tried again when Windows is still looking at the files just copied)
       return { source: folder, folder: name, files: files.length, size: total };
     } catch (err) {
       await fsp.rm(tmp, { recursive: true, force: true }).catch(() => null);
@@ -186,7 +187,7 @@ function importOptions(instance, officialDir) {
       backup = OPTIONS_BACKUP;
     }
     fs.writeFileSync(tmp, merged);
-    fs.renameSync(tmp, file);
+    replaceFile(tmp, file); // (tried again a few times when Windows says the file is busy for a moment)
   } catch (err) {
     fs.rmSync(tmp, { force: true });
     throw new Error(`Nie udało się przenieść ustawień (${err.code ?? err.message}). Ustawienia instancji zostały bez zmian.`, { cause: err });

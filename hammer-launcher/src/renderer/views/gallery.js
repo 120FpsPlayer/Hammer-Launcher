@@ -138,6 +138,7 @@
     );
     document.body.append(box);
     document.addEventListener('keydown', onKey);
+    document.activeElement?.blur?.(); // (the thumbnail behind would keep the keyboard – Enter would open a second viewer on top)
     show(start);
   }
 

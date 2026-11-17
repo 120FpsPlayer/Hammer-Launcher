@@ -472,7 +472,7 @@ function plusDm(guild, order, code, record, roleState = null) {
   const invite = roleState === 'not-member' ? inviteOf() : null;
   if (roleState === 'added' || roleState === 'kept') c.addTextDisplayComponents(text(`${e(guild, 'check')} Masz też rangę **💎 Hammer+** na naszym serwerze Discord – będzie Twoja, dopóki działa Hammer+.`));
   else if (invite) c.addTextDisplayComponents(text(`**💎 Ranga Hammer+:** dołącz do naszego serwera Discord – zaraz po wejściu dostaniesz ją automatycznie.`));
-  const buttons = [invite && linkBtn(invite, 'Dołącz do serwera', ce(guild, 'group')), plusPage() && linkBtn(plusPage(), 'Strona launchera', ce(guild, 'cart'))].filter(Boolean);
+  const buttons = [invite && linkBtn(invite, 'Dołącz do serwera', ce(guild, 'group')), plusPage() && linkBtn(require('./launcherinfo').page('hammer-plus'), 'Strona launchera', ce(guild, 'cart'))].filter(Boolean); // the Hammer+ page: „Twoje kody” are there
   if (buttons.length) c.addActionRowComponents(row(...buttons));
   return v2(c);
 }

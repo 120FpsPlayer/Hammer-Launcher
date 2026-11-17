@@ -9,6 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { download, sha1File } = require('../src/main/net');
@@ -22,6 +23,7 @@ const { createServices } = require('../src/main/services');
 const worlds = require('../src/main/worlds');
 const versions = require('../src/main/versions');
 const serverList = require('../src/main/servers');
+const officialGame = require('../src/main/official');
 const { writeNbt, tag } = require('../src/main/nbt');
 const { tmpDir, fabricJar, mrVersion, sha1 } = require('./helpers');
 
@@ -303,6 +305,19 @@ test('accounts: a stored sign-in that cannot be decrypted any more asks for a ne
   await assert.rejects(locked.login(), /Okno logowania zostało zamknięte/);
 });
 
+test('accounts: an accounts.json that is JSON but not a list of accounts means "nobody signed in" – the launcher still starts', () => {
+  for (const text of ['{}', 'null', '[]', '{"accounts":null}', '{"accounts":{"a":1}}', '{"accounts":[null,5,{"name":"bez id"},{"id":"uuid-1","name":"Gracz"}]}']) {
+    const root = tmpDir();
+    fs.writeFileSync(path.join(root, 'accounts.json'), text);
+    const accounts = createAccounts({ file: path.join(root, 'accounts.json'), crypt: createCrypt({ keyFile: 'k', readKey: () => null, writeKey: () => {} }), AuthClass: class {} });
+    assert.deepEqual(accounts.list().map((a) => a.id), text.includes('uuid-1') ? ['uuid-1'] : [], text);
+    // Everything the launcher builds at its start asks for the accounts (Hammer+ of the selected one).
+    const services = createServices({ root, config: {}, accounts });
+    assert.equal(services.plus.status().active, false, text);
+    assert.equal(accounts.remove('nie-ma'), true);
+  }
+});
+
 /* ── worlds ── */
 
 const level = (name) => writeNbt(Object.assign(tag.compound({ Data: tag.compound({ LevelName: tag.string(name), GameType: tag.int(0) }) }), { name: '' }), { gzip: true });
@@ -345,6 +360,42 @@ test('worlds: what a backup that was cut off left behind (…zip.part) is remove
   assert.equal(made.file, 'Nasz świat-2026-11-12_18-05.zip');
   assert.ok(seen.length && seen.every((parts) => parts.includes('Nasz świat-2026-11-12_18-05.zip.part')), 'the backup being packed keeps its own .part file');
   assert.deepEqual(fs.readdirSync(backups).sort(), ['Folder-2026-11-10_18-05.zip.part', made.file, ...foreign].sort());
+});
+
+test('a rename Windows refuses for a moment (an antivirus looks at what was just written) is tried again – backup, restore, world name, import, download', async () => {
+  const { instance, backups } = worldSetup();
+  const official = path.join(tmpDir(), '.minecraft');
+  fs.mkdirSync(path.join(official, 'saves', 'Stary świat'), { recursive: true });
+  fs.writeFileSync(path.join(official, 'saves', 'Stary świat', 'level.dat'), level('Stary świat'));
+  const jar = Buffer.from('nowy mod');
+
+  // Every new file or folder is refused once, the way Windows does while another program still has it open.
+  const real = { rename: fsp.rename, renameSync: fs.renameSync };
+  const refused = [];
+  const refuse = (from, to) => {
+    const name = path.basename(String(from));
+    if (refused.includes(name)) return;
+    refused.push(name);
+    throw Object.assign(new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`), { code: 'EPERM' });
+  };
+  fsp.rename = async (from, to) => (refuse(from, to), real.rename(from, to));
+  fs.renameSync = (from, to) => (refuse(from, to), real.renameSync(from, to));
+  try {
+    const backup = await worlds.backup(instance, 'Nasz świat', { now: new Date(2026, 10, 12, 18, 5) });
+    assert.deepEqual(fs.readdirSync(backups), ['Nasz świat-2026-11-12_18-05.zip'], 'the archive got its name – it was not thrown away');
+    assert.deepEqual(await worlds.restoreBackup(instance, backup.file), { folder: 'Nasz świat (2)' });
+    assert.equal((await worlds.rename(instance, 'Nasz świat', 'Baza na wyspie')).name, 'Baza na wyspie');
+    assert.equal((await officialGame.copyWorld(instance, official, 'Stary świat')).folder, 'Stary świat');
+    const got = await download('https://cdn.modrinth.com/data/x/nowy-mod.jar', path.join(instance.dir, 'mods', 'nowy-mod.jar'), { fetchFn: async () => new Response(jar), sha1: sha1(jar) });
+    assert.equal(got.bytes, jar.length);
+  } finally {
+    fsp.rename = real.rename;
+    fs.renameSync = real.renameSync;
+  }
+  assert.equal(refused.length, 5, refused.join(', '));
+  assert.deepEqual(fs.readdirSync(path.join(instance.dir, 'saves')).sort(), ['Nasz świat', 'Nasz świat (2)', 'Stary świat'], 'everything arrived, nothing half-made is left');
+  assert.deepEqual(fs.readdirSync(path.join(instance.dir, 'saves', 'Nasz świat')).sort(), ['level.dat', 'region']);
+  assert.deepEqual(fs.readdirSync(path.join(instance.dir, 'mods')), ['nowy-mod.jar']);
 });
 
 /* ── the server list ── */
@@ -399,7 +450,7 @@ test('services: the game closes while instance.json cannot be written (a full di
 
 /* ── small JSON files ── */
 
-test('store: a rename Windows refuses for a moment is tried again; a write that fails leaves no temp file', () => {
+test('small files (settings, instance.json, servers.dat, options.txt): a rename Windows refuses for a moment is tried again; a write that fails leaves no temp file', () => {
   const dir = tmpDir();
   const file = path.join(dir, 'settings.json');
   writeJson(file, { accent: 'orange' });
@@ -414,14 +465,30 @@ test('store: a rename Windows refuses for a moment is tried again; a write that 
   assert.deepEqual(readJson(file, null), { accent: 'gold' });
   assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
 
+  // The same for the two files of the game the launcher rewrites: the server list and options.txt.
+  const instance = { id: 'hammer', dir: path.join(dir, 'hammer') };
+  const official = path.join(dir, '.minecraft');
+  fs.mkdirSync(official);
+  fs.writeFileSync(path.join(official, 'options.txt'), 'version:3955\nfov:0.5\n');
+  refused = 0;
+  withRename(
+    (to) => (/servers\.dat$|options\.txt$/.test(to) && refused++ % 2 === 0 ? 'EBUSY' : null),
+    () => {
+      assert.deepEqual(serverList.add(instance, { name: 'HammerShop', address: 'mc.hammershop.pl' }).map((s) => s.address), ['mc.hammershop.pl']);
+      assert.equal(officialGame.importOptions(instance, official).lines, 3);
+    },
+  );
+  assert.equal(refused, 4);
+  assert.deepEqual(fs.readdirSync(instance.dir).sort(), ['options.txt', 'servers.dat']);
+
   // It never lets go: the error comes out, the file is as it was, nothing is left next to it.
   assert.throws(() => withRename(() => 'EBUSY', () => writeJson(file, { accent: 'red' })), { code: 'EBUSY' });
   assert.deepEqual(readJson(file, null), { accent: 'gold' });
-  assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.startsWith('settings')), ['settings.json']);
 
   // An error that waiting cannot cure is not tried again.
   let tries = 0;
   assert.throws(() => withRename(() => ((tries += 1), 'ENOSPC'), () => writeJson(file, { accent: 'red' })), { code: 'ENOSPC' });
   assert.equal(tries, 1);
-  assert.deepEqual(fs.readdirSync(dir), ['settings.json']);
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.startsWith('settings')), ['settings.json']);
 });

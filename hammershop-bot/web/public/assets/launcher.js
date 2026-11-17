@@ -45,9 +45,8 @@
   var pl = function (n, one, few, many) { return n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many; };
   var dayWord = function (n) { return n === 1 ? 'dzień' : 'dni'; };
 
-  // Where this page sits: '' on Hammer Launcher's own site, '/launcher' on HammerShop's (the server writes it on <html>).
+  // Which page this is ('hammer-plus', 'kontakt' …) – the server writes it on <html>; a sign-in started here comes back here.
   var root = document.documentElement;
-  var BASE = root.getAttribute('data-base') || '';
   var PAGE = root.getAttribute('data-page') || '';
   var params = new URLSearchParams(location.search);
   /** The address without what has been dealt with (?connected=1, ?invited=1 …) – a refresh does not repeat it. */

@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { move } = require('./fsutil');
 
 const USER_AGENT = 'Hammer-Launcher/1.0 (hammershop.pl)';
 
@@ -146,7 +147,9 @@ async function download(url, dest, { sha1, fetchFn = fetch, maxBytes = 1024 * 10
     await Promise.race([new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve()))), failed]);
     const got = hash.digest('hex');
     if (sha1 && got !== sha1.toLowerCase()) throw new Error(`Uszkodzony plik (zła suma kontrolna): ${path.basename(dest)}`);
-    fs.renameSync(tmp, dest);
+    // (tried again a few times: an antivirus looks at every new .jar the moment it is written, and Windows refuses
+    // the rename meanwhile – one such moment used to fail the whole download, and with it a whole modpack)
+    await move(tmp, dest);
     return { path: dest, bytes, sha1: got };
   } catch (err) {
     out.destroy();

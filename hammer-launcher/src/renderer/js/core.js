@@ -562,6 +562,9 @@
     overlay = h('div.overlay', { onmousedown: (e) => e.target === overlay && close() }, box);
     root.append(overlay);
     document.addEventListener('keydown', onKey);
+    // The button that opened the window would keep the keyboard: Enter or Space would press it again and put the
+    // same window on top once more.
+    document.activeElement?.blur?.();
     setTimeout(() => box.querySelector('input:not([type=checkbox]):not([type=radio]),select,textarea,.btn.primary')?.focus(), 30);
     return { close, box };
   }

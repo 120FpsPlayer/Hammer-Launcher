@@ -44,7 +44,8 @@
 
     const drawGo = () => clear(go, icon(choice ? 'plus' : pack ? 'download' : 'cube'), choice ? 'Dodaj serwer' : pack ? 'Zainstaluj paczkę i dodaj serwer' : 'Utwórz instancję i dodaj serwer');
 
-    function option(value, pic, name, detail) {
+    /** `typed`: the name is the player's own (an instance) – the English version leaves it alone. */
+    function option(value, pic, name, detail, typed = false) {
       const radio = h('input', {
         type: 'radio',
         name: 'invite-target',
@@ -54,7 +55,7 @@
           drawGo();
         },
       });
-      return h('label.clean-row.pick-row', radio, pic, h('div.grow', h('b.ellipsis', name), h('small.ellipsis', detail)));
+      return h('label.clean-row.pick-row', radio, pic, h('div.grow', typed ? HS.raw(h('b.ellipsis', name)) : h('b.ellipsis', name), h('small.ellipsis', detail)));
     }
 
     function draw() {
@@ -78,7 +79,7 @@
           h('span', 'Do której instancji dodać ten serwer?'),
           h(
             'div.pick-list',
-            fits.map((f) => option(f.id, HS.tile(f, 40), f.name, [gameLine(f.mcVersion, f.loader === 'vanilla' ? null : f.loader), f.hasPack ? 'z tą paczką modów' : null, f.hasServer ? 'ma już ten serwer' : null].filter(Boolean).join(' · '))),
+            fits.map((f) => option(f.id, HS.tile(f, 40), f.name, [gameLine(f.mcVersion, f.loader === 'vanilla' ? null : f.loader), f.hasPack ? 'z tą paczką modów' : null, f.hasServer ? 'ma już ten serwer' : null].filter(Boolean).join(' · '), true)),
             option('', h('div.pic', icon('plus')), 'Utwórz nową instancję', [gameLine(create.mc, create.loader), pack ? `launcher pobierze paczkę „${pack.title}” z Modrinth` : null].filter(Boolean).join(' · ')),
           ),
           !fits.length && asks ? h('div.hint', `Żadna z Twoich instancji nie ma: ${asks} – launcher przygotuje nową.`) : null,

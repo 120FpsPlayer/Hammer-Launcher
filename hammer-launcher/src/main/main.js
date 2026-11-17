@@ -419,7 +419,7 @@ if (!app.requestSingleInstanceLock()) {
     handle('settings:set', (patch) => {
       const saved = s().settings.set(patch);
       if (patch && 'startWithSystem' in patch) applyLoginItem();
-      if (patch && 'closeToTray' in patch) syncTray();
+      if (patch && ('closeToTray' in patch || 'language' in patch)) syncTray(); // (the tray menu follows the language at once)
       return saved;
     });
     handle('system:info', () => s().system());

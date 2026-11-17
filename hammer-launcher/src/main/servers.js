@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { readNbt, writeNbt, tag, get, text, number } = require('./nbt');
 const { parseAddress } = require('./launch');
+const { replaceFile } = require('./store');
 
 const FILE = 'servers.dat';
 const MAX_NAME = 48;
@@ -65,7 +66,7 @@ function save(instance, { root, list }, shown) {
     } catch {
       // the backup copy is a courtesy – the list is still saved
     }
-    fs.renameSync(tmp, file);
+    replaceFile(tmp, file); // (tried again a few times when Windows says the file is busy for a moment)
   } catch (err) {
     fs.rmSync(tmp, { force: true });
     // Only a locked or read-only file is about another program – anything else is our fault, so say it plainly.

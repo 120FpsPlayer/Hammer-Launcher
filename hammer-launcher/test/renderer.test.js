@@ -24,6 +24,7 @@ try {
   // Playwright is a development tool – a machine without it still runs every other test
 }
 const skip = available ? false : 'Chromium (Playwright) is not installed here – npx playwright install chromium';
+const DICTIONARY = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'i18n', 'en.json'), 'utf8'));
 const COSMETICS = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'assets', 'cosmetics', 'cosmetics.json'), 'utf8'));
 
 let browser = null;
@@ -33,9 +34,9 @@ const ui = (name, walk) => walks.push([name, walk]);
 /**
  * Opens the launcher's window on the fake launcher and runs `walk({ page, nav, until })` in it. `patch(arg)` (one
  * function or a list of them) runs inside the page right after the fake launcher is set up – it may replace its
- * answers. An error in the page's console fails the test.
+ * answers. `lang: 'en'` starts the page in English. An error in the page's console fails the test.
  */
-async function withLauncher({ patch = null, arg = null, width = 1240, height = 780 } = {}, walk) {
+async function withLauncher({ patch = null, arg = null, width = 1240, height = 780, lang = 'pl' } = {}, walk) {
   const page = await browser.newPage({ viewport: { width, height } });
   page.setDefaultTimeout(10000); // (a step that never comes fails the test soon, not after Playwright's half minute)
   const errors = [];
@@ -44,6 +45,7 @@ async function withLauncher({ patch = null, arg = null, width = 1240, height = 7
   try {
     await page.addInitScript((list) => (window.__cosmetics = list), COSMETICS);
     await page.addInitScript(mock);
+    if (lang === 'en') await page.addInitScript((dict) => (window.hs.i18n = { ...window.hs.i18n, lang: 'en', dict }), DICTIONARY);
     for (const fn of [patch].flat().filter(Boolean)) await page.addInitScript(fn, arg);
     await page.goto(PAGE);
     await page.waitForSelector('#app:not(.booting)');
@@ -406,6 +408,50 @@ ui('a name without spaces wraps in a window and in a message – the close butto
       return Math.round(Math.max(...[...el.querySelectorAll('*')].map((x) => x.getBoundingClientRect().right)) - el.getBoundingClientRect().right);
     });
     assert.ok(toast <= 0, `the message keeps its text inside (${toast}px over)`);
+  });
+});
+
+ui('Enter after a click on „Usuń” does not ask the same question again on top (nor confirm it); the same for the screenshot viewer', async () => {
+  await withLauncher({}, async ({ page, nav, until }) => {
+    await nav('Serwery');
+    await until(() => document.querySelectorAll('.server-row').length > 0 && document.querySelectorAll('.server-row .spinner').length <= 1);
+    const servers = await page.locator('.server-row').count();
+    await page.locator('.server-row .row-acts .danger').first().click(); // the click leaves the keyboard on that button
+    await page.locator('.modal').waitFor();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press(' ');
+    assert.equal(await page.locator('#modal-root .overlay').count(), 1, 'one „Usunąć serwer z listy?”');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.server-row').count(), servers, 'nothing was removed');
+
+    await nav('Galeria');
+    await page.locator('.shot').first().click();
+    await page.locator('.lightbox').waitFor();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('.lightbox').count(), 1, 'one viewer');
+  });
+});
+
+ui('English: a name the player typed stays as typed, also when it is a word of the dictionary („Mody”, „Serwery”)', async () => {
+  const patch = () => {
+    const list = window.hs.instances.list;
+    const read = window.hs.invite.read;
+    const named = (i) => (i.id === 'hammershop' ? { ...i, name: 'Mody' } : i.id === 'survival' ? { ...i, name: 'Serwery' } : i);
+    window.hs.instances.list = async () => (await list()).map(named);
+    window.hs.invite.read = async (input) => {
+      const info = await read(input);
+      return { ...info, fits: info.fits.map(named) };
+    };
+  };
+  await withLauncher({ patch, lang: 'en' }, async ({ page, nav, until }) => {
+    const texts = (selector) => page.evaluate((sel) => (window.HS_I18N.flush(), [...document.querySelectorAll(sel)].map((el) => el.textContent.trim())), selector);
+    assert.equal((await page.locator('.play-btn').innerText()).trim(), 'PLAY', 'the page is in English');
+    assert.deepEqual(await texts('.instance-pick b'), ['Mody']);
+    await page.locator('.instance-pick').click();
+    assert.deepEqual((await texts('.menu button span.ellipsis')).slice(0, 2), ['Mody', 'Serwery']);
+    await page.locator('.tb-drag').click();
+    await page.evaluate(() => HS.inviteUi.fromLink('hammer://join?server=ola.example.pl&name=Serwer%20Oli&mc=1.21.1&loader=fabric'));
+    assert.deepEqual(await texts('.modal .pick-row b'), ['Mody', 'Fabulously Optimized', 'Create a new instance']);
   });
 });
 

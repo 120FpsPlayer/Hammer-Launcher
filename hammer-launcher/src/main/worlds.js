@@ -14,7 +14,7 @@ const { pathToFileURL } = require('node:url');
 const { readNbt, writeNbt, tag, get, text, number } = require('./nbt');
 const { createZip, openZip } = require('./zipstream');
 const { insideDir } = require('./net');
-const { walk, dirSize, mapLimit, isPlainName, cleanFolderName, freeName, stamp, explained } = require('./fsutil');
+const { walk, dirSize, mapLimit, isPlainName, cleanFolderName, freeName, stamp, move, explained } = require('./fsutil');
 const { readJson, writeJson } = require('./store');
 
 const GAME_MODES = ['Przetrwanie', 'Kreatywny', 'Przygoda', 'Widz'];
@@ -130,7 +130,7 @@ async function rename(instance, folder, newName) {
   const tmp = `${file}.${process.pid}.tmp`;
   await explained('Nie udało się zmienić nazwy świata', async () => {
     await fsp.writeFile(tmp, writeNbt(root));
-    await fsp.rename(tmp, file).catch(async (err) => {
+    await move(tmp, file).catch(async (err) => {
       await fsp.rm(tmp, { force: true }).catch(() => null);
       throw err;
     });
@@ -260,7 +260,7 @@ async function unpackWorld(instance, file, source, { onProgress } = {}) {
     staged = out.dir;
     const saves = savesDir(instance);
     const folder = freeName(saves, cleanFolderName(out.wanted, 'Przywrócony świat'));
-    await fsp.rename(staged, path.join(saves, folder));
+    await move(staged, path.join(saves, folder)); // (tried again when Windows is still looking at the files just unpacked)
     staged = null;
     return { folder };
   } finally {
@@ -399,21 +399,6 @@ async function restoreInPlace(instance, folder, file, { onProgress, now = new Da
   } finally {
     if (staged) await fsp.rm(staged, { recursive: true, force: true }).catch(() => null);
     working.delete(id);
-  }
-}
-
-/**
- * A rename that tries again a few times when Windows says a file is busy – an antivirus or the search indexer
- * often holds a file for a moment right after it was read.
- */
-async function move(from, to, tries = 4) {
-  for (let n = 1; ; n += 1) {
-    try {
-      return await fsp.rename(from, to);
-    } catch (err) {
-      if (n >= tries || !['EPERM', 'EBUSY', 'EACCES'].includes(err?.code)) throw err;
-      await new Promise((resolve) => setTimeout(resolve, 150 * n));
-    }
   }
 }
 

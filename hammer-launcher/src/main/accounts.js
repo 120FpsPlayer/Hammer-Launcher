@@ -54,7 +54,10 @@ const activeSkin = (profile) => (profile?.skins ?? []).find((s) => s.state === '
  */
 function createAccounts({ file, crypt, config = {}, AuthClass, windowProperties }) {
   const Auth = AuthClass ?? require('msmc').Auth;
-  let state = readJson(file, { accounts: [] });
+  // (A file that is JSON but not a list of accounts – cut off, edited by hand – counts as "nobody signed in":
+  // without this the launcher would not even start.)
+  const stored = readJson(file, null);
+  let state = { accounts: Array.isArray(stored?.accounts) ? stored.accounts.filter((a) => a && typeof a === 'object' && typeof a.id === 'string') : [] };
   const save = () => writeJson(file, state);
 
   function makeAuth() {
