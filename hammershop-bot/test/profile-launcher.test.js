@@ -148,7 +148,7 @@ test('every card is the launcher\'s: its own banners, download, Hammer+, bug rep
   assert.doesNotMatch(channelText('roles'), /Dostawy|Klient/);
 
   // HammerShop is named only as our co-creator: on its own channel (#hammershop) and in the channel guide's line about it.
-  assert.match(channelText('hammershop'), /HammerShop – współtwórca Hammer Launcher[\s\S]*Pluginy/);
+  assert.match(channelText('hammershop'), /HammerShop – nasz współtwórca[\s\S]*Pluginy/);
   assert.deepEqual(files('hammershop'), ['hammerlauncher-hammershop.png']);
   const partner = channel('hammershop').id;
   const all = [...guild.channels.cache.values()]

@@ -38,7 +38,7 @@ test('#hammershop: the co-creator\'s channel with its banner, what it sells and 
   assert.equal(ch.messageList.length, 2, 'a banner and the card');
   assert.match(ch.messageList[0].body.files[0].name, /hammershop\.png$/);
   const card = text(guild, 'hammershop');
-  assert.match(card, /HammerShop – współtwórca Hammer Launcher/);
+  assert.match(card, /HammerShop – nasz współtwórca/);
   for (const word of ['Pluginy', 'Skrypty', 'Boty Discord', 'Serwery']) assert.match(card, new RegExp(word));
   assert.match(json(guild, 'hammershop'), /"url":"https:\/\/hammershop\.pl"/, 'a button to the partner\'s site');
   assert.doesNotMatch(json(guild, 'hammershop'), /Discord HammerShop/, 'no Discord button until an invite is set in the config');

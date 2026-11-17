@@ -266,7 +266,7 @@ function hammershop(x) {
   const c = container(COLORS.brand);
   c.addTextDisplayComponents(
     text(
-      `# 🤝 ${name} – współtwórca ${x.brand}\n` +
+      `# 🤝 ${name} – nasz współtwórca\n` +
         `**${name}** współtworzy ${x.brand} – razem budujemy launcher, z którego korzystasz. ` +
         'Na co dzień to sklep dla wszystkich, którzy prowadzą własny serwer Minecraft albo Discord.',
     ),
