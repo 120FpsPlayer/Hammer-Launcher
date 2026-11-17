@@ -4,7 +4,7 @@
  * „Zaproś znajomego” on the website – the referral programme, for everybody: a friend downloads Hammer Launcher from
  * your link and buys Hammer+ → you get 7 days of Hammer+ for free (src/features/referrals.js gives them).
  *
- *   GET  /r/<code>                  a personal link: remembers who invited (cookie hs_ref, 30 days) → the launcher page
+ *   GET  /r/<code>                  a personal link: remembers who invited (cookie hs_ref, 30 days) → the start page
  *   GET  /api/shop/referrals        { signedIn, rewardDays, link, stats { invited, downloaded, bought, earned, balance },
  *                                   latest (the newest reward code that still works) }
  *   POST /api/shop/referrals/claim  { nick } – the days kept as a balance become a Hammer+ code for that Minecraft account
@@ -15,6 +15,7 @@
  */
 
 const store = require('./store');
+const pages = require('./pages');
 const plusLib = require('../lib/plus');
 
 const COOKIE = 'hs_ref';
@@ -43,10 +44,10 @@ function onFirstSignIn(user, code, now = Date.now()) {
   return store.addReferral(user.id, referrer, now) ? 'recorded' : 'taken';
 }
 
-/** /r/<code>: the code is remembered for 30 days (a newer link wins) and the visitor lands on the launcher page. */
+/** /r/<code>: the code is remembered for 30 days (a newer link wins) and the visitor lands on the start page (the download). */
 function visit(res, code, h) {
   const known = store.referrerOf(code);
-  return h.redirect(res, known ? '/launcher?invited=1' : '/launcher', known ? [h.cookie(COOKIE, String(code).toLowerCase(), COOKIE_DAYS * 86_400)] : []);
+  return h.redirect(res, known ? `${pages.HOME}?invited=1` : pages.HOME, known ? [h.cookie(COOKIE, String(code).toLowerCase(), COOKIE_DAYS * 86_400)] : []);
 }
 
 /** The reward code a page shows again – signed anew from what it was issued from, never stored. null without a key. */

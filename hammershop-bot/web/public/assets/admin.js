@@ -1,4 +1,4 @@
-/* The admin panel: news, Discord announcements, the alert bar, launcher releases, Hammer+, featured servers, orders – over /api/admin/. */
+/* The admin panel: news, Discord announcements, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages – over /api/admin/. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -827,6 +827,92 @@
     }).catch(function (err) { annError(err.message); oops(err); });
   });
 
+  // ── Wiadomości: what people wrote in the website's contact form – and whether it also goes out by e-mail ──
+  var msg = { unread: 0, total: null, tested: false };
+  function setUnread(n) {
+    msg.unread = n;
+    $('msg-count').textContent = n > 99 ? '99+' : String(n);
+    $('msg-count').hidden = !n;
+  }
+  function mailStatus(r) {
+    var m = r.mail;
+    var failed = m.ready && m.last && m.last.ok === false; // set up, but the newest e-mail did not go out
+    $('msg-mail-pill').className = 'pill ' + (failed ? 'bad' : m.ready ? 'ok' : 'warn');
+    $('msg-mail-pill').textContent = failed ? 'nie działa' : m.ready ? 'włączony' : 'wyłączony';
+    var works = 'Formularz kontaktowy działa i bez e-maila: wiadomości są tutaj i na czacie zespołu na Discordzie. ';
+    $('msg-mail-text').textContent = m.ready
+      ? 'Wiadomości z formularza i powiadomienia o zakupach przychodzą na ' + m.to + (m.from && m.from !== m.to ? ' (wysyła je konto ' + m.from + ')' : '') + '. Serwer poczty: ' + m.host + ', port ' + m.port + '.'
+      : !m.to || !m.from
+        ? works + 'E-maile są wyłączone, bo strona nie ma adresu kontaktowego – wpisz go w pliku config.json („contact” → „email”) i uruchom bota ponownie.'
+        : works + 'Żeby przychodziły też na ' + m.to + ' (razem z powiadomieniami o zakupach): 1. włącz weryfikację dwuetapową na tym koncie Google, 2. na stronie myaccount.google.com/apppasswords utwórz „hasło do aplikacji”, 3. wklej je w pliku .env na serwerze w linii MAIL_PASS=, 4. uruchom bota ponownie i kliknij „Wyślij testowy e-mail”.';
+    $('msg-mail-last').hidden = !failed;
+    $('msg-mail-last').textContent = failed ? 'Ostatni e-mail (' + when(m.last.at) + ') nie wyszedł. ' + m.last.reason : '';
+    $('msg-test').hidden = !r.canTest;
+    if (!msg.tested) $('msg-test-result').hidden = true; // an older test's answer: the line above is the newer truth
+  }
+  function messageItem(m, r) {
+    var reply = 'mailto:' + m.email + '?subject=' + encodeURIComponent('Re: ' + m.topicLabel + ' – ' + ann.brand);
+    var mailNote = m.mail === 'sent' ? 'e-mail wysłany' : m.mail === 'failed' ? 'e-mail nie wyszedł' : m.mail === 'pending' ? 'e-mail w drodze…' : '';
+    var note = [mailNote, m.read && m.readBy ? 'przeczytane: ' + (m.readBy.name || m.readBy.id) : ''].filter(Boolean).join(' · ');
+    return el('div', { class: 'item msg-item' + (m.read ? '' : ' unread') }, [
+      el('div', { class: 'row' }, [
+        m.read ? null : el('span', { class: 'pill gold', text: 'Nowa' }),
+        el('span', { class: 'pill', text: m.topicLabel }),
+        el('span', { class: 'title grow', text: m.name }),
+        el('span', { class: 'muted small nowrap', text: when(m.at) }),
+      ]),
+      el('div', { class: 'msg-from' }, [
+        el('a', { href: reply, text: m.email }),
+        m.user ? ' · Discord: ' + (m.user.name || m.user.username || '—') + (m.user.username ? ' (@' + m.user.username + ')' : '') + ' · ID ' + m.user.id : ' · bez konta Discord',
+      ]),
+      el('div', { class: 'text', text: m.text }),
+      el('div', { class: 'row' }, [
+        el('a', { class: 'btn small primary', href: reply, text: 'Odpowiedz' }),
+        el('button', { class: 'btn small', type: 'button', text: m.read ? 'Oznacz jako nieprzeczytaną' : 'Przeczytane', onclick: function () { api('PUT', 'messages/' + encodeURIComponent(m.id), { read: !m.read }).then(loaders.wiadomosci).catch(oops); } }),
+        r.canDelete ? el('button', { class: 'btn small danger', type: 'button', text: 'Usuń', onclick: function () {
+          confirmBox('Usunąć wiadomość?', 'Wiadomość od „' + m.name + '” zniknie z panelu na dobre.' + (m.mail === 'sent' ? ' Jej kopia zostaje w skrzynce e-mail.' : '')).then(function (yes) { if (yes) api('DELETE', 'messages/' + encodeURIComponent(m.id)).then(function () { toast('Usunięto.'); return loaders.wiadomosci(); }).catch(oops); });
+        } }) : null,
+        note ? el('span', { class: 'muted small right', text: note, title: m.mailError || '' }) : null,
+      ]),
+    ]);
+  }
+  loaders.wiadomosci = function () {
+    return api('GET', 'messages').then(function (r) {
+      msg.total = r.messages.length;
+      setUnread(r.unread);
+      mailStatus(r);
+      var list = $('msg-list');
+      list.textContent = '';
+      r.messages.forEach(function (m) { list.appendChild(messageItem(m, r)); });
+      if (!r.messages.length) list.appendChild(el('p', { class: 'empty', text: 'Nie ma jeszcze żadnej wiadomości. Gdy ktoś napisze przez formularz „Kontakt” na stronie, pojawi się tutaj.' }));
+      $('msg-summary').textContent = r.messages.length ? r.messages.length + (r.messages.length === 1 ? ' wiadomość' : ' wiadomości') + ' · nieprzeczytane: ' + r.unread + ' · w panelu zostaje ostatnich ' + r.max : '';
+      $('msg-read-all').hidden = !r.unread;
+    });
+  };
+  $('msg-read-all').addEventListener('click', function () { api('POST', 'messages/read-all', {}).then(loaders.wiadomosci).catch(oops); });
+  $('msg-test').addEventListener('click', function () {
+    var button = $('msg-test');
+    var box = $('msg-test-result');
+    button.disabled = true;
+    button.textContent = 'Wysyłam…';
+    box.hidden = true;
+    api('POST', 'messages/test', {}).then(function (r) {
+      box.className = 'notice small ' + (r.ok ? 'ok' : 'bad');
+      box.textContent = r.ok ? 'Wysłano. Zajrzyj do skrzynki ' + r.to + ' – wiadomość „Test – e-mail ze strony…” powinna tam być w ciągu minuty (sprawdź też folder Spam).' : 'Nie udało się wysłać. ' + r.reason;
+      box.hidden = false;
+      msg.tested = true;
+      return loaders.wiadomosci().then(function () { if (!r.ok) $('msg-mail-last').hidden = true; }); // (the same cause is right below it)
+    }).catch(oops).then(function () { msg.tested = false; button.disabled = false; button.textContent = 'Wyślij testowy e-mail'; });
+  });
+  /** The number on the tab – also while another tab is open. */
+  function pollUnread() {
+    api('GET', 'messages/count').then(function (r) {
+      var changed = msg.total !== null && (r.total !== msg.total || r.unread !== msg.unread);
+      setUnread(r.unread);
+      if (changed && !$('tab-wiadomosci').hidden) loaders.wiadomosci().catch(function () { /* the next round shows it */ });
+    }).catch(function () { /* signed out or offline: the number just stays */ });
+  }
+
   // ── Start: who is this? ──
   api('GET', 'me').then(function (r) {
     me = r;
@@ -838,6 +924,8 @@
     $('panel').hidden = false;
     var wanted = location.hash.slice(1);
     show(loaders[wanted] ? wanted : 'pulpit');
+    pollUnread();
+    setInterval(pollUnread, 60000);
   }).catch(function (err) {
     $('gate-text').textContent = err.status === 401 ? 'Zaloguj się kontem Discord, które jest właścicielem albo administratorem naszego serwera Discord.' : err.message;
     $('gate-login').hidden = err.status !== 401;

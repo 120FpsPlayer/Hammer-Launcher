@@ -382,10 +382,32 @@ Logujesz się przez Discorda. Dostęp mają tylko: **właściciel** (właścicie
 | **Hammer+** | Wystawianie kodu dla nicku, sprawdzanie kodu, lista wystawionych i **cennik na stronie** – plany (nazwa, dni, cena) sprzedawane przez Stripe *(cennik: tylko właściciel)*. Pusty cennik = sprzedaż wyłączona. Na dole **Zaproś znajomego**: liczba linków, poleconych, pobrań, zakupów i dni w nagrodach oraz kto polecił najwięcej osób |
 | **Polecane serwery** | Lista „Polecane serwery” w launcherze (to samo co `/polecane`) |
 | **Zamówienia** | Ostatnie 100 płatności ze strony ze statusem i linkiem do ticketu |
+| **Wiadomości** | To, co ludzie piszą w formularzu **Kontakt** na stronie – najnowsze na górze, z licznikiem nieprzeczytanych na zakładce: data, imię, temat, e-mail (przycisk **Odpowiedz** otwiera Twoją pocztę z adresem i tematem), konto Discord (jeśli ktoś był zalogowany), cała treść, **Przeczytane** i **Usuń** *(usuwa tylko właściciel)*. Na górze widać, czy e-mail jest włączony i dokąd idzie, a **Wyślij testowy e-mail** *(tylko właściciel)* pokazuje prawdziwy wynik – np. złe hasło albo port zablokowany przez hosting. W panelu zostaje 300 ostatnich wiadomości |
 
 Na Discordzie `/zbuduj` tworzy kanał **#launcher** z kartą launchera i przyciskami *Pobierz launcher* / *Hammer+* (na istniejącym serwerze: `/zbuduj tylko:update`), a `/launcher` pokazuje tę kartę z aktualną wersją każdemu, kto zapyta.
 
 **Uruchomienie na własnym serwerze** (VPS, domena, HTTPS, Stripe, kopie zapasowe) – krok po kroku w [`DEPLOY.md`](DEPLOY.md).
+
+## ✉️ Kontakt i e-mail ze strony
+
+Strona ma formularz **Kontakt** (imię, e-mail, temat, wiadomość – bez logowania). Każda wiadomość:
+
+1. **zawsze** trafia do panelu admina → zakładka **Wiadomości**,
+2. **zawsze** pojawia się jako karta na czacie zespołu na Discordzie (**#💼 czat-zespołu**; bez tego kanału – w logach serwera) – bez pingowania kogokolwiek, z przyciskiem do panelu,
+3. a gdy włączysz e-mail – przychodzi też na **adres kontaktowy** (`config.launcher.json` → `"contact"` → `"email"`, dla Hammer Launchera `hammerlauncherclient@gmail.com`). Klikasz w poczcie **Odpowiedz** i piszesz prosto do tej osoby.
+
+Na ten sam adres przychodzi też e-mail o **każdym zakupie na stronie** (numer zamówienia, co kupiono, nick Minecraft, kwota, konto Discord kupującego, godzina – nigdy sam kod Hammer+) i o odebranej nagrodzie z „Zaproś znajomego”.
+
+**Jak włączyć e-mail (darmowy Gmail, 5 minut):**
+1. Zaloguj się na konto Gmail z adresu kontaktowego i na stronie `myaccount.google.com/security` włącz **Weryfikację dwuetapową**.
+2. Wejdź na `myaccount.google.com/apppasswords`, wpisz dowolną nazwę (np. *Strona Hammer*) i kliknij **Utwórz**. Google pokaże 16 liter – to „hasło do aplikacji”.
+3. W pliku `.env` na serwerze dopisz linię `MAIL_PASS=` i wklej te 16 liter (ze spacjami albo bez). To jedyna potrzebna linia.
+4. Uruchom bota ponownie.
+5. Panel admina → **Wiadomości** → **Wyślij testowy e-mail**. Zielony komunikat = działa (sprawdź skrzynkę, także Spam). Czerwony mówi wprost, co jest nie tak: złe hasło albo zablokowany port – wtedy napisz do pomocy hostingu z prośbą o odblokowanie portu 465 albo 587 (SMTP) dla `smtp.gmail.com`.
+
+Bez `MAIL_PASS` formularz, zakładka **Wiadomości** i karta na Discordzie działają normalnie – nie wychodzą tylko e-maile. Kłopot z pocztą nigdy nie psuje zakupu ani wysłania wiadomości. Inna skrzynka niż Gmail: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_TO` (opis w `.env.example`). `npm run check` mówi, czy e-mail jest włączony – nigdy nie wypisuje hasła.
+
+Przed spamem chroni limit (3 wiadomości na 10 minut i 10 dziennie z jednego adresu IP; razem najwyżej 30 na godzinę i 200 dziennie) oraz ukryte pole-pułapka na boty.
 
 ## 🤖 Asystent AI w ticketach (Hammer Launcher)
 
@@ -704,6 +726,8 @@ npm i -D playwright && npm run render-assets
 | Transkrypcje są puste | Włącz **Message Content Intent** |
 | Brakuje nowych kanałów (#realizacje, #sprzedaż, #kopie-zapasowe, status sklepu) | Wpisz `/zbuduj tylko:update` (kanał statusu sklepu istnieje tylko wtedy, gdy `shopStatus.enabled` ma wartość `true`) |
 | „Obrazek jest za duży” | Obrazki produktów mogą mieć do 1 MB – zapisz go jako JPG albo WEBP |
+| Testowy e-mail w panelu: „nie przyjął hasła” | W `MAIL_PASS` musi być 16-literowe **hasło do aplikacji** z `myaccount.google.com/apppasswords` (wymaga włączonej weryfikacji dwuetapowej) – nie zwykłe hasło do Gmaila. Po zmianie `.env` uruchom bota ponownie |
+| Testowy e-mail w panelu: „Nie udało się połączyć z serwerem poczty” | Hosting blokuje wysyłanie poczty (porty 465 i 587). Napisz do jego pomocy z prośbą o odblokowanie SMTP dla `smtp.gmail.com`. Do tego czasu wiadomości z formularza są w panelu (Wiadomości) i na czacie zespołu na Discordzie |
 | Zaproszenia nie są liczone | Bot musi widzieć zaproszenia serwera – ma uprawnienie Administrator, więc sprawdź, czy nikt nie zmienił jego roli. Zaproszenia liczą się dopiero po weryfikacji nowego członka |
 
 💾 **Kopia zapasowa:** wszystko (tickety, produkty, sprzedaż, kody rabatowe, opinie, giveawaye) jest w `data/db.json`, obrazki
@@ -733,12 +757,15 @@ src/
 ├── tickets/                 system ticketów, karty, transkrypcje HTML
 ├── commands/                komendy (polskie nazwy dla Discorda: lib/commandsPl.js)
 ├── handlers/interactions.js przyciski, menu i formularze
-├── lib/                     konfiguracja, baza danych, motyw, uprawnienia, funkcje pomocnicze, kody Hammer+ (plus.js)
+├── lib/                     konfiguracja, baza danych, motyw, uprawnienia, funkcje pomocnicze, kody Hammer+ (plus.js),
+│                            wysyłanie e-maili (mail.js)
 └── web/                     strona sklepu i API dla Hammer Launchera (launcher.js: /api/launcher/*, /join), panel admina
                              (admin.js: /api/admin/*), instalatory i aktualizacje launchera (releases.js: /download, /updates/),
-                             Zaproś znajomego (referrals.js: /r/<kod>, /api/shop/referrals)
+                             Zaproś znajomego (referrals.js: /r/<kod>, /api/shop/referrals), formularz kontaktowy
+                             (contact.js: /api/shop/contact)
 web/public/                  strony: index.html (sklep), launcher.html (/launcher), admin.html (/admin) i ich pliki w assets/
-data/web.json                konta i zamówienia ze strony, aktualności, komunikat, wersje launchera, cennik Hammer+, polecenia
+data/web.json                konta i zamówienia ze strony, aktualności, komunikat, wersje launchera, cennik Hammer+, polecenia,
+                             wiadomości z formularza kontaktowego
 data/releases/               instalatory launchera wgrane w panelu admina
 DEPLOY.md                    uruchomienie na własnym serwerze 24/7 (deploy/: usługa systemd, Caddy)
 config.launcher.json         ustawienia serwera Hammer Launcher (BOT_PROFILE=launcher) – nakładane na config.json

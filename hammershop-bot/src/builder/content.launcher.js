@@ -177,7 +177,7 @@ function plus(x) {
         `-# Kod działa na koncie Minecraft, dla którego go kupisz. Coś poszło nie tak? Ticket **Hammer+ i płatności** na ${x.ch('tickets')}.`,
     ),
   );
-  c.addActionRowComponents(buttons(site() ? linkBtn(`${site()}/#plus`, 'Kup Hammer+', ce(x.guild, 'star')) : null, open(x, 'plus', 'Pomoc z Hammer+', 'ticket')));
+  c.addActionRowComponents(buttons(site() ? linkBtn(`${site()}/hammer-plus`, 'Kup Hammer+', ce(x.guild, 'star')) : null, open(x, 'plus', 'Pomoc z Hammer+', 'ticket')));
   return card(c);
 }
 

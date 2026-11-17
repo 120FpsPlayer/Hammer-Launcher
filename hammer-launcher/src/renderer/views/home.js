@@ -42,7 +42,6 @@
     function drawPlay() {
       const i = state.instance;
       const run = i ? state.running.get(i.id) : null;
-      const prog = i ? state.progress.get(i.id) : null;
       const btn = h(
         'button.play-btn',
         {
@@ -65,6 +64,15 @@
           btn,
         ),
       );
+      drawProgress();
+      drawStats();
+    }
+
+    /** The line under the play bar: what is downloading, or that the game runs. Only this part follows the download's progress. */
+    function drawProgress() {
+      const i = state.instance;
+      const run = i ? state.running.get(i.id) : null;
+      const prog = i ? state.progress.get(i.id) : null;
       if (prog && run === 'preparing') {
         const pct = prog.percent;
         clear(
@@ -82,7 +90,6 @@
         const test = state.benchmarks.has(i.id);
         clear(progressArea, h('div.play-progress', h('div.label', h('b.ok', 'Gra działa'), h('span', test ? 'Trwa test FPS – gra zamknie się sama' : 'miłej gry!'))));
       } else clear(progressArea);
-      drawStats();
     }
 
     function drawStats() {
@@ -335,7 +342,7 @@
     ping();
     const timer = setInterval(ping, 60000);
 
-    const offs = [bus.on('instances', drawClient), bus.on('settings', drawClient), bus.on('instances', drawPlay), bus.on('settings', drawPlay), bus.on('game', drawPlay), bus.on('accounts', () => HS.go('home')), bus.on('summary', drawSummary), bus.on('instances', drawSummary), bus.on('updates', drawUpdates), bus.on('instances', drawUpdates), bus.on('feed', drawNews)];
+    const offs = [bus.on('instances', drawClient), bus.on('settings', drawClient), bus.on('instances', drawPlay), bus.on('settings', drawPlay), bus.on('game', drawPlay), bus.on('progress', (p) => p?.instanceId === state.instance?.id && drawProgress()), bus.on('accounts', () => HS.go('home')), bus.on('summary', drawSummary), bus.on('instances', drawSummary), bus.on('updates', drawUpdates), bus.on('instances', drawUpdates), bus.on('feed', drawNews)];
     return () => {
       clearInterval(timer);
       featured.stop();

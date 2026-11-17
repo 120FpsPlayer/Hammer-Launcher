@@ -584,15 +584,22 @@
     clear(root, h('div.page', h('div.page-head', h('div', h('h1', 'Mody i dodatki'), h('p', 'Mody, paczki tekstur, shadery i gotowe zestawy z Modrinth – zależności instalują się same.')), h('div.actions', instBtn)), h('div.toolbar', tabs, typeSeg), body));
     drawHead();
     drawBody();
-    let lastId = inst()?.id;
-    const off = bus.on('settings', () => {
-      if (inst()?.id === lastId) return;
-      lastId = inst()?.id;
-      ui.updates = [];
+    // What the page shows depends on the instance, its game version and its loader – also when the same instance
+    // gets another loader („Zmień loader” right here): then the list is drawn again, not only the name on top.
+    const shownFor = () => {
+      const i = inst();
+      return i ? `${i.id}|${i.mcVersion}|${i.loader}` : '';
+    };
+    let last = shownFor();
+    const redraw = () => {
       drawHead();
+      if (shownFor() === last) return;
+      last = shownFor();
+      ui.updates = [];
       drawBody();
-    });
-    const off2 = bus.on('instances', drawHead);
+    };
+    const off = bus.on('settings', () => shownFor() !== last && redraw());
+    const off2 = bus.on('instances', redraw);
     return () => ((bundleRun += 1), off(), off2());
   }
 

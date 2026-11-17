@@ -25,6 +25,10 @@ global.fetch = async (url) => {
   throw new Error(`No network in tests: ${url}`);
 };
 
+// …and never a real mail server: whatever MAIL_* this computer's .env has, every test file starts with e-mail switched
+// off and pointed at this machine. A test that sends mail starts a local fake (test/helpers/fakeSmtp.js).
+Object.assign(require('../../src/env').env.mail, { pass: '', user: '', to: '', host: '127.0.0.1', port: 9 });
+
 const db = require('../../src/lib/db');
 
 db.load();

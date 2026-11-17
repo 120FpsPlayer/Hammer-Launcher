@@ -161,6 +161,21 @@ const isAutoBackup = (file) => /-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-auto( \(\d+\))?\.
 /** The way back from a restore in place („Cofnij”) – kept for a while, then removed like the automatic ones. */
 const isSafetyBackup = (file) => /-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-przed-przywroceniem( \(\d+\))?\.zip$/i.test(String(file));
 
+// A backup is packed as "<name>.zip.part" and gets its name when it is complete. One that was cut off – the computer
+// was shut down, the launcher closed from the tray in the middle – stays behind as a .part file of up to the size of
+// the world, which no list shows and nothing would ever remove. The next backup of the instance clears them.
+const PART = /-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(-auto|-przed-przywroceniem)?( \(\d+\))?\.zip\.part$/i;
+/** The .part files this process is writing right now – never touched by the clean-up. */
+const packing = new Set();
+
+async function clearCutOffBackups(outDir) {
+  for (const name of await fsp.readdir(outDir).catch(() => [])) {
+    const full = path.join(outDir, name);
+    if (!PART.test(name) || packing.has(full)) continue;
+    if ((await fsp.lstat(full).catch(() => null))?.isFile()) await fsp.rm(full, { force: true }).catch(() => null);
+  }
+}
+
 /**
  * Packs a world into backups/<folder>-YYYY-MM-DD_HH-mm.zip (streamed, so big worlds neither fill the memory nor
  * freeze the launcher). onProgress({ done, total }) in bytes. `auto` marks a backup the launcher makes by itself
@@ -182,7 +197,13 @@ async function backup(instance, folder, { onProgress, now = new Date(), auto = f
     await fsp.mkdir(outDir, { recursive: true });
     const file = freeName(outDir, `${folder}-${stamp(now)}${auto ? '-auto' : safety ? '-przed-przywroceniem' : ''}`, '.zip');
     const dest = path.join(outDir, file);
-    await createZip(dest, files, { onProgress: (done) => onProgress?.({ done: Math.min(done, total), total }) });
+    packing.add(`${dest}.part`);
+    try {
+      await clearCutOffBackups(outDir);
+      await createZip(dest, files, { onProgress: (done) => onProgress?.({ done: Math.min(done, total), total }) });
+    } finally {
+      packing.delete(`${dest}.part`);
+    }
     const stat = await fsp.stat(dest);
     return { file, size: stat.size, createdAt: stat.mtimeMs, world: folder, auto: Boolean(auto), safety: !auto && Boolean(safety) };
   });
@@ -329,7 +350,13 @@ async function restoreInPlace(instance, folder, file, { onProgress, now = new Da
   try {
     return await explained('Nie udało się przywrócić świata', async () => {
       const from = { file, createdAt: (await fsp.stat(source)).mtimeMs };
-      const current = await dirSize(dir);
+      // What the world holds now. session.lock alone is not a world to keep: the game writes it into any folder it
+      // opens, and a backup leaves it out – a wiped world must still be restorable.
+      const current = { size: 0, files: 0 };
+      await walk(dir, (f) => {
+        current.size += f.size;
+        if (f.rel !== 'session.lock') current.files += 1;
+      });
       const out = await extractWorld(instance, file, source, { id, reserve: current.size, onProgress: (p) => onProgress?.({ done: p.done, total: p.total + current.size }) });
       staged = out.dir;
       if (!(await readLevel(staged))) throw new Error('Tej kopii nie da się wczytać – plik level.dat jest uszkodzony. Świat został bez zmian.');

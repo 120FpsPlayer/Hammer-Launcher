@@ -30,15 +30,23 @@
  *   POST   announcements         { title, text, kind, image?, buttonLabel?, buttonUrl?, ping, banner?, confirmEveryone? }
  *                                → the card on #📢 ogłoszenia: { item, url } (ping 'everyone': owner only)
  *   DELETE announcements/<id>    takes it off Discord (the history keeps it, marked as deleted)
+ *   GET    messages              → „Wiadomości”: { messages (the contact form's, newest first), unread, topics,
+ *                                  mail { ready, to, from, host, port, address, last }, canDelete, canTest }
+ *   GET    messages/count        → { unread, total } – the number on the tab
+ *   PUT    messages/<id>         { read: true | false } → { item, unread }      POST messages/read-all → { unread: 0 }
+ *   DELETE messages/<id>         (owner) → { ok, unread }
+ *   POST   messages/test         (owner) a test e-mail to the contact address → { ok, to, reason } – the real result
  *
  * Every change must come from the panel itself (the Origin header is required and must be this site), and each one is
- * written to the bot's log channel with who did it.
+ * written to the bot's log channel with who did it (a message marked as read keeps that on itself: readBy, readAt).
  */
 
 const config = require('../lib/config');
 const store = require('./store');
 const releases = require('./releases');
 const plusLib = require('../lib/plus');
+const mail = require('../lib/mail');
+const contact = () => require('./contact'); // (it uses line / block from this file)
 
 const PREFIX = '/api/admin/';
 const LEVELS = ['info', 'warning', 'critical'];
@@ -138,6 +146,29 @@ function announcementRow(a) {
   return { id: a.id, title: a.title, kind: a.kind, ping: a.ping, at: a.at, by: user(a.by), url: a.url, crossposted: Boolean(a.crossposted), deletedAt: a.deletedAt ?? null, deletedBy: user(a.deletedBy) };
 }
 
+// ── „Wiadomości”: what came through the website's contact form (src/web/contact.js) ──
+const PENDING_MS = 5 * 60_000; // an e-mail still "on its way" after this long never left (the bot was restarted meanwhile)
+
+/** A message as the panel lists it. */
+function messageRow(m, now = Date.now()) {
+  const stale = m.mail === 'pending' && now - m.at > PENDING_MS;
+  return {
+    id: m.id, at: m.at, name: m.name, email: m.email, topic: m.topic, topicLabel: contact().topicLabel(m.topic), text: m.text,
+    user: m.user ? { id: m.user.id, name: m.user.name ?? null, username: m.user.username ?? null } : null,
+    read: Boolean(m.read), readAt: m.readAt ?? null, readBy: m.readBy ? { id: m.readBy, name: store._state().users[m.readBy]?.name ?? null } : null,
+    mail: stale ? 'failed' : m.mail ?? 'off', mailError: stale ? 'Bot został uruchomiony ponownie, zanim e-mail wyszedł.' : m.mailError ?? null,
+  };
+}
+
+/** Is e-mail on, where it goes and how the newest attempt went – never the password. */
+function mailInfo() {
+  const s = mail.status();
+  return { ready: s.ready, to: s.to, from: s.from, host: s.host, port: s.port, hasPassword: s.hasPassword, address: config.contact?.email || null, last: s.last };
+}
+
+/** A visitor's name on its way into the log channel: nothing in it works as Discord markdown, a link or a mention. */
+const plainName = (name) => String(name ?? '').replace(/[\\`*_~|[\]()<>@#:/]/g, '').trim() || '—';
+
 /** Sums for the dashboard out of the day counters: the last `days` days, oldest first. */
 function series(map, days, pick = (v) => v ?? 0, now = Date.now()) {
   const out = [];
@@ -236,6 +267,8 @@ async function api(req, res, url, h) {
     if (route === 'orders') return h.send(res, 200, { orders: store.allOrders().filter((o) => o.stripe_id || o.status === 'paid').slice(0, 100).map(orderRow) });
     if (route === 'referrals') return h.send(res, 200, store.referralOverview(10));
     if (route === 'announcements') return h.send(res, 200, { ...h.announcements.info(), history: store.announcementList().map(announcementRow), canEveryone: owner, limits: ANN_LIMITS });
+    if (route === 'messages') return h.send(res, 200, { messages: store.messageList().map((m) => messageRow(m)), unread: store.unreadMessages(), topics: contact().TOPICS, mail: mailInfo(), max: store.MAX_MESSAGES, canDelete: owner, canTest: owner });
+    if (route === 'messages/count') return h.send(res, 200, { unread: store.unreadMessages(), total: store.messageList().length });
     const bannerOf = /^announcements\/banner\/([a-z]{1,24})$/.exec(route);
     if (bannerOf) {
       const file = h.announcements.bannerFile(bannerOf[1]);
@@ -403,6 +436,36 @@ async function api(req, res, url, h) {
       store.updateAnnouncement(item.id, { deletedAt: Date.now(), deletedBy: user.id });
       await log(`🗑️ Usunięto ogłoszenie z Discorda: **${item.title}**${removed ? '' : ' (wiadomości już tam nie było)'}`);
       return h.send(res, 200, { item: announcementRow(store.getAnnouncement(item.id)), gone: !removed });
+    }
+  }
+
+  // ── „Wiadomości”: the contact form's messages, and the e-mail they also go to ──
+  if (head === 'messages') {
+    if (method === 'POST' && arg === 'test') {
+      ownerOnly();
+      if (h.limited(req, 'mail-test', 5)) return h.fail(res, 429, 'Za dużo prób naraz – odczekaj minutę.');
+      const sent = await mail.send({
+        subject: `Test – e-mail ze strony ${config.brand.name} działa`,
+        text: `To jest testowa wiadomość wysłana z panelu admina (${h.publicUrl() || 'strona'}).\n\nSkoro ją czytasz, wszystko jest ustawione dobrze: na ten adres będą przychodzić wiadomości z formularza kontaktowego i powiadomienia o zakupach.`,
+      });
+      await log(sent.ok ? '✉️ Testowy e-mail wysłany z panelu' : '✉️ Testowy e-mail z panelu nie wyszedł – przyczynę widać w panelu (Wiadomości)');
+      return h.send(res, 200, { ok: sent.ok, to: mailInfo().to, reason: sent.ok ? null : sent.reason });
+    }
+    if (method === 'POST' && arg === 'read-all') {
+      for (const m of store.messageList()) if (!m.read) store.updateMessage(m.id, { read: true, readAt: Date.now(), readBy: user.id });
+      return h.send(res, 200, { unread: 0 });
+    }
+    if (method === 'PUT' && arg) {
+      const item = store.updateMessage(arg, Object(body).read === false ? { read: false, readAt: null, readBy: null } : { read: true, readAt: Date.now(), readBy: user.id });
+      if (!item) return h.fail(res, 404, 'Nie ma takiej wiadomości.');
+      return h.send(res, 200, { item: messageRow(item), unread: store.unreadMessages() });
+    }
+    if (method === 'DELETE' && arg) {
+      ownerOnly();
+      const item = store.removeMessage(arg);
+      if (!item) return h.fail(res, 404, 'Nie ma takiej wiadomości.');
+      await log(`🗑️ Usunięto wiadomość ze strony od **${plainName(item.name)}** (${contact().topicLabel(item.topic)})`);
+      return h.send(res, 200, { ok: true, unread: store.unreadMessages() });
     }
   }
 

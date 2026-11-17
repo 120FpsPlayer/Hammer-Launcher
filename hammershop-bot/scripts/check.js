@@ -20,6 +20,14 @@ try {
   process.exit(1);
 }
 
+// E-mail from the website (src/lib/mail.js): is it set up, and where it goes – never the password.
+{
+  const mail = require('../src/lib/mail').status();
+  if (mail.ready) console.log(`✔ E-mail: włączony – wiadomości ze strony i powiadomienia o zakupach idą na ${mail.to} (${mail.host}, port ${mail.port}). Sprawdź go przyciskiem „Wyślij testowy e-mail” w panelu admina → Wiadomości.`);
+  else if (!mail.to || !mail.from) console.log('ℹ E-mail: wyłączony – strona nie ma adresu kontaktowego (config.json → "contact" → "email"). Formularz kontaktowy działa i tak: panel admina + Discord.');
+  else console.log(`ℹ E-mail: wyłączony – w pliku .env brakuje MAIL_PASS (hasło do aplikacji z konta Google ${mail.from}). Formularz kontaktowy działa i tak: panel admina + Discord.`);
+}
+
 // The Hammer Launcher server (BOT_PROFILE=launcher) is checked with its own build: config.launcher.json, its channels and cards.
 const launcher = require('../src/lib/profile').launcher;
 if (launcher) console.log('ℹ Profil: Hammer Launcher (BOT_PROFILE=launcher) – config.json + config.launcher.json.');

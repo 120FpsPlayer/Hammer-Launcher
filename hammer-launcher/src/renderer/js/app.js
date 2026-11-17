@@ -179,7 +179,7 @@
       return login();
     }
     if (state.running.has(instanceId)) return;
-    await state.selectInstance(instanceId);
+    // Marked as being prepared before the first wait: a second click (a double click on GRAJ) finds it and does nothing.
     state.crashes.delete(instanceId);
     state.logs.set(instanceId, []);
     state.running.set(instanceId, 'preparing');
@@ -191,6 +191,7 @@
     bus.emit('game');
     drawNav();
     try {
+      await state.selectInstance(instanceId);
       const res = benchmark ? await api.benchmark.start(instanceId, { world, worldName, seconds: benchmark.seconds }) : await api.game.launch(instanceId, { join, server, world });
       if (state.running.get(instanceId) === 'preparing') state.running.set(instanceId, 'starting');
       if (benchmark) toast('info', `Uruchamiam test FPS (${benchmark.seconds} s). Nie zamykaj gry – po pomiarze zamknie się sama.`, 7000);
@@ -212,9 +213,12 @@
   HS.stop = (id) => attempt(() => api.game.stop(id));
 
   /* ── events from the launcher ── */
+  // Progress comes ten times a second while a game downloads. It has its own event: 'game' (a game started or
+  // ended) makes whole lists draw themselves again, and a button replaced between the press and the release of
+  // the mouse never gets its click.
   api.on('game:progress', (p) => {
     state.progress.set(p.instanceId, p);
-    bus.emit('game');
+    bus.emit('progress', p);
   });
   api.on('game:state', async (e) => {
     if (e.state === 'starting' || e.state === 'running') {
@@ -226,6 +230,8 @@
       if (e.state === 'crashed' && e.crash) {
         state.crashes.set(e.instanceId, e.crash);
         toast('err', `Gra się wyłączyła: ${e.crash.title}. Szczegóły w zakładce Konsola.`, 9000);
+        // Konsola shows the selected instance – the explanation and the log belong to the one that crashed.
+        if (state.instance?.id !== e.instanceId && state.instances.some((i) => i.id === e.instanceId)) await state.selectInstance(e.instanceId).catch(() => {});
         if (current !== 'console') go('console');
       }
       await state.refreshInstances().catch(() => {});

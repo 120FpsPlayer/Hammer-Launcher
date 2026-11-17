@@ -1,0 +1,32 @@
+  <section class="page-top" aria-labelledby="page-h">
+    <div class="page-bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <p class="eyebrow">Co nowego</p>
+      <h1 id="page-h">Aktualności</h1>
+      <p class="sub">Nowe wersje, zmiany i&nbsp;ogłoszenia. To samo zobaczysz w&nbsp;launcherze na ekranie Graj i&nbsp;na naszym Discordzie.</p>
+    </div>
+  </section>
+
+  <section class="section first" aria-label="Aktualna wersja i ogłoszenia">
+    <div class="wrap news-page">
+      <article class="release-card reveal" id="release-card" hidden>
+        <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg></span>
+        <div class="release-text">
+          <p class="release-meta"><span class="pill gold">Aktualna wersja</span><span class="when" id="release-date"></span></p>
+          <h2 id="release-title"></h2>
+          <p class="release-notes" id="release-notes" hidden></p>
+        </div>
+        <a class="btn primary dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a>
+      </article>
+      <div class="news" id="news" aria-live="polite"></div>
+      <div class="empty-card reveal" id="news-empty" hidden>
+        <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-news"/></svg></span>
+        <h2>Na razie cisza</h2>
+        <p>Nie ma jeszcze żadnych ogłoszeń. Gdy tylko coś się wydarzy, pojawi się tutaj – a&nbsp;najszybciej dowiesz się o&nbsp;tym na naszym Discordzie.</p>
+        <div class="cta center">
+          <a class="btn ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Dołącz do Discorda</a>
+          <a class="btn ghost" href="{{base}}/funkcje">Zobacz, co potrafi launcher</a>
+        </div>
+      </div>
+    </div>
+  </section>

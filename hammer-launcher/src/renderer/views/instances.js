@@ -50,10 +50,17 @@
     const loaderHint = h('div.hint', LOADERS[data.loader].hint);
     const optRow = h('div');
 
+    // Lists come from the network and may arrive out of order (a slow Forge answer after Fabric's): only the
+    // answer to the latest question is shown – an older one would put another loader's versions under this one.
+    let versionRound = 0;
+    let loaderRound = 0;
+
     async function loadVersions() {
+      const mine = ++versionRound;
       versionSel.disabled = true;
       try {
         const list = await api.versions.minecraft({ snapshots });
+        if (mine !== versionRound) return;
         // New instances start on the newest version Hammer Client supports (custom menu and HUD), else the newest one.
         const hc = [...HS.hammerClientVersions()].reverse().find((id) => list.some((v) => v.id === id));
         if (!data.mcVersion) data.mcVersion = hc ?? list[0]?.id;
@@ -65,6 +72,7 @@
         versionSel.disabled = false;
         loadLoaderVersions();
       } catch (err) {
+        if (mine !== versionRound) return;
         clear(versionSel, h('option', 'Brak połączenia – nie można pobrać listy wersji'));
         HS.toast('err', err.message);
       }
@@ -77,6 +85,7 @@
     };
 
     async function loadLoaderVersions() {
+      const mine = ++loaderRound;
       loaderHint.textContent = LOADERS[data.loader].hint;
       drawOpt();
       if (data.loader === 'vanilla') {
@@ -88,19 +97,26 @@
       clear(loaderVerSel, h('option', 'Wczytywanie…'));
       try {
         const list = await api.versions.loaders(data.loader, data.mcVersion);
+        if (mine !== loaderRound) return;
         if (!list.length) {
           clear(loaderVerSel, h('option', `${LOADERS[data.loader].name} nie wspiera tej wersji`));
           loaderHint.innerHTML = '';
           loaderHint.append(h('span.warn', `${LOADERS[data.loader].name} nie ma jeszcze wersji dla Minecrafta ${data.mcVersion}. Wybierz inny loader lub wersję gry.`));
           return;
         }
+        const shown = list.slice(0, 80);
+        // The instance's own version when it is not among the newest ones (an older build a modpack asked for): it
+        // stays on the list, selected – else the field would say „Najnowsza zalecana” about a pinned version.
+        const pinned = data.loaderVersion && !shown.some((v) => v.version === data.loaderVersion) ? h('option', { value: data.loaderVersion, selected: true }, data.loaderVersion) : null;
         clear(
           loaderVerSel,
           h('option', { value: '' }, 'Najnowsza zalecana'),
-          list.slice(0, 80).map((v) => h('option', { value: v.version, selected: v.version === data.loaderVersion }, `${v.version}${v.recommended ? ' – zalecana' : v.stable === false ? ' – beta' : ''}`)),
+          pinned,
+          shown.map((v) => h('option', { value: v.version, selected: v.version === data.loaderVersion }, `${v.version}${v.recommended ? ' – zalecana' : v.stable === false ? ' – beta' : ''}`)),
         );
         loaderVerSel.disabled = false;
       } catch (err) {
+        if (mine !== loaderRound) return;
         clear(loaderVerSel, h('option', 'Nie udało się pobrać wersji loadera'));
       }
     }

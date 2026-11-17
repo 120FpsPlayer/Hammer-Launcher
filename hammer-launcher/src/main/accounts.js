@@ -8,6 +8,7 @@
 
 const crypto = require('node:crypto');
 const { readJson, writeJson } = require('./store');
+const { isNetworkError } = require('./net');
 
 const ERRORS = {
   'error.gui.closed': 'Okno logowania zostało zamknięte.',
@@ -24,11 +25,6 @@ const ERRORS = {
 
 /** No connection (offline, DNS, a dropped line) – not a reason to sign in again: the stored login still holds. */
 const OFFLINE = 'Nie udało się połączyć z serwerami Microsoft – sprawdź internet i spróbuj ponownie.';
-function isNetworkError(err) {
-  if (err instanceof TypeError) return true; // fetch: "fetch failed"
-  const text = `${err?.message ?? ''} ${err?.code ?? ''} ${err?.cause?.code ?? ''} ${err?.cause?.message ?? ''}`;
-  return /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|UND_ERR|socket hang up|network/i.test(text);
-}
 /** Microsoft or Xbox said no to this account – only then must the player sign in again (a busy service is not that). */
 const AUTH_REJECTED = ['error.auth.microsoft', 'error.auth.xsts', 'error.auth.minecraft.profile'];
 const rejected = (err) => {
@@ -101,7 +97,9 @@ function createAccounts({ file, crypt, config = {}, AuthClass, windowProperties 
         const mc = await xbox.getMinecraft();
         return store(mc, xbox.save());
       } catch (err) {
-        throw new Error(err instanceof Error && Object.values(ERRORS).includes(err.message) ? err.message : loginError(err));
+        if (err instanceof Error && Object.values(ERRORS).includes(err.message)) throw new Error(err.message);
+        // The connection dropped between Microsoft's page and Xbox / Minecraft: said like at a start of the game.
+        throw new Error(typeof err !== 'string' && !err?.ts && isNetworkError(err) ? OFFLINE : loginError(err), { cause: err });
       }
     },
 
@@ -135,8 +133,18 @@ function createAccounts({ file, crypt, config = {}, AuthClass, windowProperties 
           // the keychain changed (e.g. another Windows user) – refresh below
         }
       }
+      let refresh;
       try {
-        const xbox = await makeAuth().refresh(crypt.decrypt(account.refresh));
+        refresh = crypt.decrypt(account.refresh);
+      } catch (err) {
+        // The stored sign-in cannot be read on this computer any more (the launcher folder came from another
+        // computer or Windows user, the system keychain was reset). Trying again never helps – a new sign-in does.
+        account.needsLogin = true;
+        save();
+        throw new Error(`Sesja konta ${account.name} wygasła – zaloguj się ponownie w zakładce Konta.`, { cause: err });
+      }
+      try {
+        const xbox = await makeAuth().refresh(refresh);
         const mc = await xbox.getMinecraft();
         const info = store(mc, xbox.save());
         return { id: info.id, name: info.name, accessToken: mc.mcToken };

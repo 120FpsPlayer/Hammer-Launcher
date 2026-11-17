@@ -195,23 +195,33 @@ test('tickets: a bug report opens like any ticket; the shop\'s commands are gone
   const card = createInteraction({ guild, member, kind: 'command', commandName: 'launcher' });
   await handle(card, commands);
   const buttons = JSON.stringify(lastResponse(card).components.map((c) => (c.toJSON ? c.toJSON() : c)));
-  assert.ok(buttons.includes(`"${base}/"`) && buttons.includes(`${base}/#plus`), 'on the launcher\'s own site the page is the front page');
+  assert.ok(buttons.includes(`"${base}/"`) && buttons.includes(`"${base}/hammer-plus"`), 'on the launcher\'s own site the start page is the front page and Hammer+ has its own page');
 });
 
 test('the website: the front page is the launcher\'s, with its mark and the name Hammer Launcher – no shop page', async () => {
-  for (const page of ['/', '/launcher', '/cokolwiek', '/launcher.html', '/index.html']) {
+  for (const page of ['/', '/funkcje', '/hammer-plus', '/kontakt', '/hammershop']) {
     const res = await fetch(base + page);
     const html = await res.text();
     assert.equal(res.status, 200, page);
-    assert.match(html, /<title>Hammer Launcher – nasz własny launcher Minecrafta<\/title>/, page);
     assert.match(html, /class="logo h"[^>]*>.*Hammer<b>Launcher<\/b>/, page);
     assert.match(html, /launcher-icon\.png/);
-    // Nothing of the shop's own page – HammerShop appears only as the partner (Hammer Launcher × HammerShop).
-    assert.doesNotMatch(html, /<!--|Nowość od HammerShop|© HammerShop|aria-label="HammerShop – strona główna"|href="\/launcher" aria-current/, page);
-    assert.match(html, /id="hammershop"[\s\S]*Hammer Launcher × HammerShop[\s\S]*Partner/, page);
+    // Nothing of the shop's own page – HammerShop appears only as the co-creator (× HammerShop next to the logo).
+    assert.doesNotMatch(html, /<!--|Nowość od HammerShop|© HammerShop|aria-label="HammerShop – strona główna"|>Sklep<|href="\/launcher/, page);
     assert.match(html, /class="collab"[^>]*>.*Hammer<b>Shop<\/b>/, page);
     assert.match(res.headers.get('content-security-policy'), /script-src 'self'/);
   }
+  assert.match(await (await fetch(`${base}/`)).text(), /<title>Hammer Launcher – nasz własny launcher Minecrafta<\/title>/);
+  // HammerShop has its own page here: the co-creator, what it sells, its address from config.launcher.json → partner.
+  const partner = await (await fetch(`${base}/hammershop`)).text();
+  assert.match(partner, /<h1[^>]*>HammerShop – współtwórca Hammer Launchera<\/h1>[\s\S]*współtworzy Hammer Launcher[\s\S]*Pluginy[\s\S]*Skrypty[\s\S]*Boty Discord[\s\S]*Serwery/);
+  assert.match(partner, new RegExp(`href="${config.partner.url}"[^>]*>Odwiedź HammerShop`));
+  assert.doesNotMatch(partner, /niezależny projekt|każdy prowadzi swoje|od pierwszej linijki kodu/);
+  // The page's old addresses lead to the front page (test/pages-launcher.test.js has the rest); nothing → a real 404.
+  for (const old of ['/launcher', '/launcher.html', '/index.html']) {
+    const res = await fetch(base + old, { redirect: 'manual' });
+    assert.deepEqual([res.status, res.headers.get('location')], [302, '/'], old);
+  }
+  assert.equal((await fetch(`${base}/cokolwiek`)).status, 404);
   for (const page of ['/admin', '/admin.html']) {
     const adminPage = await (await fetch(base + page)).text();
     assert.match(adminPage, /<title>Panel admina – Hammer Launcher<\/title>/, page);

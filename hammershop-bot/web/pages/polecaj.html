@@ -1,0 +1,57 @@
+  <section class="section first" aria-labelledby="page-h">
+    <div class="wrap">
+      <div class="ref-box reveal">
+        <div class="ref-copy">
+          <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-gift"/></svg>Zaproś znajomego</p>
+          <h1 id="page-h">+7 dni Hammer+ za każdego znajomego</h1>
+          <p class="soft">Wyślij znajomemu swój link. Gdy pobierze Hammer Launchera i&nbsp;kupi Hammer+, dostajesz 7 dni Hammer+ za darmo – za każdą taką osobę.</p>
+          <ol class="ref-steps">
+            <li><b>Skopiuj swój link</b><span>Dostaniesz go po zalogowaniu przez Discord.</span></li>
+            <li><b>Wyślij go znajomemu</b><span>Znajomy loguje się przez Discord i&nbsp;pobiera launcher.</span></li>
+            <li><b>Zgarnij +7 dni</b><span>Gdy znajomy kupi Hammer+, dostajesz 7 dni – kod przyjdzie na Discordzie.</span></li>
+          </ol>
+          <p class="muted small">Liczą się osoby, które pierwszy raz logują się na naszej stronie i&nbsp;mają konto Discord starsze niż 30 dni. Siebie nie da się polecić.</p>
+        </div>
+        <div class="ref-panel">
+          <div class="stack" id="ref-out">
+            <h2>Twój link polecający</h2>
+            <p class="soft small" id="ref-out-text">Zaloguj się przez Discord – pokażemy Ci Twój link i&nbsp;to, ile osób już z&nbsp;niego skorzystało.</p>
+            <div><a class="btn primary" id="ref-login" href="/api/shop/auth/start?next=polecaj">Zaloguj się przez Discord</a></div>
+          </div>
+          <div class="stack" id="ref-in" hidden>
+            <div class="stack tight">
+              <h2>Twój link polecający</h2>
+              <div class="ref-link share"><input type="text" id="ref-link" readonly spellcheck="false" aria-label="Twój link polecający"><button class="btn gold" type="button" id="ref-copy">Kopiuj</button></div>
+            </div>
+            <div class="ref-stats">
+              <div><b id="ref-invited">0</b><span id="ref-invited-l">osób z&nbsp;Twojego linku</span></div>
+              <div><b id="ref-downloaded">0</b><span id="ref-downloaded-l">pobrało launcher</span></div>
+              <div><b id="ref-bought">0</b><span id="ref-bought-l">kupiło Hammer+</span></div>
+              <div class="gold"><b id="ref-earned">0</b><span id="ref-earned-l">dni zdobytych</span></div>
+            </div>
+            <form class="stack tight" id="ref-claim" hidden>
+              <p class="notice ok" id="ref-balance"></p>
+              <div class="ref-link"><input type="text" id="ref-nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Twój nick w Minecraft" required pattern="[A-Za-z0-9_]{1,16}" aria-label="Twój nick w Minecraft (Java Edition)"><button class="btn gold" type="submit" id="ref-claim-btn">Odbierz</button></div>
+              <p class="notice bad" id="ref-error" role="alert" hidden></p>
+            </form>
+            <div id="ref-result" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final slim" aria-labelledby="final-h">
+    <div class="final-bg" aria-hidden="true"></div>
+    <div class="wrap final-in reveal">
+      <i class="final-h" aria-hidden="true"></i>
+      <div class="final-copy">
+        <h2 id="final-h">Znajomy nie ma jeszcze launchera?</h2>
+        <p>Z Twojego linku pobierze go za darmo – a&nbsp;Ty zbierasz dni Hammer+.</p>
+      </div>
+      <div class="cta">
+        <a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a>
+        <a class="btn big ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Discord</a>
+      </div>
+    </div>
+  </section>

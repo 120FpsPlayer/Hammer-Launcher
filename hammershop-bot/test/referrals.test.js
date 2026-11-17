@@ -157,13 +157,13 @@ test('downloading from the website needs a Discord sign-in – the sign-in ends 
     const open = await call('GET', '/download');
     assert.deepEqual([open.status, open.headers.get('location')], [302, '/updates/Hammer-Launcher-Setup-2.9.0.exe']);
     assert.equal(webStore.currentRelease().downloads, 2);
-    assert.equal((await call('GET', '/api/shop/auth/start?next=polecaj')).headers.get('location'), '/launcher?auth=unavailable#polecaj');
+    assert.equal((await call('GET', '/api/shop/auth/start?next=polecaj')).headers.get('location'), '/launcher/polecaj?auth=unavailable');
   } finally {
     env.web.clientSecret = secret;
   }
-  // The referral card's sign-in comes back to the card.
+  // The referral page's sign-in comes back to that page.
   await signIn(OLD, { next: 'polecaj' });
-  assert.equal(signIn.landed, '/launcher?connected=1#polecaj');
+  assert.equal(signIn.landed, '/launcher/polecaj?connected=1');
 });
 
 test('a personal link: stable per account, remembered for 30 days, counted only at a friend\'s very first sign-in', async () => {
@@ -339,17 +339,17 @@ test('the real page: signed out it asks for Discord to download; signed in it do
       const download = tab.locator('#download');
       await tab.waitForFunction(() => document.getElementById('download').textContent === 'Zaloguj przez Discord i pobierz');
       assert.equal(await download.getAttribute('href'), '/download');
+      assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scrolling');
+      if (shots) await tab.screenshot({ path: `${shots}/strona-wylogowany-${w}.png` });
+      // „Zaproś znajomego” has its own page: signed out it asks for Discord.
+      await tab.goto(`${base}/launcher/polecaj`);
       await tab.locator('#ref-login').waitFor();
       assert.equal(await tab.locator('#ref-in').isHidden(), true);
-      assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scrolling');
-      if (shots) {
-        await tab.screenshot({ path: `${shots}/strona-wylogowany-${w}.png` });
-        await tab.locator('#polecaj').scrollIntoViewIfNeeded();
-        await tab.screenshot({ path: `${shots}/polecaj-wylogowany-${w}.png` });
-        await tab.locator('#plus').scrollIntoViewIfNeeded();
-        await tab.screenshot({ path: `${shots}/plus-perki-${w}.png` });
-      }
-      // The button: Discord, then back on the page, which downloads by itself and says so.
+      assert.equal(await tab.locator('#ref-login').getAttribute('href'), '/api/shop/auth/start?next=polecaj');
+      if (shots) await tab.screenshot({ path: `${shots}/polecaj-wylogowany-${w}.png` });
+      // The button: Discord, then back on the start page, which downloads by itself and says so.
+      await tab.goto(`${base}/launcher`);
+      await tab.waitForFunction(() => document.getElementById('download').textContent === 'Zaloguj przez Discord i pobierz');
       fakes.state.user = OLD;
       const [file] = await Promise.all([tab.waitForEvent('download', { timeout: 15_000 }), download.click()]);
       assert.equal(file.suggestedFilename(), 'Hammer-Launcher-Setup-2.9.0.exe');
@@ -366,6 +366,7 @@ test('the real page: signed out it asks for Discord to download; signed in it do
       fakes.state.user = REFERRER;
       await tab.goto(`${base}/api/shop/auth/start?next=polecaj`);
       await tab.locator('#ref-in').waitFor();
+      assert.equal(new URL(tab.url()).pathname + new URL(tab.url()).search, '/launcher/polecaj', 'back on the referral page, the address clean');
       assert.match(await tab.locator('#ref-link').inputValue(), new RegExp(`^${base}/r/[a-z2-9]{8}$`));
       assert.equal(await tab.locator('#ref-bought').textContent(), '1');
       assert.equal(await tab.locator('#ref-invited-l').textContent(), 'osoba z Twojego linku');
@@ -375,17 +376,16 @@ test('the real page: signed out it asks for Discord to download; signed in it do
       assert.equal(await tab.locator('#ref-result .code').count(), 1, 'the reward code is shown again');
       assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no sideways scrolling');
       if (shots) {
-        await tab.locator('#polecaj').scrollIntoViewIfNeeded();
         await tab.waitForTimeout(300);
-        await tab.locator('#polecaj').screenshot({ path: `${shots}/polecaj-zalogowany-${w}.png` });
+        await tab.screenshot({ path: `${shots}/polecaj-zalogowany-${w}.png` });
       }
       // Claimed on the page: the code right there.
       await tab.locator('#ref-nick').fill('Jeb');
       await tab.locator('#ref-claim-btn').click();
       await tab.locator('#ref-result .pill', { hasText: 'Odebrane z poleceń' }).waitFor();
-      assert.equal(await tab.locator('#ref-claim').isHidden(), true);
+      await tab.locator('#ref-claim').waitFor({ state: 'hidden' }); // the card is asked again after the claim – nothing left to claim
       assert.equal(plus.verify(await tab.locator('#ref-result .code').textContent()).mc, MC.Jeb);
-      if (shots) await tab.locator('#polecaj').screenshot({ path: `${shots}/polecaj-odebrane-${w}.png` });
+      if (shots) await tab.screenshot({ path: `${shots}/polecaj-odebrane-${w}.png` });
       assert.deepEqual(problems, []);
       await context.close();
     }

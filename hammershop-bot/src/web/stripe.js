@@ -40,11 +40,11 @@ async function call(method, path, body = null, { idempotencyKey } = {}) {
 
 /**
  * A Checkout Session for an order. lines: [{ name, amount (cents, each), quantity, description? }]. returnPath: the page
- * Stripe sends the buyer back to ('/' the store, '/launcher' for Hammer+); message: the line under the Pay button.
+ * Stripe sends the buyer back to ('/' the store, the Hammer+ page for Hammer+); message: the line under the Pay button.
  * Returns { id, url }.
  */
 function createCheckout({ order, user, lines, currency, idempotencyKey, returnPath = '/', message = null }) {
-  const back = `${web().publicUrl}${returnPath}`; // "<site>/" – the store, "<site>/launcher" – Hammer+
+  const back = `${web().publicUrl}${returnPath}`; // "<site>/" – the store, "<site>/hammer-plus" – Hammer+
   return call(
     'POST',
     '/checkout/sessions',

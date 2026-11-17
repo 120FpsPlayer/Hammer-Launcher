@@ -23,6 +23,13 @@ const APP_VERSION = (() => {
  * The shop counts launcher starts per version from this header, so its requests carry the real version.
  */
 const userAgent = (version = APP_VERSION) => `Hammer-Launcher/${VERSION.test(String(version ?? '')) ? version : APP_VERSION} (hammershop.pl)`;
+/** No connection at all (offline, DNS, a dropped line, no answer in time) – as opposed to a server that answers "no". */
+function isNetworkError(err) {
+  if (err instanceof TypeError) return true; // fetch: "fetch failed"
+  const text = `${err?.message ?? ''} ${err?.code ?? ''} ${err?.cause?.code ?? ''} ${err?.cause?.message ?? ''}`;
+  return /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|UND_ERR|socket hang up|network/i.test(text);
+}
+
 /** Hosts Modrinth allows in modpacks (the .mrpack specification) plus Modrinth's CDN. */
 const ALLOWED_HOSTS = ['cdn.modrinth.com', 'github.com', 'raw.githubusercontent.com', 'gitlab.com', 'objects.githubusercontent.com'];
 
@@ -52,8 +59,20 @@ function insideDir(root, relative) {
   return target;
 }
 
+/**
+ * The SHA-1 of a file, read piece by piece: a resource pack of a few gigabytes neither sits in memory as a whole
+ * nor trips over the 2 GiB limit of reading a file in one go (which made the whole list of an instance fail).
+ */
 function sha1File(file) {
-  return crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex');
+  const hash = crypto.createHash('sha1');
+  const piece = Buffer.allocUnsafe(1024 * 1024);
+  const fd = fs.openSync(file, 'r');
+  try {
+    for (let n = fs.readSync(fd, piece, 0, piece.length, null); n > 0; n = fs.readSync(fd, piece, 0, piece.length, null)) hash.update(n === piece.length ? piece : piece.subarray(0, n));
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest('hex');
 }
 
 /**
@@ -62,7 +81,14 @@ function sha1File(file) {
  */
 async function download(url, dest, { sha1, fetchFn = fetch, maxBytes = 1024 * 1024 * 1024, onProgress, hosts } = {}) {
   checkUrl(url, hosts);
-  const res = await fetchFn(url, { headers: { 'user-agent': USER_AGENT } });
+  // No connection, or one that drops in the middle of the file: fetch only says "fetch failed" / "terminated".
+  const lost = (err) => new Error(`Nie udało się pobrać pliku ${path.basename(dest)} – połączenie z internetem nie działa albo zostało przerwane. Sprawdź internet i spróbuj ponownie.`, { cause: err });
+  let res;
+  try {
+    res = await fetchFn(url, { headers: { 'user-agent': USER_AGENT } });
+  } catch (err) {
+    throw lost(err);
+  }
   if (!res.ok) throw new Error(`Pobieranie nie powiodło się (HTTP ${res.status}): ${path.basename(dest)}`);
   const total = Number(res.headers?.get?.('content-length')) || 0;
   if (total > maxBytes) throw new Error(`Plik jest za duży: ${path.basename(dest)}`);
@@ -96,7 +122,9 @@ async function download(url, dest, { sha1, fetchFn = fetch, maxBytes = 1024 * 10
     if (res.body?.getReader) {
       const reader = res.body.getReader();
       for (;;) {
-        const { done, value } = await reader.read();
+        const { done, value } = await reader.read().catch((err) => {
+          throw lost(err);
+        });
         if (done) break;
         bytes += value.length;
         if (bytes > maxBytes) throw new Error(`Plik jest za duży: ${path.basename(dest)}`);
@@ -105,7 +133,11 @@ async function download(url, dest, { sha1, fetchFn = fetch, maxBytes = 1024 * 10
         onProgress?.(bytes, total);
       }
     } else {
-      const buf = Buffer.from(await res.arrayBuffer());
+      const buf = Buffer.from(
+        await res.arrayBuffer().catch((err) => {
+          throw lost(err);
+        }),
+      );
       bytes = buf.length;
       hash.update(buf);
       await write(buf);
@@ -127,4 +159,4 @@ async function download(url, dest, { sha1, fetchFn = fetch, maxBytes = 1024 * 10
   }
 }
 
-module.exports = { download, checkUrl, safeName, insideDir, sha1File, USER_AGENT, APP_VERSION, userAgent, ALLOWED_HOSTS };
+module.exports = { download, checkUrl, safeName, insideDir, sha1File, isNetworkError, USER_AGENT, APP_VERSION, userAgent, ALLOWED_HOSTS };

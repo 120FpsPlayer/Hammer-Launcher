@@ -78,8 +78,27 @@ const env = {
   plusPrivateKey: (process.env.HAMMER_PLUS_PRIVATE_KEY || '').trim(),
   /** The store website (src/web, src/features/website.js) – served by the bot itself on this port. */
   web: webSettings(),
+  /** E-mail from the website: contact messages and purchases go to the contact address (src/lib/mail.js). */
+  mail: mailSettings(),
   ids,
 };
+
+/**
+ * Only what .env says – '' / null where it says nothing. The defaults (the contact address from config.json,
+ * smtp.gmail.com, port 465) are filled in by src/lib/mail.js: the config is read after this file, not before.
+ */
+function mailSettings(source = process.env) {
+  const str = (name) => (source[name] || '').trim();
+  // Google shows an app password as four groups ("abcd efgh ijkl mnop") – pasted like that, it is meant without the spaces.
+  const pass = str('MAIL_PASS');
+  return {
+    pass: /^[a-z]{4}( [a-z]{4}){3}$/i.test(pass) ? pass.replace(/ /g, '') : pass,
+    user: str('MAIL_USER'),
+    to: str('MAIL_TO'),
+    host: str('MAIL_HOST'),
+    port: Number(str('MAIL_PORT')) || null,
+  };
+}
 
 function webSettings() {
   const str = (name) => (process.env[name] || '').trim();
@@ -118,4 +137,4 @@ function validateEnv() {
   return problems;
 }
 
-module.exports = { env, validateEnv, loadEnvFile, loadedEnvFiles };
+module.exports = { env, validateEnv, loadEnvFile, loadedEnvFiles, mailSettings };

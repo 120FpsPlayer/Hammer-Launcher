@@ -41,6 +41,7 @@
       <button role="tab" data-tab="plus">Hammer+</button>
       <button role="tab" data-tab="serwery">Polecane serwery</button>
       <button role="tab" data-tab="zamowienia">Zamówienia</button>
+      <button role="tab" data-tab="wiadomosci">Wiadomości<span class="count" id="msg-count" hidden></span></button>
     </nav>
 
     <!-- Pulpit -->
@@ -242,6 +243,21 @@
     <!-- Zamówienia -->
     <section class="tab" id="tab-zamowienia" role="tabpanel" hidden>
       <div class="card"><h2>Zamówienia ze strony</h2><p class="muted small">Ostatnie 100 płatności przez Stripe. Zamówienia z Discorda prowadzisz jak dotąd – w ticketach.</p><div class="table-wrap"><table><thead><tr><th>Numer</th><th>Kto</th><th>Co</th><th>Kwota</th><th>Status</th><th>Kiedy</th><th></th></tr></thead><tbody id="orders-list"></tbody></table></div></div>
+    </section>
+
+    <!-- Wiadomości: what came through the website's contact form, and the e-mail it also goes to -->
+    <section class="tab" id="tab-wiadomosci" role="tabpanel" hidden>
+      <div class="card msg-mail">
+        <div class="row"><h2>E-mail</h2><span class="pill" id="msg-mail-pill"></span><button class="btn small right" type="button" id="msg-test" hidden>Wyślij testowy e-mail</button></div>
+        <p class="muted small" id="msg-mail-text"></p>
+        <p class="notice warn small" id="msg-mail-last" hidden></p>
+        <p class="notice small" id="msg-test-result" role="status" hidden></p>
+      </div>
+      <div class="card">
+        <div class="row"><h2>Wiadomości ze strony</h2><span class="muted small" id="msg-summary"></span><button class="btn small right" type="button" id="msg-read-all" hidden>Oznacz wszystkie jako przeczytane</button></div>
+        <p class="muted small">To, co ludzie piszą w formularzu „Kontakt” na stronie – najnowsze na górze. Odpisujesz zwykłym e-mailem: przycisk „Odpowiedz” otwiera Twoją pocztę z adresem tej osoby.</p>
+        <div class="list" id="msg-list"></div>
+      </div>
     </section>
   </div>
 </main>

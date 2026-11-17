@@ -2,8 +2,9 @@
 
 /**
  * Hammer Launcher on Discord: the card of the #launcher channel (/build posts it under the banner) and of /launcher.
- * The download and Hammer+ buttons lead to the website's launcher page (PUBLIC_URL/launcher – src/web/server.js); the
- * admin panel's news and new versions are posted into the same channel (src/features/website.js → announce).
+ * The download and Hammer+ buttons lead to the launcher's pages of the website (the start page and the Hammer+ page –
+ * src/web/pages.js); the admin panel's news and new versions are posted into the same channel
+ * (src/features/website.js → announce).
  */
 
 const { env } = require('../env');
@@ -12,10 +13,11 @@ const { COLORS, e, ce } = require('../lib/theme');
 const { container, text, divider, header, linkBtn, row } = require('../lib/v2');
 const { truncate, ts } = require('../lib/utils');
 
-const profile = require('../lib/profile');
-
-/** The launcher's page of the website: its own page on the shop's site, the front page on the launcher's own site. */
-const page = () => (env.web.publicUrl ? `${env.web.publicUrl}${profile.launcher ? '/' : '/launcher'}` : null);
+/**
+ * A page of the launcher's part of the website – the start page (the download), or one by its id ('hammer-plus',
+ * 'polecaj' …): under /launcher on the shop's site, the site itself on the launcher's own (src/web/pages.js).
+ */
+const page = (id = 'start') => (env.web.publicUrl ? `${env.web.publicUrl}${require('../web/pages').pathOf(id)}` : null);
 const channel = (guild, key, fallback) => (db.channelId(guild.id, key) ? `<#${db.channelId(guild.id, key)}>` : fallback);
 
 /** The newest published installer – null when the website is off or nothing is published yet. */
@@ -55,7 +57,7 @@ function card(guild, { live = false } = {}) {
         `-# Potrzebujesz oryginalnego Minecrafta: Java Edition (konto Microsoft). Coś nie działa? Napisz na ${channel(guild, 'tickets', 'kanale z ticketami')}.`,
     ),
   );
-  if (page()) c.addActionRowComponents(row(linkBtn(page(), release || !live ? 'Pobierz launcher' : 'Strona launchera', ce(guild, 'download')), linkBtn(`${page()}#plus`, 'Hammer+', ce(guild, 'star'))));
+  if (page()) c.addActionRowComponents(row(linkBtn(page(), release || !live ? 'Pobierz launcher' : 'Strona launchera', ce(guild, 'download')), linkBtn(page('hammer-plus'), 'Hammer+', ce(guild, 'star'))));
   else if (live) c.addTextDisplayComponents(text('-# Strona launchera nie jest jeszcze uruchomiona – link do pobrania pojawi się tutaj.'));
   return c;
 }

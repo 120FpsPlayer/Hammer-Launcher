@@ -6,6 +6,7 @@
  */
 
 const installer = require('@xmcl/installer');
+const { isNetworkError } = require('./net');
 
 const TTL = 10 * 60 * 1000;
 const cache = new Map();
@@ -18,9 +19,29 @@ async function cached(key, fn) {
   return value;
 }
 
+/** The list did not arrive: no connection, a dropped line – or an answer that is no list at all (a login page of a school or hotel network). */
+function unreachable(err) {
+  if (err instanceof SyntaxError) return true; // "… is not valid JSON"
+  if (err instanceof TypeError) return /fetch failed|terminated/i.test(err.message); // (any other TypeError is a mistake in the code, not the network)
+  return isNetworkError(err);
+}
+
+/**
+ * The lists come from the network, and fetch itself only says "fetch failed" when there is none: that comes out
+ * as `message`, one Polish sentence for the window. Everything else stays what it was.
+ */
+async function reached(message, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!unreachable(err)) throw err;
+    throw new Error(message, { cause: err });
+  }
+}
+
 /** [{ id, type: 'release'|'snapshot'|…, releaseTime }] – newest first. */
 async function minecraftVersions({ snapshots = false } = {}) {
-  const list = await cached('mc', () => installer.getVersionList());
+  const list = await reached('Nie udało się pobrać listy wersji Minecrafta – sprawdź internet i spróbuj ponownie.', () => cached('mc', () => installer.getVersionList()));
   return list.versions
     .filter((v) => v.type === 'release' || (snapshots && v.type === 'snapshot'))
     .map((v) => ({ id: v.id, type: v.type, releaseTime: v.releaseTime }));
@@ -88,18 +109,21 @@ async function neoForgeVersions(mc) {
  * An empty list = the loader doesn't support that Minecraft version.
  */
 async function loaderVersions(loader, mc) {
-  switch (loader) {
-    case 'fabric':
-      return cached(`fabric:${mc}`, async () => (await installer.getLoaderArtifactListFor(mc)).map((a) => ({ version: a.loader.version, stable: a.loader.stable !== false })));
-    case 'quilt':
-      return cached(`quilt:${mc}`, async () => (await installer.getQuiltLoaderVersionsByMinecraft({ minecraftVersion: mc })).map((a) => ({ version: a.loader.version, stable: !/beta|pre|rc/i.test(a.loader.version) })));
-    case 'neoforge':
-      return cached(`neoforge:${mc}`, () => neoForgeVersions(mc));
-    case 'forge':
-      return cached(`forge:${mc}`, () => forgeVersions(mc));
-    default:
-      return [];
-  }
+  const list = () => {
+    switch (loader) {
+      case 'fabric':
+        return cached(`fabric:${mc}`, async () => (await installer.getLoaderArtifactListFor(mc)).map((a) => ({ version: a.loader.version, stable: a.loader.stable !== false })));
+      case 'quilt':
+        return cached(`quilt:${mc}`, async () => (await installer.getQuiltLoaderVersionsByMinecraft({ minecraftVersion: mc })).map((a) => ({ version: a.loader.version, stable: !/beta|pre|rc/i.test(a.loader.version) })));
+      case 'neoforge':
+        return cached(`neoforge:${mc}`, () => neoForgeVersions(mc));
+      case 'forge':
+        return cached(`forge:${mc}`, () => forgeVersions(mc));
+      default:
+        return [];
+    }
+  };
+  return reached('Nie udało się pobrać listy wersji loadera modów – sprawdź internet i spróbuj ponownie.', list);
 }
 
 /** The version a new instance gets: the recommended / newest stable one, else the newest. */

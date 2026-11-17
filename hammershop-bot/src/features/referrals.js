@@ -25,11 +25,8 @@ const { REWARD_DAYS } = require('../web/referrals');
 const DAY_MS = 86_400_000;
 const hp = () => require('./hammerplus');
 const siteGuild = () => require('./website').guildOf();
-/** The launcher page's referral card – where the link, the numbers and the claim are. */
-const cardUrl = () => {
-  const page = require('./launcherinfo').page();
-  return page ? `${page}#polecaj` : null;
-};
+/** The website's „Zaproś znajomego” page – where the link, the numbers and the claim are. */
+const cardUrl = () => require('./launcherinfo').page('polecaj');
 const plural = (n) => (n === 1 ? 'dzień' : 'dni');
 
 /**

@@ -549,7 +549,8 @@
       onClose?.();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') close();
+      // Only the window on top answers: Escape on a question asked over another window must not close both.
+      if (e.key === 'Escape' && overlay === root.lastElementChild) close();
     };
     const box = h(
       `div.modal${wide ? '.wide' : ''}`,

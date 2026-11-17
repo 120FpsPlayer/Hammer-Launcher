@@ -865,6 +865,7 @@ async function main() {
   await page.locator('.view').evaluate((v) => (v.scrollTop = 0));
   await page.evaluate(() => {
     HS.state.running.set('hammershop', 'preparing');
+    HS.bus.emit('game'); // (as HS.play does: the button says PRZYGOTOWANIE; progress alone only moves the bar)
     window.__emit('game:progress', { instanceId: 'hammershop', stage: 'minecraft', label: 'Pobieranie Minecrafta', done: 412, total: 1000, percent: 41 });
   });
   await shot('02-graj-pobieranie');

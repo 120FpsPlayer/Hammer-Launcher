@@ -14,23 +14,27 @@
  *   GET  orders           the user's website orders (newest first)
  *   POST stripe/webhook   Stripe → paid / expired (signature checked)
  *   GET  image/:id        a product's own picture
+ *   GET  contact          the Kontakt page: { email, topics, mail }      POST contact  { name, email, topic, message }
+ *                         – no sign-in needed (src/web/contact.js)
  *
  * Prices always come from the bot's catalog – never from the browser. A paid order is handed to the bot
  * (onPaid): an order ticket opens on Discord and the product is delivered like any other paid order. The order then
  * carries its ticket (number + link) and whether it was delivered – the page's receipt and My orders show them.
  *
  * Hammer Launcher has its own corner here: /api/launcher/* (featured servers, news, Hammer+ cloud sync and capes) and
- * the /join page – see src/web/launcher.js. Its page is /launcher (web/public/launcher.html): the download button
- * (GET /download → the installer in /updates/, which is also where the launcher's own updater looks – see
- * src/web/releases.js), the news, and Hammer+ bought by card:
+ * the /join page – see src/web/launcher.js. Its pages (src/web/pages.js, the sources in web/pages/) are the whole site
+ * on Hammer Launcher's own site and live under /launcher on HammerShop's: the download button (GET /download → the
+ * installer in /updates/, which is also where the launcher's own updater looks – see src/web/releases.js), the news,
+ * and Hammer+ bought by card:
  *
  *   GET  plus             { ready, plans [{ id, name, days, price }], currency } – the price list from the admin panel
  *   POST checkout         { kind: 'plus', plan, nick, requestId } → { url } – the nick is checked at Mojang first; once
  *                         paid, the bot issues the code for that Minecraft account (onPaid) and the order shows it
  *
  * Downloading the launcher from the website needs a Discord sign-in, like buying Hammer+: /download without a session
- * goes through Discord and back to /launcher?download=1, where the page starts the download itself (the sign-in never
- * ends on a file – the browser would stay on Discord's page). Where sign-in is not set up, /download just downloads.
+ * goes through Discord and back to the start page with ?download=1, where the page starts the download itself (the
+ * sign-in never ends on a file – the browser would stay on Discord's page). Where sign-in is not set up, /download
+ * just downloads.
  * /updates/* – the launcher's own updater – never asks for anything. „Zaproś znajomego” (/r/<code>, GET referrals,
  * POST referrals/claim) is in src/web/referrals.js.
  *
@@ -49,6 +53,8 @@ const launcher = require('./launcher');
 const admin = require('./admin');
 const releases = require('./releases');
 const referrals = require('./referrals');
+const contact = require('./contact');
+const pages = require('./pages');
 const plusLib = require('../lib/plus');
 const profile = require('../lib/profile');
 const config = require('../lib/config');
@@ -81,6 +87,7 @@ let hooks = {
   plus: { lookup: notConnected, grant: notConnected, recent: () => [], inspect: () => ({ valid: false, message: 'Bot nie jest połączony.' }), active: () => 0 },
   featuredAdmin: { list: () => [], add: notConnected, remove: notConnected },
   referrals: { claim: notConnected }, // (user, nick) → { code, nick, until, days } – the referral balance as a code
+  contact: async () => null, // (message) → a card for the team on Discord (src/features/website.js contactCard)
   // The panel's „Ogłoszenia” tab: cards on #📢 ogłoszenia (src/features/website.js panelAnnouncements).
   announcements: { info: () => ({ channel: null, role: null, members: null, brand: null, bot: null, kinds: [] }), bannerFile: () => null, post: notConnected, remove: notConnected },
 };
@@ -221,12 +228,14 @@ function orderJson(order) {
 /**
  * A Hammer+ order: whose it is, how long it runs and – once paid – the code. The code itself is never stored: it is
  * signed again from what the order holds (the same account, the same end date), so the database has nothing in it
- * that works as a code.
+ * that works as a code. expired: its time is over – such a code opens nothing any more, so it is not signed again and
+ * the launcher's page leaves the order out of „Twoje kody” (many short plans would otherwise pile up there).
  */
-function plusJson(order) {
+function plusJson(order, now = Date.now()) {
   const p = order.plus ?? {};
+  const expired = order.status === 'paid' && Boolean(p.exp) && p.exp * 1000 <= now; // exp 0 = forever
   let code = null;
-  if (order.status === 'paid' && p.grantedAt && plusLib.ready()) {
+  if (order.status === 'paid' && p.grantedAt && plusLib.ready() && !expired) {
     try {
       code = plusLib.issue({ mc: p.mc, days: p.grantDays ?? p.days, now: p.grantedAt, id: p.codeId ?? null }); // the code from the DM
     } catch {
@@ -236,7 +245,7 @@ function plusJson(order) {
   // Not on the Discord server: the invite to it, where the 💎 Hammer+ role comes on joining.
   const member = order.status === 'paid' ? hooks.isMember?.(order.userId) : null;
   const invite = member === false ? hooks.info?.()?.invite ?? null : null;
-  return { nick: p.nick ?? null, days: p.days ?? null, until: p.exp == null ? null : p.exp * 1000, code, member: member ?? null, invite };
+  return { nick: p.nick ?? null, days: p.days ?? null, until: p.exp == null ? null : p.exp * 1000, expired, code, member: member ?? null, invite };
 }
 
 /** Stripe says paid (verify or webhook) → the order is paid once; the team is told once. */
@@ -324,7 +333,7 @@ async function checkoutPlus(res, user, body, requestId) {
   const order = store.createOrder({ userId: user.id, kind: 'plus', items, amount: plan.price, currency, requestId, plus: { plan: plan.id, days: plan.days, mc: account.mc, nick: account.nick } });
   try {
     const session = await stripe.createCheckout({
-      order, user, currency, idempotencyKey: `hs-${order.id}`, returnPath: '/launcher',
+      order, user, currency, idempotencyKey: `hs-${order.id}`, returnPath: pages.pathOf('hammer-plus'),
       lines: [{ name, amount: plan.price, quantity: 1, description: `Hammer+ w Hammer Launcherze dla konta Minecraft ${account.nick} – ${plan.days ? `${plan.days} dni` : 'na zawsze'}` }],
       message: 'Zaraz po płatności zobaczysz swój kod Hammer+ na stronie i dostaniesz go w wiadomości prywatnej na Discordzie. Wpisujesz go w Hammer Launcherze: Hammer+ → „Mam kod”.',
     });
@@ -373,18 +382,20 @@ async function webhook(req, res) {
 
 // ───────────── Discord sign-in ─────────────
 /**
- * Where sign-in may send people back to – only pages of this site that ask for it. download: the launcher page, which
- * then starts the download itself; polecaj: the „Zaproś znajomego” card of the launcher page.
+ * Where sign-in may send people back to (?next=<name>) – only pages of this site, by name, never an address: the
+ * admin panel and the launcher's pages, each under its own id (hammer-plus, polecaj, kontakt …), so the visitor lands
+ * on the page the button was on. launcher: the start page; download: the start page, which then starts the download.
  */
-const NEXT = { launcher: '/launcher', admin: '/admin', download: '/launcher?download=1', polecaj: '/launcher#polecaj' };
-/** "/launcher#polecaj" + "connected=1" → "/launcher?connected=1#polecaj" (and & when there is a query already). */
+const NEXT = { admin: '/admin', ...pages.signInTargets() };
+/** "/polecaj#karta" + "connected=1" → "/polecaj?connected=1#karta" (and & when there is a query already). */
 function withQuery(target, query) {
   const [pathAndQuery, hash] = target.split('#');
   return `${pathAndQuery}${pathAndQuery.includes('?') ? '&' : '?'}${query}${hash ? `#${hash}` : ''}`;
 }
 
 function authStart(req, res, url) {
-  const next = NEXT[url.searchParams.get('next')] ?? null;
+  const name = url.searchParams.get('next') ?? '';
+  const next = Object.hasOwn(NEXT, name) ? NEXT[name] : null; // (not "constructor" and the like, which every object has)
   if (!authReady()) return redirect(res, withQuery(next ?? '/', 'auth=unavailable'));
   const state = crypto.randomBytes(16).toString('base64url');
   return redirect(res, discord.authorizeUrl(state), [cookie('hs_oauth', state, 600), cookie('hs_next', next ?? '', next ? 600 : 0)]);
@@ -426,7 +437,7 @@ async function authCallback(req, res, url) {
  */
 function download(req, res) {
   const release = store.currentRelease();
-  if (!release) return redirect(res, '/launcher?download=none');
+  if (!release) return redirect(res, `${pages.HOME}?download=none`);
   const user = userOf(req);
   if (!user && authReady()) return authStart(req, res, new URL('/?next=download', 'http://local'));
   if (req.method === 'GET' && !limited(req, 'download', 20)) {
@@ -436,38 +447,54 @@ function download(req, res) {
   return redirect(res, `/updates/${encodeURIComponent(release.file)}`);
 }
 
-// ───────────── Static files ─────────────
-const TYPES = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webm': 'video/webm', '.mp4': 'video/mp4', '.css': 'text/css', '.js': 'text/javascript' };
-/** The launcher page and the admin panel load nothing but their own files (and pictures over https). */
+// ───────────── Pages and static files ─────────────
+const TYPES = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webm': 'video/webm', '.mp4': 'video/mp4', '.css': 'text/css', '.js': 'text/javascript', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8' };
+/** The launcher's pages and the admin panel load nothing but their own files (and pictures over https). */
 const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; media-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-// (also under their file names – never the raw file, which has both sites' parts and no CSP)
-const PAGES = { '/launcher': 'launcher.html', '/admin': 'admin.html', '/launcher.html': 'launcher.html', '/admin.html': 'admin.html' };
+/** The admin panel – also under its file name: never the raw file, which has both sites' parts and no CSP. */
+const ADMIN = ['/admin', '/admin.html'];
+const INDEX = path.join(PUBLIC, 'index.html'); // the shop's own page
 /**
- * A page as this site shows it. The same files serve both sites: what is between <!--shop--> … <!--/shop--> is only
- * for HammerShop's site, <!--launcher--> … <!--/launcher--> only for Hammer Launcher's own (BOT_PROFILE=launcher) –
- * its name, its voxel-hammer mark, no link to a shop.
+ * The admin panel's page as this site shows it. The same file serves both sites: what is between <!--shop--> …
+ * <!--/shop--> is only for HammerShop's site, <!--launcher--> … <!--/launcher--> only for Hammer Launcher's own
+ * (BOT_PROFILE=launcher). The launcher's pages are put together the same way in src/web/pages.js.
  */
 function pageHtml(file) {
-  const [mine, other] = profile.launcher ? ['launcher', 'shop'] : ['shop', 'launcher'];
-  return fs
-    .readFileSync(path.join(PUBLIC, file), 'utf8')
-    .replace(new RegExp(`<!--${other}-->[\\s\\S]*?<!--/${other}-->`, 'g'), '')
-    .replace(new RegExp(`<!--/?${mine}-->`, 'g'), '')
-    .replace(ASSET_REF, (url) => stampAssets(url));
+  return pages.forProfile(fs.readFileSync(path.join(PUBLIC, file), 'utf8')).replace(ASSET_REF, (url) => stampAssets(url));
 }
-
+function sendPage(req, res, status, html, extra = {}) {
+  res.writeHead(status, { ...HEADERS, 'content-type': TYPES['.html'], 'cache-control': 'no-cache', 'content-security-policy': PAGE_CSP, ...extra });
+  return res.end(req.method === 'HEAD' ? undefined : html);
+}
+/** The site's whole address for robots.txt and the sitemap: PUBLIC_URL, or – without one – the host this server was asked as. */
+function siteOrigin(req) {
+  if (web().publicUrl) return web().publicUrl;
+  const host = String(req.headers.host ?? '');
+  return /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(host) ? `http://${host}` : '';
+}
 
 function serveStatic(req, res, pathname) {
   pathname = unstamp(pathname); // /assets/_v/<stamp>/… is the same file – the stamp only makes a changed file a new address
-  // Hammer Launcher's own site has no shop: its front page – and any address that is no file – is the launcher's page.
-  const home = profile.launcher && (pathname === '/' || pathname === '/index.html' || (!pathname.startsWith('/assets/') && !path.extname(pathname)));
-  const page = PAGES[pathname.replace(/\/+$/, '')] ?? (home ? 'launcher.html' : null);
-  if (page && fs.existsSync(path.join(PUBLIC, page))) {
-    res.writeHead(200, { ...HEADERS, 'content-type': TYPES['.html'], 'cache-control': 'no-cache', 'content-security-policy': PAGE_CSP, ...(page === 'admin.html' && { 'x-robots-tag': 'noindex' }) });
-    return res.end(req.method === 'HEAD' ? undefined : pageHtml(page));
+  if (ADMIN.includes(pathname.replace(/\/+$/, ''))) return sendPage(req, res, 200, pageHtml('admin.html'), { 'x-robots-tag': 'noindex' });
+  // Hammer Launcher's own site tells search engines which pages it has – and that the panel and the API are not for them.
+  if (profile.launcher && (pathname === '/robots.txt' || pathname === '/sitemap.xml')) {
+    const ext = path.extname(pathname);
+    return send(res, 200, ext === '.txt' ? pages.robots(siteOrigin(req)) : pages.sitemap(siteOrigin(req)), { 'content-type': TYPES[ext], 'cache-control': 'public, max-age=3600' });
   }
-  const file = pathname === '/' || pathname === '/index.html' ? path.join(PUBLIC, 'index.html') : path.join(PUBLIC, path.normalize(pathname).replace(/^([/\\])+/, ''));
-  if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  // The launcher's pages (src/web/pages.js). On its own site they are the whole site; an address that is nothing gets
+  // a real 404. The addresses of the one long page it used to be lead to the page that has that part now.
+  const hit = pages.resolve(pathname);
+  const query = new URL(req.url, 'http://local').search;
+  if (hit?.redirect) return redirect(res, hit.redirect + query);
+  if (hit && !hit.page.missing) {
+    // Back from Stripe to an address made before Hammer+ had its own page (a payment page stays open for an hour).
+    if (hit.page.id === 'start' && /[?&]payment=/.test(query)) return redirect(res, pages.pathOf('hammer-plus') + query);
+    return sendPage(req, res, 200, pages.render(hit.page, web().publicUrl));
+  }
+  const file = pathname === '/' || pathname === '/index.html' ? INDEX : path.join(PUBLIC, path.normalize(pathname).replace(/^([/\\])+/, ''));
+  // (a page is never served as a plain file: the panel and the launcher's pages are answered above)
+  if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile() || (path.extname(file) === '.html' && file !== INDEX)) {
+    if (hit) return sendPage(req, res, 404, pages.render(hit.page, web().publicUrl), { 'x-robots-tag': 'noindex' });
     // Unknown paths show the store (single page) – but not for missing assets.
     if (pathname.startsWith('/assets/')) return fail(res, 404, 'Nie znaleziono');
     return serveStatic(req, res, '/');
@@ -553,6 +580,7 @@ async function handle(req, res) {
     if (route === 'session') return send(res, 200, sessionJson(userOf(req)));
     if (route === 'plus') return send(res, 200, { ready: plusOnSale(), plans: plusOnSale() ? store.plusPlans() : [], currency: hooks.currency(), authReady: authReady() });
     if (route === 'referrals') return send(res, 200, { ...referrals.pageJson(userOf(req), web().publicUrl), authReady: authReady() });
+    if (route === 'contact') return contact.get(res, { send });
     if (route === 'auth/start') return authStart(req, res, url);
     if (route === 'auth/callback') return authCallback(req, res, url);
     if (route.startsWith('image/')) {
@@ -576,6 +604,8 @@ async function handle(req, res) {
       store.endSession(cookies(req).hs_sid);
       return send(res, 200, { ok: true }, { 'set-cookie': cookie('hs_sid', '', 0) });
     }
+    // The contact form is for everybody – signed in or not (the Discord account is attached when there is one).
+    if (route === 'contact') return contact.post(req, res, { send, fail, jsonBody, limited, user: userOf(req), notify: (message) => hooks.contact(message) });
     const user = userOf(req);
     if (!user) return fail(res, 401, 'Najpierw zaloguj się przez Discord.');
     if (route === 'checkout') return checkout(req, res, user);

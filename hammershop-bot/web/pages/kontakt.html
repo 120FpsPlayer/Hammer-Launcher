@@ -1,0 +1,72 @@
+  <section class="section first contact" aria-labelledby="page-h">
+    <div class="page-bg" aria-hidden="true"></div>
+    <div class="wrap contact-grid">
+      <div class="contact-copy reveal">
+        <p class="eyebrow">Kontakt</p>
+        <h1 id="page-h">Napisz do nas</h1>
+        <p class="sub">Masz pytanie, problem z&nbsp;launcherem albo pomysł? Wypełnij formularz – odpiszemy na podany e-mail.</p>
+        <div class="contact-ways">
+          <a class="go-card" id="contact-mail" href="#" hidden>
+            <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-mail"/></svg></span>
+            <span class="go-text"><b>E-mail</b><span id="contact-mail-text"></span></span>
+            <span class="go-arrow" aria-hidden="true"><svg class="ico"><use href="#i-arrow"/></svg></span>
+          </a>
+          <a class="go-card" href="#" data-discord target="_blank" rel="noopener" hidden>
+            <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg></span>
+            <span class="go-text"><b>Discord</b><span>Najszybsza pomoc – napisz na naszym serwerze.</span></span>
+            <span class="go-arrow" aria-hidden="true"><svg class="ico"><use href="#i-external"/></svg></span>
+          </a>
+          <a class="go-card" href="{{base}}/pomoc">
+            <span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-help"/></svg></span>
+            <span class="go-text"><b>Częste pytania</b><span>Może odpowiedź już tam jest – sprawdź.</span></span>
+            <span class="go-arrow" aria-hidden="true"><svg class="ico"><use href="#i-arrow"/></svg></span>
+          </a>
+        </div>
+      </div>
+      <div class="contact-panel reveal" data-d="1">
+        <form class="contact-form" id="contact-form" novalidate>
+          <h2>Formularz kontaktowy</h2>
+          <div class="fields two">
+            <label for="contact-name">Imię albo nick
+              <input type="text" id="contact-name" name="name" minlength="2" maxlength="60" autocomplete="nickname" required>
+            </label>
+            <label for="contact-email">Twój e-mail
+              <input type="email" id="contact-email" name="email" maxlength="120" autocomplete="email" inputmode="email" spellcheck="false" placeholder="np. gracz@example.com" required>
+            </label>
+          </div>
+          <label for="contact-topic">Temat
+            <select id="contact-topic" name="topic" required>
+              <option value="launcher">Pomoc z launcherem</option>
+              <option value="plus">Hammer+ i płatności</option>
+              <option value="bug">Zgłoszenie błędu</option>
+              <option value="collab">Współpraca</option>
+              <option value="other">Inne</option>
+            </select>
+          </label>
+          <label for="contact-message">Wiadomość
+            <textarea id="contact-message" name="message" rows="6" minlength="10" maxlength="2000" placeholder="Opisz, w czym możemy pomóc. Przy błędzie napisz, co robisz i co się wtedy dzieje." required></textarea>
+            <span class="hint contact-count"><span id="contact-count">0</span> / 2000 znaków</span>
+          </label>
+          <div class="hp" aria-hidden="true">
+            <label for="contact-website">Strona WWW (zostaw puste)
+              <input type="text" id="contact-website" name="website" tabindex="-1" autocomplete="off">
+            </label>
+          </div>
+          <p class="notice bad" id="contact-error" role="alert" hidden></p>
+          <div class="contact-actions">
+            <button class="btn primary big" type="submit" id="contact-send"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg><span>Wyślij wiadomość</span></button>
+            <p class="muted small">Twoich danych użyjemy tylko po to, żeby Ci odpowiedzieć.</p>
+          </div>
+        </form>
+        <div class="contact-done" id="contact-done" role="status" tabindex="-1" hidden>
+          <span class="done-mark" aria-hidden="true"><svg class="ico"><use href="#i-check"/></svg></span>
+          <h2>Dziękujemy – odpiszemy na podany e-mail</h2>
+          <p class="soft">Twoja wiadomość jest już u&nbsp;nas. Odpowiedź przyjdzie na adres <b id="contact-done-mail"></b> – zajrzyj też do folderu ze spamem.</p>
+          <div class="cta center">
+            <button class="btn ghost" type="button" id="contact-again">Napisz kolejną wiadomość</button>
+            <a class="btn ghost" href="{{home}}">Strona główna</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>

@@ -54,6 +54,7 @@ Najważniejsze linie:
 | `STRIPE_SECRET_KEY=` | Stripe → **Developers → API keys → Secret key** (`sk_test_…` do prób, potem `sk_live_…`) |
 | `STRIPE_WEBHOOK_SECRET=` | Stripe → **Developers → Webhooks → Add endpoint** `https://twojadomena.pl/api/shop/stripe/webhook`, zdarzenia `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired` → **Signing secret** (`whsec_…`) |
 | `HAMMER_PLUS_PRIVATE_KEY=` | linia z pliku z kluczem, który już masz – albo nowy: `npm run plus-key` |
+| `MAIL_PASS=` | *opcjonalnie* – 16-literowe „hasło do aplikacji” z konta Gmail, na które mają przychodzić wiadomości ze strony i powiadomienia o zakupach – zob. [E-mail ze strony](#e-mail-ze-strony-gmail-za-darmo) |
 
 ```bash
 sudo chmod 600 .env
@@ -95,6 +96,26 @@ Caddy sam wyrobi i odnowi certyfikat. Wejdź na `https://twojadomena.pl` – pow
 2. Pobierz artefakt **Hammer-Launcher-Windows**, zainstaluj i przetestuj u siebie.
 3. `https://twojadomena.pl/admin` → **Wersje launchera** → wgraj `Hammer-Launcher-Setup-x.y.z.exe` → **Opublikuj wersję**.
 4. Od teraz `https://twojadomena.pl/launcher` daje launcher do pobrania, a każda kolejna opublikowana wersja sama trafia do graczy.
+
+## E-mail ze strony (Gmail, za darmo)
+Wiadomości z formularza **Kontakt** i powiadomienia o zakupach mogą przychodzić na adres kontaktowy strony (dla Hammer Launchera: `hammerlauncherclient@gmail.com` – ustawiony w `config.launcher.json` → `"contact"` → `"email"`). Potrzebna jest jedna linia w `.env`:
+
+1. Zaloguj się na to konto Gmail. Na stronie `myaccount.google.com/security` włącz **Weryfikację dwuetapową** (Google poprosi o numer telefonu).
+2. Wejdź na `myaccount.google.com/apppasswords`. Wpisz dowolną nazwę, np. *Strona Hammer*, i kliknij **Utwórz**.
+3. Google pokaże 16 liter w czterech grupach (np. `abcd efgh ijkl mnop`). Skopiuj je – drugi raz ich nie zobaczysz (w razie czego utworzysz nowe).
+4. Otwórz `.env` na serwerze i w linii `MAIL_PASS=` wklej te litery (ze spacjami albo bez):
+   ```bash
+   sudo -u hammershop nano /opt/hammershop/hammershop-bot/.env
+   ```
+5. Uruchom bota ponownie (na panelu hostingowym: przycisk *Restart*):
+   ```bash
+   sudo systemctl restart hammershop
+   ```
+6. `https://twojadomena.pl/admin` → **Wiadomości** → **Wyślij testowy e-mail**. Zielony komunikat = e-mail jest w skrzynce (zajrzyj też do Spamu). Czerwony mówi, co jest nie tak:
+   - *„nie przyjął hasła”* – w `MAIL_PASS` jest zwykłe hasło do Gmaila zamiast hasła do aplikacji albo literówka. Utwórz nowe hasło do aplikacji i wklej je jeszcze raz.
+   - *„Nie udało się połączyć z serwerem poczty”* – hosting blokuje wysyłanie poczty. Bot sam próbuje obu portów (465 i 587); jeśli oba są zamknięte, napisz do pomocy hostingu: „proszę o odblokowanie wychodzącego SMTP (port 465 lub 587) do smtp.gmail.com”.
+
+**Co działa bez tego:** formularz kontaktowy, zakładka **Wiadomości** w panelu i karta z każdą wiadomością na czacie zespołu na Discordzie. Bez `MAIL_PASS` nie wychodzą tylko e-maile – a problem z pocztą nigdy nie zatrzyma zakupu ani wiadomości. Hasło do aplikacji trzymaj tylko w `.env` – jak każdy sekret. W każdej chwili możesz je usunąć na stronie `myaccount.google.com/apppasswords`; wtedy od razu przestaje działać.
 
 ## Sklep i launcher naraz
 HammerShop (sklep) i Hammer Launcher to dwie kopie tego samego bota: dwa foldery (np. `/opt/hammershop/hammershop-bot` i `/opt/hammerlauncher/hammershop-bot`), dwa pliki `.env` (inny `DISCORD_TOKEN`, `BOT_PROFILE`, `WEB_PORT` i `PUBLIC_URL`), dwie usługi systemd (skopiuj plik usługi pod drugą nazwą i popraw ścieżki) i dwie domeny w `Caddyfile`. Klucz `HAMMER_PLUS_PRIVATE_KEY` wpisz w tej kopii, która sprzedaje i wystawia kody Hammer+ – czyli w kopii launchera.

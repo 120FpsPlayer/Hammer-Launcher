@@ -23,13 +23,17 @@
  *   - admin      the admin panel (/admin, src/web/admin.js) asks the bot who may use it (the server's owner and
  *                OWNER_IDS – everything; the bot's admins – the rest), posts news and new launcher versions on Discord
  *                and announcements on #📢 ogłoszenia („Ogłoszenia” tab), and writes every change to the log channel.
+ *   - contact    a message from the website's contact form (src/web/contact.js) becomes a card on the team's chat –
+ *                nobody is pinged (contactCard).
+ *   - e-mail     with e-mail set up (MAIL_PASS – src/lib/mail.js) every paid website order, and every claimed referral
+ *                reward, is also sent to the contact address (purchaseMail). Mail being down never touches a purchase.
  *
  * Bot side: ticket.order.paidWith = 'website', order.web = { orderId, stripe }.
  * Website side (data/web.json): order.handedOver, ticketChannelId, ticketNumber, ticketUrl, waitingForMember, delivered,
  * delivery (the text in My orders and on the receipt).
  */
 
-const { ChannelType, PermissionFlagsBits } = require('discord.js');
+const { ChannelType, PermissionFlagsBits, escapeMarkdown } = require('discord.js');
 const { env } = require('../env');
 const config = require('../lib/config');
 const db = require('../lib/db');
@@ -50,6 +54,7 @@ const permissions = require('../lib/permissions');
 const plusLib = require('../lib/plus');
 const { banner, hasBanner } = require('../lib/theme');
 const { gallery } = require('../lib/v2');
+const mail = require('../lib/mail');
 
 const shop = () => require('./shop');
 const delivery = () => require('./delivery');
@@ -370,10 +375,77 @@ async function handOver(order) {
 /** Website → bot: a paid order (once per order). */
 async function onPaid(order) {
   const current = webStore.getOrder(order.id) ?? order;
-  if (current.kind === 'plus') {
-    await deliverPlus(current);
-    await require('./referrals').onPurchase(webStore.getOrder(order.id) ?? current); // „Zaproś znajomego”: +7 days for whoever referred the buyer
-  } else await handOver(current);
+  try {
+    if (current.kind === 'plus') {
+      await deliverPlus(current);
+      await require('./referrals').onPurchase(webStore.getOrder(order.id) ?? current); // „Zaproś znajomego”: +7 days for whoever referred the buyer
+    } else await handOver(current);
+  } finally {
+    // Whatever happened above, the owner hears about the money. Not awaited: the buyer's receipt never waits for an e-mail.
+    purchaseMail(webStore.getOrder(order.id) ?? current);
+  }
+}
+
+// ───────────── E-mail to the contact address (src/lib/mail.js) ─────────────
+const plDateTime = (ms) => require('../web/contact').plDateTime(ms);
+/** "14,99 PLN" */
+const amountText = (order) => {
+  const decimals = DECIMALS[order.currency] ?? 2;
+  return `${(order.amount / 10 ** decimals).toFixed(decimals).replace('.', ',')} ${String(order.currency).toUpperCase()}`;
+};
+/** "Kuba (@kuba123) · Discord ID 123…" – the account that signed in on the site. */
+function accountText(userId) {
+  const user = webStore._state().users[userId];
+  return `${user?.name ?? user?.username ?? 'nieznane konto'}${user?.username ? ` (@${user.username})` : ''} · Discord ID ${userId}`;
+}
+const panelLink = (tab) => (env.web.publicUrl ? ['', `Panel admina: ${env.web.publicUrl}/admin#${tab}`] : []);
+
+/**
+ * A paid website order → an e-mail to the contact address: the order's number, what was bought, for how much, who
+ * bought it and when. Only when e-mail is set up. Never throws and nothing waits for it – a purchase is a purchase
+ * whether or not the mail server answers. → the send's promise, or null when nothing is sent.
+ */
+function purchaseMail(order) {
+  try {
+    if (!mail.ready() || order?.status !== 'paid') return null;
+    const who = [`Kwota: ${amountText(order)} (karta, Stripe)`, `Kupujący: ${accountText(order.userId)}`, `Kiedy: ${plDateTime(order.paidAt ?? Date.now())}`];
+    if (order.kind === 'plus') {
+      const p = order.plus ?? {};
+      const time = p.days ? `${p.days} dni` : 'na zawsze';
+      const until = !p.grantedAt ? null : p.exp ? `do ${plDateTime(p.exp * 1000)}` : 'na zawsze'; // (with the time the account still had)
+      return mail.send({
+        subject: `[Zakup] Hammer+ ${time} – ${p.nick} – ${amountText(order)}`,
+        text: [
+          `Nowy zakup na stronie ${config.brand.name}: Hammer+.`,
+          '',
+          `Zamówienie: ${order.id}`,
+          `Co: ${order.items?.[0]?.name ?? 'Hammer+'}`,
+          `Konto Minecraft: ${p.nick}`,
+          `Kupiony czas: ${time}`,
+          until ? `Hammer+ na tym koncie: ${until}` : null,
+          ...who,
+          p.grantedAt ? 'Kod: wystawiony – kupujący ma go na stronie i w wiadomości prywatnej na Discordzie.' : `Kod: NIE ZOSTAŁ WYSTAWIONY – wystaw go ręcznie na Discordzie: /hammerplus nadaj nick:${p.nick} dni:${p.days}`,
+          ...panelLink('zamowienia'),
+        ].filter((l) => l !== null).join('\n'),
+      });
+    }
+    const items = (order.items ?? []).map((i) => `${i.quantity}× ${i.name}`);
+    return mail.send({
+      subject: `[Zakup] ${items.length === 1 ? items[0] : `${items.length} produkty`} – ${amountText(order)}`,
+      text: [
+        `Nowy zakup na stronie ${config.brand.name}.`,
+        '',
+        `Zamówienie: ${order.id}`,
+        ...items.map((line, n) => `${n ? '    ' : 'Co: '}${line}`),
+        ...who,
+        order.ticketUrl ? `Ticket: #${order.ticketNumber} – ${order.ticketUrl}` : order.waitingForMember ? 'Ticket: otworzy się, gdy kupujący dołączy na serwer Discord.' : 'Ticket: nie otworzył się – dostarcz zamówienie ręcznie.',
+        ...panelLink('zamowienia'),
+      ].join('\n'),
+    });
+  } catch (err) {
+    console.warn(`[website] e-mail o zamówieniu ${order?.id}:`, err.message);
+    return null;
+  }
 }
 
 // ───────────── Hammer+ bought on the website ─────────────
@@ -571,8 +643,47 @@ const panelPlus = {
   },
 };
 
-/** „Zaproś znajomego” on the website: the days kept as a balance become a code (src/features/referrals.js). */
-const panelReferrals = { claim: (user, nick) => require('./referrals').claim(user, nick) };
+/**
+ * „Zaproś znajomego” on the website: the days kept as a balance become a code (src/features/referrals.js) – and the
+ * contact address hears about it, like about a purchase (never the code itself).
+ */
+const panelReferrals = {
+  claim: async (user, nick) => {
+    const granted = await require('./referrals').claim(user, nick);
+    if (mail.ready()) {
+      mail.send({
+        subject: `[Polecenia] Odebrano ${granted.days} dni Hammer+ – ${granted.nick}`,
+        text: [`Ktoś odebrał nagrodę z programu „Zaproś znajomego” na stronie ${config.brand.name}.`, '', `Konto Minecraft: ${granted.nick}`, `Odebrane dni: ${granted.days}`, `Hammer+ na tym koncie: ${granted.until ? `do ${plDateTime(granted.until)}` : 'na zawsze'}`, `Kto: ${accountText(user.id)}`, `Kiedy: ${plDateTime(Date.now())}`, ...panelLink('plus')].join('\n'),
+      });
+    }
+    return granted;
+  },
+};
+
+// ───────────── The website's contact form → the team ─────────────
+/**
+ * A message from the Kontakt page (src/web/contact.js) → a card on the team's chat (#💼 czat-zespołu), or in the
+ * server log where there is no such channel. Nobody is pinged, and what the visitor typed is shown as plain text:
+ * no markdown, no hidden links.
+ */
+async function contactCard(message) {
+  const guild = guildOf();
+  if (!guild) return null;
+  const safe = (value, max) => escapeMarkdown(truncate(String(value ?? ''), max), { maskedLink: true, heading: true, bulletedList: true, numberedList: true });
+  const account = message.user ? `<@${message.user.id}> (${safe(message.user.username ?? message.user.name, 40)})` : 'niezalogowany';
+  const quoted = safe(message.text, 1200).split('\n').map((l) => `> ${l}`).join('\n');
+  const c = container(COLORS.brand);
+  c.addTextDisplayComponents(text(`## ${e(guild, 'mail')} Nowa wiadomość ze strony\n**Temat:** ${require('../web/contact').topicLabel(message.topic)}\n**Od:** ${safe(message.name, 60)} · \`${message.email}\`\n**Discord:** ${account}`));
+  c.addSeparatorComponents(divider());
+  c.addTextDisplayComponents(text(truncate(quoted, 3200)));
+  c.addSeparatorComponents(divider());
+  c.addTextDisplayComponents(text('-# Odpisz na adres nadawcy – cała wiadomość i przycisk „Odpowiedz” są w panelu admina, w zakładce Wiadomości.'));
+  if (/^https?:\/\//.test(env.web.publicUrl)) c.addActionRowComponents(row(linkBtn(`${env.web.publicUrl}/admin#wiadomosci`, 'Otwórz w panelu', ce(guild, 'mail'))));
+  const payload = v2(c); // (v2: no mention in it notifies anybody)
+  const chat = guild.channels.cache.get(db.channelId(guild.id, 'staffChat') ?? '');
+  const sent = chat?.isTextBased?.() ? await chat.send(payload).catch(() => null) : null;
+  return sent ?? sendLog(guild, payload);
+}
 
 // ───────────── The panel's „Ogłoszenia” tab: announcements on #📢 ogłoszenia ─────────────
 const panelProblem = (status, message) => Object.assign(new Error(message), { status });
@@ -695,7 +806,7 @@ function start(c) {
     }
   });
   webAuth.setClientId(c.application?.id ?? c.user?.id);
-  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements });
+  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, contact: contactCard });
   server.on('error', (err) => {
     console.warn(`🌐 Strona: nie można użyć portu ${env.web.port} (${err.code ?? err.message}) – bot działa dalej bez niej.`);
     server = null;
@@ -725,5 +836,5 @@ hooks.on('inviteDelete', (invite) => {
 module.exports = {
   catalog, featuredServers, plain, tabOf, artOf, guildOf, ticketOrder, handOver, onPaid, onLogin, isMember, start, stop: () => server?.close(), _setClient: (c) => (client = c),
   deliverPlus, plusDm, panelLevel, announce, panelLog, panelPlus, panelFeatured, panelReferrals, launcherChannel, checkInvite, inviteOf, invitesPaused, ownInviteFailing,
-  panelAnnouncements,
+  panelAnnouncements, contactCard, purchaseMail,
 };

@@ -231,7 +231,15 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
       return;
     }
     const playedMs = e.playedMs ?? 0;
-    const after = instances.patchInternal(instance.id, { playTimeMs: (instance.playTimeMs ?? 0) + playedMs }) ?? instance;
+    // The play time is a nicety. When instance.json cannot be written this very moment (a full disk, a file an
+    // antivirus holds) the session still ends properly: an error thrown here would also keep the listeners after
+    // this one from running – the launcher window would not come back.
+    let after = instance;
+    try {
+      after = instances.patchInternal(instance.id, { playTimeMs: (instance.playTimeMs ?? 0) + playedMs }) ?? instance;
+    } catch {
+      after = instance;
+    }
     afterSession(after, playedMs);
     summarizeSession(after, e.state, playedMs);
   });

@@ -9,13 +9,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { readJson, writeJson } = require('./store');
+const { fileReason } = require('./fsutil');
 
 const LOADERS = ['vanilla', 'fabric', 'quilt', 'forge', 'neoforge'];
 const ICONS = ['hammer', 'grass', 'diamond', 'sword', 'pickaxe', 'creeper', 'nether', 'end', 'rocket', 'star'];
 const CONTENT_DIRS = { mod: 'mods', resourcepack: 'resourcepacks', shader: 'shaderpacks' };
 
 function slug(text) {
-  return String(text)
+  const id = String(text)
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/ł/g, 'l')
@@ -24,6 +25,8 @@ function slug(text) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 32) || 'instancja';
+  // Windows keeps a few names for devices: a folder called "con" or "nul" cannot be opened by the game or the Explorer.
+  return /^(con|prn|aux|nul|com\d|lpt\d)$/.test(id) ? `instancja-${id}` : id;
 }
 
 /** Validates the editable fields of an instance (from the UI) – unknown keys are dropped. */
@@ -117,7 +120,14 @@ function createInstances(paths, { t = (text) => text, lang = () => 'pl_pl' } = {
     const current = get(id);
     if (!current) throw new Error('Nie ma takiej instancji.');
     const copy = create({ ...current, name: `${current.name} ${t('(kopia)')}`.slice(0, 48) });
-    fs.cpSync(dir(id), dir(copy.id), { recursive: true, filter: (src) => path.basename(src) !== 'instance.json' });
+    try {
+      // session.lock of a world: a running game holds it (Windows refuses to read it then) and it is useless in a copy.
+      fs.cpSync(dir(id), dir(copy.id), { recursive: true, filter: (src) => !['instance.json', 'session.lock'].includes(path.basename(src)) });
+    } catch (err) {
+      // Half a copy (the disk filled up, a file was held by another program) is not an instance – it goes again.
+      fs.rmSync(dir(copy.id), { recursive: true, force: true });
+      throw new Error(`Nie udało się skopiować instancji: ${fileReason(err)}.`, { cause: err });
+    }
     return patchInternal(copy.id, { versionId: current.versionId, installedFor: current.installedFor, optimized: current.optimized });
   }
 

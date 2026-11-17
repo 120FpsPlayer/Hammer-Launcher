@@ -109,7 +109,8 @@
     const i0 = state.instance;
     if (!i0) {
       clear(root, h('div.page', h('div.page-head', h('div', h('h1', 'Optymalizacja'))), h('div.card', HS.empty('cube', 'Brak instancji', 'Utwórz instancję, aby ją zoptymalizować.', h('button.btn.primary', { onclick: () => HS.editInstance() }, icon('plus'), 'Nowa instancja')))));
-      return () => {};
+      // The first instance was just made (with the button above): the page draws itself for it.
+      return bus.on('instances', () => state.instance && HS.refreshView());
     }
     const sysBox = h('div.sys', [1, 2, 3, 4].map(() => h('div.skeleton', { style: { height: '70px' } })));
     const autoCard = h('section.card');
@@ -163,7 +164,8 @@
           if (!res) return;
           await state.refreshInstances();
           await load();
-          summaryDialog(inst(), res);
+          // (the instance that was optimised – another one may have been picked while this was working)
+          summaryDialog(state.instances.find((x) => x.id === i.id) ?? i, res);
         });
       clear(
         autoCard,

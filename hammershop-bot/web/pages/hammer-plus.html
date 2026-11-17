@@ -1,0 +1,75 @@
+  <section class="section first" aria-labelledby="page-h">
+    <div class="wrap">
+      <div class="plus-box reveal">
+        <div class="plus-copy">
+          <p class="eyebrow gold"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg>Hammer+</p>
+          <h1 id="page-h">Launcher po Twojemu</h1>
+          <p class="soft">Hammer+ to dodatek dla tych, którzy chcą więcej wyglądu i&nbsp;wygody. Nie daje żadnej przewagi w&nbsp;grze – a&nbsp;wszystko, co w&nbsp;launcherze jest za darmo, zostaje za darmo.</p>
+          <ul class="perks">
+            <li>Motywy launchera z&nbsp;ruchomym tłem (np. Nether i&nbsp;End), własne kolory i&nbsp;tła</li>
+            <li>Własne tło menu w&nbsp;grze</li>
+            <li>Ruchome peleryny (np. płomień, iskry, fale) widoczne dla graczy z&nbsp;Hammer Client</li>
+            <li>Dodatki na postać: skrzydła, aureola i&nbsp;czapki</li>
+            <li>Znaczek Hammer+ (młotek z&nbsp;plusem) przed nickiem na liście graczy (Tab)</li>
+            <li>Ranga 💎 Hammer+ na naszym Discordzie</li>
+            <li>Kopie światów: launcher robi je sam, a&nbsp;wczorajszą wersję przywracasz jednym kliknięciem</li>
+            <li>Chmura: ustawienia launchera na każdym komputerze</li>
+            <li>Biblioteka na 200 skórek i&nbsp;zestawy skórek</li>
+          </ul>
+          <p class="plus-ref"><svg class="ico" aria-hidden="true"><use href="#i-gift"/></svg><span>Chcesz Hammer+ za darmo? <a href="{{base}}/polecaj">Zaproś znajomego</a> – dostajesz 7 dni za każdego, kto kupi Hammer+.</span></p>
+        </div>
+        <div class="plus-buy">
+          <div class="plus-buy-head"><span class="crown" aria-hidden="true"><svg class="ico"><use href="#i-crown"/></svg></span><div><h2>Kup Hammer+</h2><span>Kod przychodzi od razu – tutaj i&nbsp;na Discordzie</span></div></div>
+          <div id="plus-result" hidden></div>
+          <div class="plans" id="plans"></div>
+          <p class="muted small" id="plus-note">Do zakupu zaloguj się przez Discord – kod Hammer+ trafi do Ciebie w&nbsp;wiadomości prywatnej, a&nbsp;na naszym serwerze dostaniesz rangę 💎 Hammer+. Kod jest przypisany do Twojego konta Minecraft. Płatność obsługuje Stripe (karta, Apple Pay, Google Pay).</p>
+        </div>
+      </div>
+      <div class="codes reveal" id="my-codes" hidden>
+        <div class="codes-head">
+          <h2>Twoje kody Hammer+</h2>
+          <p class="muted small">Tylko kody, które jeszcze działają. Wpisujesz je w&nbsp;launcherze: Hammer+ → „Mam kod”.</p>
+        </div>
+        <div class="codes-grid" id="my-codes-list"></div>
+        <button class="btn small ghost" type="button" id="my-codes-more" aria-expanded="false" aria-controls="my-codes-list" hidden></button>
+      </div>
+      <ol class="plus-how">
+        <li class="reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-crown"/></svg></span><div><b>Wybierz plan</b><span>Podajesz nick z&nbsp;Minecrafta i&nbsp;płacisz kartą, Apple Pay albo Google Pay.</span></div></li>
+        <li class="reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg></span><div><b>Kod masz od razu</b><span>Pokaże się tutaj i&nbsp;przyjdzie w&nbsp;wiadomości prywatnej na Discordzie.</span></div></li>
+        <li class="reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span><div><b>Wklej go w&nbsp;launcherze</b><span>Hammer+ → „Mam kod”. Motywy i&nbsp;peleryny zobaczysz na stronie <a href="{{base}}/wyglad">Wygląd</a>.</span></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="final slim" aria-labelledby="final-h">
+    <div class="final-bg" aria-hidden="true"></div>
+    <div class="wrap final-in reveal">
+      <i class="final-h" aria-hidden="true"></i>
+      <div class="final-copy">
+        <h2 id="final-h">Hammer+ działa w&nbsp;Hammer Launcherze</h2>
+        <p>Nie masz go jeszcze? Pobierz za darmo – wszystko, co w&nbsp;launcherze jest darmowe, zostaje darmowe.</p>
+      </div>
+      <div class="cta">
+        <a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a>
+        <a class="btn big ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Discord</a>
+      </div>
+    </div>
+  </section>
+
+<dialog id="nick-dialog" aria-labelledby="nick-h">
+  <form method="dialog" id="nick-form">
+    <h2 id="nick-h">Dla którego konta Minecraft?</h2>
+    <p class="muted" id="nick-plan"></p>
+    <div class="fields gap-top">
+      <label>Twój nick w&nbsp;Minecraft (Java Edition)
+        <input type="text" id="nick" name="nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="np. Notch" required pattern="[A-Za-z0-9_]{1,16}">
+        <span class="hint">Kod zadziała tylko na tym koncie – sprawdź pisownię.</span>
+      </label>
+      <p class="notice bad" id="nick-error" role="alert" hidden></p>
+    </div>
+    <div class="actions">
+      <button class="btn" type="button" id="nick-cancel">Anuluj</button>
+      <button class="btn gold" type="submit" id="nick-pay">Przejdź do płatności</button>
+    </div>
+  </form>
+</dialog>

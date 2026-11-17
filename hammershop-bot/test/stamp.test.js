@@ -26,14 +26,22 @@ test.before(async () => {
 });
 test.after(() => site?.close());
 
-test('the launcher page: clips, posters, pictures, fonts, scripts and styles all carry their content stamp', async () => {
-  const html = await (await fetch(`${base}/`)).text();
+test('the launcher\'s pages: clips, posters, pictures, fonts, scripts and styles all carry their content stamp', async () => {
+  const html = await (await fetch(`${base}/funkcje`)).text(); // the page with the clips
   const clip = /src="\/assets\/_v\/([0-9a-f]{8})\/(launcher\/clips\/graj\.mp4)"/.exec(html);
   assert.ok(clip, 'the clip has a stamp in its path');
   assert.equal(clip[1], stampOf(`/assets/${clip[2]}`));
   assert.match(html, /data-poster="\/assets\/_v\/[0-9a-f]{8}\/launcher\/clips\/graj-poster\.webp"/);
   assert.match(html, /href="\/assets\/_v\/[0-9a-f]{8}\/launcher\.css"/);
   assert.doesNotMatch(html, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, 'no unstamped asset address left in attributes');
+  // Every page: its styles, its script and – on the start page – the script for old addresses, all stamped.
+  for (const page of ['/', '/hammer-client', '/wyglad', '/hammer-plus', '/kontakt']) {
+    const other = await (await fetch(base + page)).text();
+    assert.match(other, /href="\/assets\/_v\/[0-9a-f]{8}\/launcher\.css"/, page);
+    assert.match(other, /src="\/assets\/_v\/[0-9a-f]{8}\/launcher\.js"/, page);
+    assert.doesNotMatch(other, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, page);
+  }
+  assert.match(await (await fetch(`${base}/`)).text(), /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-old\.js"><\/script>/);
   // The stamped address serves the very file – also in parts (Range), as browsers ask for videos.
   const res = await fetch(`${base}/assets/_v/${clip[1]}/${clip[2]}`, { headers: { range: 'bytes=0-15' } });
   assert.ok([200, 206].includes(res.status));

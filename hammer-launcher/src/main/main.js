@@ -501,16 +501,7 @@ if (!app.requestSingleInstanceLock()) {
         if (res.canceled) return [];
         files = res.filePaths;
       }
-      const dir = s().content.folder(instance, type);
-      fs.mkdirSync(dir, { recursive: true });
-      const added = [];
-      for (const f of files) {
-        const name = safeName(path.basename(f));
-        if (!/\.(jar|zip)$/i.test(name)) continue;
-        fs.copyFileSync(f, path.join(dir, name));
-        added.push(name);
-      }
-      return added;
+      return s().content.importFiles(instance, type, files); // only .jar for mods and .zip for packs – see content.js
     });
 
     handle('modrinth:search', (params) => s().modrinth.search(params));

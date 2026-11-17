@@ -99,11 +99,13 @@
       ];
     }
 
+    let stage = null; // the line that names what is downloading while the game of a test is being prepared
     /** While the game of a test is being prepared or runs. */
     function running(i) {
       const run = state.running.get(i.id);
       const prog = state.progress.get(i.id);
       const preparing = run === 'preparing';
+      stage = preparing ? h('small', prog?.label ?? 'To potrwa chwilę.') : null;
       return h(
         'div.bench-run',
         { role: 'status' },
@@ -111,7 +113,7 @@
         h(
           'div.grow',
           h('b', preparing ? 'Przygotowuję grę do testu FPS…' : 'Trwa test FPS – gra zamknie się sama'),
-          h('small', preparing ? (prog?.label ?? 'To potrwa chwilę.') : 'Nie zamykaj gry i nie przełączaj się na inne okno. Wynik pojawi się tutaj, gdy gra się zamknie.'),
+          stage ?? h('small', 'Nie zamykaj gry i nie przełączaj się na inne okno. Wynik pojawi się tutaj, gdy gra się zamknie.'),
         ),
         preparing ? null : h('button.btn.ghost.sm', { type: 'button', onclick: () => HS.stop(i.id) }, icon('stop'), 'Przerwij'),
       );
@@ -176,6 +178,10 @@
 
     const offs = [
       bus.on('game', () => info && draw()),
+      // The download moves on: only that one line changes – the card (its world list, the history) is not drawn again.
+      bus.on('progress', (p) => {
+        if (p?.instanceId === inst()?.id && p.label && stage?.isConnected) stage.textContent = p.label;
+      }),
       // A test of this instance ended: the history has a new entry (or the card says why not).
       bus.on('benchmark', (res) => res.instanceId === inst()?.id && load()),
     ];

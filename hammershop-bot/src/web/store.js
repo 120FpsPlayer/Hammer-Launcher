@@ -60,6 +60,7 @@ function load() {
     state.referrals = raw.referrals ?? null; // „Zaproś znajomego” – see its block below
     if (raw.cosmetics) state.cosmetics = raw.cosmetics; // Dodatki – see setCosmetics
     if (Array.isArray(raw.announcements)) state.announcements = raw.announcements; // the panel's „Ogłoszenia” – see its block below
+    if (Array.isArray(raw.messages)) state.messages = raw.messages; // the contact form's messages – see their block below
   }
   // Old sessions out.
   const now = Date.now();
@@ -537,3 +538,42 @@ function updateAnnouncement(id, patch) {
   return item;
 }
 Object.assign(module.exports, { MAX_ANNOUNCEMENTS, announcementList, getAnnouncement, addAnnouncement, updateAnnouncement });
+
+// ── The contact form's messages (src/web/contact.js) – the admin panel's „Wiadomości” tab shows them ──
+/*
+ * messages[] = { id, at, name, email, topic, text, user ({ id, name, username } – the Discord account, when the
+ *                visitor was signed in | null), read, readAt, readBy (Discord user ID),
+ *                mail ('off' – not set up | 'pending' | 'sent' | 'failed'), mailError } – newest first
+ */
+const MAX_MESSAGES = 300;
+const messageList = () => state.messages ?? [];
+const getMessage = (id) => messageList().find((m) => m.id === id) ?? null;
+const unreadMessages = () => messageList().filter((m) => !m.read).length;
+function addMessage(fields) {
+  const item = { user: null, read: false, readAt: null, readBy: null, mail: 'off', mailError: null, ...fields, id: newId('msg'), at: Date.now() };
+  const list = [item, ...messageList()];
+  // Over the limit the oldest one goes – one that has been read, as long as there is any: a flood of new messages
+  // must not push out the ones nobody has seen yet.
+  while (list.length > MAX_MESSAGES) {
+    const read = list.findLastIndex((m) => m.read);
+    list.splice(read === -1 ? list.length - 1 : read, 1);
+  }
+  state.messages = list;
+  save();
+  return item;
+}
+function updateMessage(id, patch) {
+  const item = getMessage(id);
+  if (!item) return null;
+  Object.assign(item, patch, { id: item.id });
+  save();
+  return item;
+}
+function removeMessage(id) {
+  const item = getMessage(id);
+  if (!item) return null;
+  state.messages = messageList().filter((m) => m !== item);
+  save();
+  return item;
+}
+Object.assign(module.exports, { MAX_MESSAGES, messageList, getMessage, unreadMessages, addMessage, updateMessage, removeMessage });

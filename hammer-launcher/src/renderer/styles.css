@@ -185,6 +185,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 .instance-pick.compact{min-width:230px;background:var(--panel);backdrop-filter:none;padding:7px 12px 7px 7px}
 .instance-pick.compact b{font-size:13.5px}
 .instance-pick>svg.i{margin-left:auto;color:var(--dim)}
+/* A long instance name is cut with "…" – the switcher never squeezes the page's heading or runs out of the window. */
+.instance-pick{max-width:100%}
+.instance-pick.compact{max-width:min(360px,25vw)}
+.instance-pick>div:not(.tile){min-width:0}
+.instance-pick b,.instance-pick small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .play-btn{height:56px;min-width:210px;padding:0 30px;border-radius:14px;font-size:17px;font-weight:900;letter-spacing:.06em;display:inline-flex;align-items:center;justify-content:center;gap:12px;color:var(--accent-ink);background:linear-gradient(180deg,var(--accent-hi),var(--accent) 45%,var(--accent3));box-shadow:0 10px 30px rgba(var(--glow),.4),inset 0 1px rgba(255,255,255,.5);transition:transform .08s,filter .15s,box-shadow .15s}
 .play-btn:hover{filter:brightness(1.07);box-shadow:0 14px 38px rgba(var(--glow),.55),inset 0 1px rgba(255,255,255,.5)}
 .play-btn:active{transform:translateY(1px)}

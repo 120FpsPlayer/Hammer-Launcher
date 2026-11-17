@@ -111,8 +111,19 @@ function createContent({ modrinth, fetchFn }) {
     if (!file) throw new Error(`Brak pliku do pobrania: ${project?.title ?? version?.name ?? '?'}`);
     if (!EXT[type].some((e) => String(file.filename).toLowerCase().endsWith(e))) throw new Error(`Plik ${safeName(file.filename)} nie pasuje do rodzaju dodatku.`);
     const existing = installedProjects(instance).get(version.project_id);
-    if (existing && existing.versionId !== version.id) removeFile(instance, existing.type, existing.file);
-    return writeVersion(instance, type, version, project, onProgress);
+    const name = await writeVersion(instance, type, version, project, onProgress);
+    if (existing && existing.versionId !== version.id) dropOld(instance, existing, type, name);
+    return name;
+  }
+
+  /**
+   * Another version of a project went in as `name`: the file of the old version goes. Only now – after the new
+   * file is in place – so a download that fails (no connection, a wrong checksum) never costs the player the
+   * version that worked. When the new file took the very name of the old one, only a switched-off copy is left to remove.
+   */
+  function dropOld(instance, old, type, name) {
+    if (old.type === type && old.file === name) fs.rmSync(path.join(folder(instance, type), safeName(`${name}.disabled`)), { force: true });
+    else removeFile(instance, old.type, old.file);
   }
 
   function removeFile(instance, type, name) {
@@ -150,8 +161,8 @@ function createContent({ modrinth, fetchFn }) {
       if (existing && (depth > 0 || existing.versionId === version.id)) {
         result.skipped.push(project?.title ?? existing.title);
       } else {
-        if (existing) removeFile(instance, existing.type, existing.file); // another version of the same project
-        await writeVersion(instance, depType, version, project, onProgress);
+        const name = await writeVersion(instance, depType, version, project, onProgress);
+        if (existing) dropOld(instance, existing, depType, name); // another version of the same project
         result.installed.push(project?.title ?? version.name);
       }
       for (const dep of version.dependencies ?? []) {
@@ -188,6 +199,26 @@ function createContent({ modrinth, fetchFn }) {
       .map((i) => ({ file: i.file, title: i.title, current: i.versionNumber, latest: { id: latest[i.sha1].id, versionNumber: latest[i.sha1].version_number } }));
   }
 
+  /**
+   * Copies files the player picked or dropped into the folder of `type` (an unknown type counts as mods, like in
+   * folder()). Only the kind of file that list shows goes in – .jar for mods, .zip for packs: a resource pack
+   * dropped on the Mods tab would be „added” and never seen again. Returns the names that were added.
+   */
+  function importFiles(instance, type, files) {
+    const kind = type in DIRS ? type : 'mod';
+    const dir = folder(instance, kind);
+    fs.mkdirSync(dir, { recursive: true });
+    const added = [];
+    for (const file of Array.isArray(files) ? files : []) {
+      const name = safeName(path.basename(String(file)));
+      if (!EXT[kind].some((e) => name.toLowerCase().endsWith(e))) continue;
+      const target = path.join(dir, name);
+      if (path.resolve(String(file)) !== path.resolve(target)) fs.copyFileSync(String(file), target); // (picked from this very folder: it is here already)
+      added.push(name);
+    }
+    return added;
+  }
+
   /** What the list remembers about one file (Modrinth project and version, name, icon) – null when nothing. */
   function indexEntry(instance, type, name) {
     return loadIndex(instance)[type]?.[name] ?? null;
@@ -203,7 +234,7 @@ function createContent({ modrinth, fetchFn }) {
   }
 
   // (Replacing files with their newer versions lives in updates.js – it keeps a restore point for the way back.)
-  return { list, identify, install, installVersion, setEnabled, remove: (instance, type, name) => removeFile(instance, type, name), checkUpdates, installedProjects, folder, indexEntry, setIndexEntry };
+  return { list, identify, install, installVersion, importFiles, setEnabled, remove: (instance, type, name) => removeFile(instance, type, name), checkUpdates, installedProjects, folder, indexEntry, setIndexEntry };
 }
 
 module.exports = { createContent, DIRS };

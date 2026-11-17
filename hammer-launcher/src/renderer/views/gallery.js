@@ -150,7 +150,7 @@
     let shown = 60;
     const grid = h('div');
     const count = h('span.dim', { style: { whiteSpace: 'nowrap' } });
-    const sel = h('select.select', { style: { width: 'auto', minWidth: '220px' }, onchange: (e) => ((filter = e.target.value), (shown = 60), load()) });
+    const sel = h('select.select', { style: { width: 'auto', minWidth: '220px', maxWidth: '300px' }, onchange: (e) => ((filter = e.target.value), (shown = 60), load()) });
     const drawSel = () =>
       clear(
         sel,

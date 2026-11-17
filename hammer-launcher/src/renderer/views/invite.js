@@ -118,13 +118,17 @@
         for (const input of body.querySelectorAll('input')) input.disabled = true;
         const res = await attempt(() => api.invite.accept(info.token, { instanceId: choice || null }));
         cancel.disabled = false;
-        if (!m.box.isConnected) return;
-        if (!res) return draw();
+        if (!res) return m.box.isConnected ? draw() : undefined;
         if (res.created) state.settings = await api.settings.get();
         await state.refreshInstances().catch(() => null);
         if (res.created) bus.emit('settings', state.settings);
         bus.emit('servers', { instanceId: res.instance.id });
-        drawDone(res);
+        if (m.box.isConnected) return drawDone(res);
+        // The window was closed meanwhile (a modpack downloads for minutes): the instance and the server are there
+        // all the same – the lists above know it already, and this says so.
+        const i = res.instance;
+        const text = res.created ? `Instancja „${i.name}” jest gotowa – serwer „${res.name}” jest na jej liście.` : res.added ? `Serwer „${res.name}” jest na liście instancji „${i.name}”.` : `Serwer „${res.name}” był już na liście instancji „${i.name}”.`;
+        return HS.toast('ok', text, 9000, state.running.has(i.id) ? null : { label: 'Graj', onClick: () => HS.play(i.id, { server: res.server }) });
       });
     draw();
   }

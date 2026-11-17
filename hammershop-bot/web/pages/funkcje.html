@@ -1,0 +1,96 @@
+  <section class="page-top" aria-labelledby="page-h">
+    <div class="page-bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <p class="eyebrow">Funkcje</p>
+      <h1 id="page-h">Wszystko do grania w&nbsp;jednym oknie</h1>
+      <p class="sub">Bez szukania modów po stronach, bez kombinowania z&nbsp;Javą i&nbsp;grzebania w&nbsp;folderach. Wybierasz, klikasz, grasz.</p>
+    </div>
+  </section>
+
+  <section class="section first" id="funkcje" aria-label="Funkcje launchera">
+    <div class="wrap">
+      <div class="showcase reveal" data-tabs>
+        <div class="tablist" role="tablist" aria-label="Funkcje launchera">
+          <button class="tab" role="tab" type="button" id="tab-graj" aria-controls="pane-graj" aria-selected="true"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Graj</button>
+          <button class="tab" role="tab" type="button" id="tab-instancje" aria-controls="pane-instancje" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Instancje</button>
+          <button class="tab" role="tab" type="button" id="tab-mody" aria-controls="pane-mody" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-box"/></svg>Mody</button>
+          <button class="tab" role="tab" type="button" id="tab-opt" aria-controls="pane-opt" aria-selected="false" tabindex="-1"><svg class="ico" aria-hidden="true"><use href="#i-gauge"/></svg>Optymalizacja</button>
+        </div>
+        <div class="tabpanels">
+          <div class="tabpanel is-active" role="tabpanel" id="pane-graj" aria-labelledby="tab-graj" tabindex="0">
+            <div class="pane-copy">
+              <h2>Jeden przycisk i grasz</h2>
+              <p>Wybierasz instancję, klikasz GRAJ – launcher sam pobiera grę, właściwą Javę i&nbsp;loader modów, a&nbsp;Ty widzisz, co się dzieje.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Pobieranie i instalacja bez Twojej pomocy</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Aktualności i&nbsp;skrót do Discorda na ekranie głównym</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Po grze podsumowanie sesji i&nbsp;Twoje zrzuty ekranu</li>
+              </ul>
+            </div>
+            <figure class="shot clip-frame"><video class="clip" muted loop playsinline preload="none" width="1280" height="800" data-poster="/assets/launcher/clips/graj-poster.webp" aria-label="Nagranie z launchera: wybór instancji, kliknięcie GRAJ i uruchamianie gry"><source src="/assets/launcher/clips/graj.webm" type="video/webm"><source src="/assets/launcher/clips/graj.mp4" type="video/mp4"></video><button class="clip-toggle" type="button" hidden><span class="sr-only">Zatrzymaj nagranie</span></button></figure>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="pane-instancje" aria-labelledby="tab-instancje" tabindex="0">
+            <div class="pane-copy">
+              <h2>Osobny Minecraft na każdą okazję</h2>
+              <p>Każda instancja ma własne mody, światy i&nbsp;ustawienia – survival, PvP i&nbsp;paczka modów nigdy sobie nie przeszkadzają.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Vanilla, Fabric, Quilt, Forge i&nbsp;NeoForge – dowolna wersja gry</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Import paczek .mrpack i&nbsp;przeciąganie własnych plików</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Całą instancję wyślesz znajomemu jednym kodem</li>
+              </ul>
+            </div>
+            <figure class="shot"><picture><source type="image/webp" srcset="/assets/launcher/instancje.webp"><img loading="lazy" src="/assets/launcher/instancje.jpg" width="1100" height="692" alt="Zakładka Instancje: kilka instancji z różnymi wersjami gry i loaderami"></picture></figure>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="pane-mody" aria-labelledby="tab-mody" tabindex="0">
+            <div class="pane-copy">
+              <h2>Ponad tysiąc modów, zero szukania</h2>
+              <p>Mody, paczki tekstur, shadery i&nbsp;paczki modów z&nbsp;Modrinth – wyszukujesz i&nbsp;instalujesz prosto w&nbsp;launcherze.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Zależności instalują się same</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Aktualizacje sprawdzane w&nbsp;tle – każdą da się cofnąć</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Gotowe zestawy: PvP, Survival+, Budowanie, Shadery</li>
+              </ul>
+            </div>
+            <figure class="shot clip-frame"><video class="clip" muted loop playsinline preload="none" width="1280" height="800" data-poster="/assets/launcher/clips/mody-poster.webp" aria-label="Nagranie z launchera: wyszukanie moda, jego opis i instalacja jednym kliknięciem"><source src="/assets/launcher/clips/mody.webm" type="video/webm"><source src="/assets/launcher/clips/mody.mp4" type="video/mp4"></video><button class="clip-toggle" type="button" hidden><span class="sr-only">Zatrzymaj nagranie</span></button></figure>
+          </div>
+          <div class="tabpanel" role="tabpanel" id="pane-opt" aria-labelledby="tab-opt" tabindex="0">
+            <div class="pane-copy">
+              <h2>FPS boost jednym kliknięciem</h2>
+              <p>Przycisk <b>Zoptymalizuj wszystko</b> dobiera pamięć, ustawienia Javy i&nbsp;mody wydajnościowe pod Twój komputer i&nbsp;wersję gry.</p>
+              <ul class="checks">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Sodium, Lithium, FerriteCore i&nbsp;inne sprawdzone mody</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Presety grafiki – od słabego komputera po jakość</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Test FPS pokaże, ile naprawdę zyskałeś</li>
+              </ul>
+            </div>
+            <figure class="shot clip-frame"><video class="clip" muted loop playsinline preload="none" width="1280" height="800" data-poster="/assets/launcher/clips/optymalizacja-poster.webp" aria-label="Nagranie z launchera: przycisk Zoptymalizuj wszystko i podsumowanie zmian"><source src="/assets/launcher/clips/optymalizacja.webm" type="video/webm"><source src="/assets/launcher/clips/optymalizacja.mp4" type="video/mp4"></video><button class="clip-toggle" type="button" hidden><span class="sr-only">Zatrzymaj nagranie</span></button></figure>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="more-title reveal">I to nie wszystko</h2>
+      <div class="bento">
+        <article class="tile reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg></span><h3>Graj ze znajomymi</h3><p>Zaproszenia jednym linkiem, polecane serwery i&nbsp;udostępnianie całej instancji jednym kodem.</p></article>
+        <article class="tile reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-shield"/></svg></span><h3>Twoje konto Microsoft</h3><p>Logujesz się oficjalnie przez Microsoft – launcher nie widzi Twojego hasła. Potrzebujesz Minecraft: Java Edition.</p></article>
+        <article class="tile reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-terminal"/></svg></span><h3>Crash? Wyjaśnimy po polsku</h3><p>Gdy gra się wyłączy, launcher powie, co się stało i&nbsp;co zrobić – bez czytania logów.</p></article>
+        <article class="tile reveal"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg></span><h3>Światy i&nbsp;serwery z&nbsp;Minecrafta</h3><p>Przeniesiesz je ze zwykłego launchera jednym kliknięciem – bez grzebania w&nbsp;folderach.</p></article>
+        <article class="tile reveal" data-d="1"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-shirt"/></svg></span><h3>Skórki bez minecraft.net</h3><p>Skórkę i&nbsp;pelerynę zmieniasz prosto w&nbsp;launcherze – zmiana trafia od razu na Twoje konto.</p></article>
+        <article class="tile reveal" data-d="2"><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-refresh"/></svg></span><h3>Aktualizuje się sam</h3><p>Nowa wersja pobiera się w&nbsp;tle i&nbsp;instaluje przy następnym uruchomieniu. Nic nie pobierasz drugi raz.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section start" id="start" aria-labelledby="start-h">
+    <div class="wrap">
+      <header class="sec-head reveal">
+        <p class="eyebrow">Jak zacząć</p>
+        <h2 id="start-h">Grasz w&nbsp;3 krokach</h2>
+      </header>
+      <ol class="steps">
+        <li class="step reveal"><span class="step-n" aria-hidden="true">1</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg></span><h3>Pobierz launcher</h3><p>Zaloguj się przez Discord i&nbsp;pobierz instalator. To chwila – a&nbsp;przy okazji wpadasz na nasz serwer, gdzie jest pomoc i&nbsp;nowości.</p></li>
+        <li class="step reveal" data-d="1"><span class="step-n" aria-hidden="true">2</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg></span><h3>Zaloguj się kontem Microsoft</h3><p>Oficjalnym oknem Microsoftu – launcher nie widzi Twojego hasła. Potrzebujesz Minecraft: Java Edition.</p></li>
+        <li class="step reveal" data-d="2"><span class="step-n" aria-hidden="true">3</span><span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg></span><h3>Wybierz instancję i&nbsp;graj</h3><p>Kliknij Graj – launcher sam pobierze grę, Javę i&nbsp;mody. Ty tylko grasz.</p></li>
+      </ol>
+      <div class="start-cta reveal"><a class="btn primary big dl" href="/download" data-download aria-disabled="true">Pobierz na Windows</a><a class="btn big ghost" href="{{base}}/hammer-client">Zobacz Hammer Client<svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+    </div>
+  </section>

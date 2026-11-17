@@ -424,7 +424,7 @@ test('Hammer+ bought by card: the nick is checked first, the code comes right af
   const sent = fakes.state.lastCheckout;
   assert.equal(sent.get('line_items[0][price_data][unit_amount]'), '1500');
   assert.equal(sent.get('line_items[0][price_data][product_data][name]'), 'Hammer+ na 30 dni – Steve');
-  assert.equal(sent.get('success_url'), `${base}/launcher?payment=return&session_id={CHECKOUT_SESSION_ID}`);
+  assert.equal(sent.get('success_url'), `${base}/launcher/hammer-plus?payment=return&session_id={CHECKOUT_SESSION_ID}`);
   assert.equal(sent.get('metadata[kind]'), 'plus');
 
   const order = await myOrder(paid.orderId);
@@ -543,16 +543,16 @@ test('Discord knows the launcher too: the #launcher channel\'s card and /launche
   const reply = lastResponse(i);
   assert.match(textOf(reply), /Aktualna wersja: 2\.6\.0[\s\S]*Pierwsza beta\./);
   const urls = JSON.stringify(reply.components.map((c) => (c.toJSON ? c.toJSON() : c)));
-  assert.ok(urls.includes(`${base}/launcher`) && urls.includes(`${base}/launcher#plus`), 'the buttons lead to the website');
+  assert.ok(urls.includes(`"${base}/launcher"`) && urls.includes(`"${base}/launcher/hammer-plus"`), 'the buttons lead to the website: the start page and the Hammer+ page');
 });
 
 test('the launcher page and the panel are their own pages; sign-in brings people back to them', async () => {
-  for (const page of ['/launcher', '/admin', '/launcher/']) {
+  for (const page of ['/launcher', '/admin', '/launcher/', '/launcher/hammer-plus', '/launcher/kontakt/']) {
     const res = await call('GET', page);
     assert.equal(res.status, 200, page);
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('content-security-policy'), /script-src 'self'/);
-    assert.match(res.body, /<html lang="pl">/);
+    assert.match(res.body, /<html lang="pl"[ >]/);
   }
   assert.equal((await call('GET', '/admin')).headers.get('x-robots-tag'), 'noindex');
   // Scripts and styles are named with a stamp of their content: a proxy that makes browsers keep them (Cloudflare:

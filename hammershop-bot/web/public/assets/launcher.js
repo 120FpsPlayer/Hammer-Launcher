@@ -1,9 +1,11 @@
-/* The launcher page: the download button (after a Discord sign-in), the news the admin panel published, Hammer+ bought
-   by card and „Zaproś znajomego” – the referral card. At the end: the look (the menu on small screens, the section in
-   view, scroll reveal, the feature tabs and the theme picker). */
+/* One script for all the launcher's pages (web/pages/, put together by src/web/pages.js). Every part starts only when
+   the page has its elements: the header (who is signed in, the menu on small screens), the download buttons (after a
+   Discord sign-in), the news, Hammer+ bought by card and „Twoje kody”, „Zaproś znajomego”, the contact form. At the
+   end: the look (scroll reveal, the feature tabs and clips, 3D, the theme deck). */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
+  var all = function (selector) { return Array.prototype.slice.call(document.querySelectorAll(selector)); };
   var el = function (tag, props, children) {
     var node = document.createElement(tag);
     Object.keys(props || {}).forEach(function (k) {
@@ -20,6 +22,8 @@
         if (!res.ok) throw Object.assign(new Error(body.error || 'Coś poszło nie tak. Spróbuj ponownie.'), { status: res.status });
         return body;
       });
+    }, function () {
+      throw new Error('Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.'); // the browser's own text is English
     });
   };
   var post = function (path, body) { return api(path, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) }); };
@@ -37,81 +41,122 @@
   };
   var megabytes = function (bytes) { return Math.round(bytes / 1024 / 1024) + ' MB'; };
   var httpsOnly = function (url) { return typeof url === 'string' && /^https:\/\//.test(url) ? url : null; };
-  var params = new URLSearchParams(location.search);
-  var session = { user: null };
-  var plus = { ready: false, plans: [], currency: 'eur', authReady: false };
-  var chosen = null;
-  var release; // the current installer: undefined until the feed answers, null when there is none yet
-  var signedKnown = false; // the session has been asked
   /** Polish plural: 1 osoba, 2 osoby, 5 osób. */
   var pl = function (n, one, few, many) { return n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many; };
   var dayWord = function (n) { return n === 1 ? 'dzień' : 'dni'; };
 
-  // ── The download button and the news ──
-  // Downloading from the website needs a Discord sign-in (where the site has it set up) – the button says so; the
-  // server sends a signed-out click through Discord and back here with ?download=1, and the page starts the download.
-  // The other download buttons further down the page ([data-download]) say the same as the one at the top.
-  var mirrors = Array.prototype.slice.call(document.querySelectorAll('[data-download]'));
+  // Where this page sits: '' on Hammer Launcher's own site, '/launcher' on HammerShop's (the server writes it on <html>).
+  var root = document.documentElement;
+  var BASE = root.getAttribute('data-base') || '';
+  var PAGE = root.getAttribute('data-page') || '';
+  var params = new URLSearchParams(location.search);
+  /** The address without what has been dealt with (?connected=1, ?invited=1 …) – a refresh does not repeat it. */
+  function cleanAddress(names) {
+    var left = new URLSearchParams(location.search);
+    names.forEach(function (n) { left.delete(n); });
+    var query = left.toString();
+    history.replaceState(null, '', location.pathname + (query ? '?' + query : '') + location.hash);
+  }
+
+  /**
+   * What rarely changes is asked once in a while, not on every page: somebody clicking through the pages makes a few
+   * calls, not a few per page (the server counts calls per address, and a whole school can sit behind one).
+   */
+  function remembered(key, minutes, load) {
+    try {
+      var hit = JSON.parse(sessionStorage.getItem(key) || 'null');
+      if (hit && Date.now() - hit.at < minutes * 60000) return Promise.resolve(hit.value);
+    } catch (e) { /* private mode, a broken entry: just ask */ }
+    return load().then(function (value) {
+      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), value: value })); } catch (e) { /* private mode */ }
+      return value;
+    });
+  }
+
+  var session = { user: null };
+  var signedKnown = false; // the session has been asked
+  var site = { discord: null, authReady: false }; // the Discord invite; is the Discord sign-in set up here
+  var plus = { ready: false, plans: [], currency: 'eur', authReady: false };
+  var chosen = null;
+  var release; // the current installer: undefined until the feed answers, null when there is none yet
+
+  // ── The download buttons ──
+  // Downloading from the website needs a Discord sign-in (where the site has it set up) – the buttons say so; the
+  // server sends a signed-out click through Discord and back to the start page with ?download=1, and that page starts
+  // the download. #download is the start page's own button; [data-download] are the ones on the other pages.
+  var mainDownload = $('download');
+  var downloads = (mainDownload ? [mainDownload] : []).concat(all('[data-download]'));
   function showRelease() {
-    var button = $('download');
-    var meta = $('download-meta');
     if (release === undefined) return;
+    var meta = $('download-meta');
     if (!release) {
-      [button].concat(mirrors).forEach(function (b) { b.textContent = 'Już wkrótce'; b.setAttribute('aria-disabled', 'true'); });
-      meta.textContent = 'Launcher jest w przygotowaniu – wersja beta pojawi się tutaj. Zajrzyj na naszego Discorda, damy znać.';
+      downloads.forEach(function (b) { b.textContent = 'Już wkrótce'; b.setAttribute('aria-disabled', 'true'); });
+      if (meta) meta.textContent = 'Launcher jest w przygotowaniu – wersja beta pojawi się tutaj. Zajrzyj na naszego Discorda, damy znać.';
       return;
     }
-    var label = signedKnown && !session.user && plus.authReady ? 'Zaloguj przez Discord i pobierz' : 'Pobierz na Windows';
-    [button].concat(mirrors).forEach(function (b) { b.removeAttribute('aria-disabled'); b.textContent = label; });
-    meta.textContent = 'Wersja ' + release.version + ' (beta) · ' + megabytes(release.size) + ' · ' + new Date(release.date).toLocaleDateString('pl-PL');
+    var label = signedKnown && !session.user && site.authReady ? 'Zaloguj przez Discord i pobierz' : 'Pobierz na Windows';
+    downloads.forEach(function (b) { b.removeAttribute('aria-disabled'); b.textContent = label; });
+    if (meta) meta.textContent = 'Wersja ' + release.version + ' (beta) · ' + megabytes(release.size) + ' · ' + new Date(release.date).toLocaleDateString('pl-PL');
     // The version in the hero's badge and in the facts strip – both stay hidden while there is no release.
-    $('hero-version').textContent = 'wersja ' + release.version;
-    $('hero-version').hidden = false;
-    $('fact-version-v').textContent = release.version;
-    $('fact-version').hidden = false;
+    if ($('hero-version')) { $('hero-version').textContent = 'wersja ' + release.version; $('hero-version').hidden = false; }
+    if ($('fact-version')) { $('fact-version-v').textContent = release.version; $('fact-version').hidden = false; }
+    if ($('go-news')) $('go-news').textContent = 'Wersja ' + release.version + ' (beta) – zobacz, co nowego.';
   }
-  var downloadsNow = function () { return Boolean(release && signedKnown && (session.user || !plus.authReady)); };
+  var downloadsNow = function () { return Boolean(release && signedKnown && (session.user || !site.authReady)); };
   // Signed in (or no sign-in on this site): the click downloads right away – the page says it started.
-  $('download').addEventListener('click', function () {
-    if (downloadsNow()) $('download-started').hidden = false;
+  downloads.forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!downloadsNow()) return;
+      if (b === mainDownload) $('download-started').hidden = false;
+      else toast('Pobieranie się zaczęło… Nic się nie dzieje? Kliknij jeszcze raz.');
+    });
   });
-  mirrors.forEach(function (b) {
-    b.addEventListener('click', function () { if (downloadsNow()) toast('Pobieranie się zaczęło… Nic się nie dzieje? Kliknij jeszcze raz.'); });
-  });
-  /** Back from the Discord sign-in the download button asked for: the download starts by itself. */
+  /** Back from the Discord sign-in the download button asked for (the start page): the download starts by itself. */
   var downloadHandled = false;
   function downloadAfterSignIn() {
-    if (downloadHandled || params.get('download') !== '1' || release === undefined || !signedKnown) return;
+    if (!mainDownload || downloadHandled || params.get('download') !== '1' || release === undefined || !signedKnown) return;
     downloadHandled = true;
-    var clean = function () { history.replaceState(null, '', location.pathname + location.hash); };
+    var clean = function () { cleanAddress(['download', 'connected', 'joined', 'auth']); };
     if (params.get('auth')) {
       if (params.get('auth') === 'cancelled') toast('Logowanie anulowane – launcher pobierzesz ze strony po zalogowaniu przez Discord.', true);
       return clean();
     }
-    if (!release || (!session.user && plus.authReady)) return clean();
+    if (!release || (!session.user && site.authReady)) return clean();
     $('download-started').hidden = false;
     clean();
     location.href = '/download';
   }
-  function showNews(news) {
+
+  // ── Aktualności: the current version and what the admin panel published ──
+  function showNews(feed) {
     var box = $('news');
+    if (!box) return;
+    var card = $('release-card');
+    if (feed.release) {
+      $('release-title').textContent = 'Hammer Launcher ' + feed.release.version + ' (beta)';
+      $('release-date').textContent = new Date(feed.release.date).toLocaleDateString('pl-PL') + ' · ' + megabytes(feed.release.size);
+      $('release-notes').textContent = feed.release.notes || '';
+      $('release-notes').hidden = !feed.release.notes;
+    }
+    card.hidden = !feed.release;
     box.textContent = '';
-    (news || []).slice(0, 6).forEach(function (n) {
-      var title = el('h3', { text: n.title });
+    (feed.news || []).forEach(function (n) {
       var link = httpsOnly(n.url);
       var image = httpsOnly(n.image);
       box.appendChild(el('article', { class: 'card' + (n.pinned ? ' pinned' : '') }, [
         image ? el('img', { src: image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null,
         el('div', { class: 'row' }, [n.tag ? el('span', { class: 'pill', text: n.tag }) : null, n.pinned ? el('span', { class: 'pill gold', text: 'Przypięte' }) : null, el('span', { class: 'when right', text: n.date || '' })]),
-        title,
+        el('h2', { text: n.title }),
         n.body ? el('p', { text: n.body }) : null,
         link ? el('a', { href: link, target: '_blank', rel: 'noopener noreferrer', text: 'Czytaj więcej →' }) : null,
       ]));
     });
-    $('aktualnosci').hidden = !box.children.length;
+    box.hidden = !box.children.length;
+    $('news-empty').hidden = box.children.length > 0; // nothing published yet: the page says so instead of standing empty
   }
 
   // ── Hammer+ ──
+  var signInHere = '/api/shop/auth/start?next=' + encodeURIComponent(PAGE);
   function showPlans() {
     var box = $('plans');
     box.textContent = '';
@@ -124,7 +169,7 @@
       var buy = el('button', { class: 'btn gold', type: 'button', text: session.user ? 'Kup' : 'Zaloguj i kup', title: session.user ? '' : 'Najpierw zalogujesz się przez Discord' });
       buy.addEventListener('click', function () { choose(plan); });
       box.appendChild(el('div', { class: 'plan' }, [
-        el('div', {}, [el('b', { text: plan.name }), el('div', { class: 'sub', text: plan.days ? plan.days + ' dni od zakupu' : 'Bez limitu czasu' })]),
+        el('div', {}, [el('b', { text: plan.name }), el('div', { class: 'sub', text: plan.days ? plan.days + ' ' + dayWord(plan.days) + ' od zakupu' : 'Bez limitu czasu' })]),
         el('span', { class: 'price', text: money(plan.price, plus.currency) }),
         buy,
       ]));
@@ -133,7 +178,7 @@
   function choose(plan) {
     if (!session.user) {
       try { sessionStorage.setItem('hs_plan', plan.id); } catch (e) { /* private mode */ }
-      location.href = '/api/shop/auth/start?next=launcher';
+      location.href = signInHere;
       return;
     }
     chosen = plan;
@@ -142,25 +187,27 @@
     $('nick-dialog').showModal();
     $('nick').focus();
   }
-  $('nick-cancel').addEventListener('click', function () { $('nick-dialog').close(); });
-  $('nick-form').addEventListener('submit', function (event) {
-    event.preventDefault();
-    if (!chosen) return;
-    var pay = $('nick-pay');
-    var error = $('nick-error');
-    pay.disabled = true;
-    pay.textContent = 'Sprawdzam nick…';
-    error.hidden = true;
-    var requestId = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-    post('/api/shop/checkout', { kind: 'plus', plan: chosen.id, nick: $('nick').value.trim(), requestId: requestId })
-      .then(function (r) { location.href = r.url; })
-      .catch(function (err) {
-        error.textContent = err.message;
-        error.hidden = false;
-        pay.disabled = false;
-        pay.textContent = 'Przejdź do płatności';
-      });
-  });
+  function plusForm() {
+    $('nick-cancel').addEventListener('click', function () { $('nick-dialog').close(); });
+    $('nick-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!chosen) return;
+      var pay = $('nick-pay');
+      var error = $('nick-error');
+      pay.disabled = true;
+      pay.textContent = 'Sprawdzam nick…';
+      error.hidden = true;
+      var requestId = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+      post('/api/shop/checkout', { kind: 'plus', plan: chosen.id, nick: $('nick').value.trim(), requestId: requestId })
+        .then(function (r) { location.href = r.url; })
+        .catch(function (err) {
+          error.textContent = err.message;
+          error.hidden = false;
+          pay.disabled = false;
+          pay.textContent = 'Przejdź do płatności';
+        });
+    });
+  }
 
   function codeCard(order, fresh) {
     var p = order.plus || {};
@@ -177,14 +224,36 @@
       p.invite ? el('div', { class: 'row' }, [el('span', { class: 'small soft grow', text: 'Dołącz do naszego Discorda – po wejściu od razu dostaniesz rangę 💎 Hammer+.' }), el('a', { class: 'btn small', href: p.invite, target: '_blank', rel: 'noopener', text: 'Dołącz do Discorda' })]) : null,
     ]);
   }
+  /**
+   * „Twoje kody”: only the codes that still run – the one that runs the longest first (forever, then the latest end
+   * date), because that is the one worth typing in. A code whose time is over opens nothing in the launcher – the
+   * server marks such an order (expired) and it is not listed at all, so buying short plans does not make the page
+   * longer and longer. More than a few: the rest waits behind „Pokaż wszystkie”.
+   */
+  var CODES_SHOWN = 3;
   function showCodes(freshId) {
-    if (!session.user) return Promise.resolve();
+    if (!session.user || !$('my-codes')) return Promise.resolve();
     return api('/api/shop/orders').then(function (r) {
       var mine = (r.orders || []).filter(function (o) { return o.kind === 'plus' && o.status === 'paid'; });
+      var running = mine.filter(function (o) {
+        var p = o.plus || {};
+        return o.id !== freshId && !p.expired && !(p.until && p.until <= Date.now());
+      });
+      var ends = function (o) { var until = (o.plus || {}).until; return until === 0 ? Infinity : until || 0; }; // 0 = forever
+      running.sort(function (a, b) { return ends(a) === ends(b) ? 0 : ends(b) > ends(a) ? 1 : -1; }); // equal ends keep the server's order: newest first
       var list = $('my-codes-list');
+      var more = $('my-codes-more');
       list.textContent = '';
-      mine.forEach(function (o) { if (o.id !== freshId) list.appendChild(codeCard(o, false)); });
-      $('my-codes').hidden = !list.children.length;
+      running.forEach(function (o, i) {
+        var card = codeCard(o, false);
+        card.hidden = i >= CODES_SHOWN;
+        list.appendChild(card);
+      });
+      var folded = running.length > CODES_SHOWN;
+      more.hidden = !folded;
+      more.textContent = 'Pokaż wszystkie (' + running.length + ')';
+      more.setAttribute('aria-expanded', 'false');
+      $('my-codes').hidden = !running.length;
       var fresh = mine.filter(function (o) { return o.id === freshId; })[0];
       if (fresh) {
         var box = $('plus-result');
@@ -194,17 +263,32 @@
       }
     }).catch(function () { /* the list is a convenience */ });
   }
+  function codesFold() {
+    var more = $('my-codes-more');
+    more.addEventListener('click', function () {
+      var open = more.getAttribute('aria-expanded') !== 'true';
+      var cards = Array.prototype.slice.call($('my-codes-list').children);
+      cards.forEach(function (card, i) { card.hidden = !open && i >= CODES_SHOWN; });
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? 'Pokaż mniej' : 'Pokaż wszystkie (' + cards.length + ')';
+    });
+  }
 
-  /** Back from Stripe: is it paid? (Stripe can take a moment – asked a few times.) */
+  /**
+   * Back from Stripe: is it paid? (Stripe can take a moment – asked a few times.) → true while a payment is being
+   * checked: „Twoje kody” then comes with the answer, so the fresh code is never listed twice.
+   */
   function afterPayment() {
     var sessionId = params.get('session_id');
-    if (params.get('payment') === 'cancelled') toast('Płatność anulowana – nic nie zostało pobrane.');
-    if (params.get('payment') !== 'return' || !sessionId) return;
+    if (params.get('payment') === 'cancelled') {
+      toast('Płatność anulowana – nic nie zostało pobrane.');
+      cleanAddress(['payment']);
+    }
+    if (params.get('payment') !== 'return' || !sessionId) return false;
     var box = $('plus-result');
     box.textContent = '';
     box.appendChild(el('p', { class: 'notice', text: 'Sprawdzam płatność…' }));
     box.hidden = false;
-    location.hash = '#plus';
     var tries = 0;
     (function check() {
       post('/api/shop/verify', { sessionId: sessionId }).then(function (r) {
@@ -212,12 +296,15 @@
         if (r.status === 'pending' && ++tries < 8) return setTimeout(check, 2000);
         box.textContent = '';
         box.appendChild(el('p', { class: 'notice warn', text: 'Płatność nie została jeszcze potwierdzona. Jeśli zapłaciłeś, odśwież stronę za chwilę – kod pojawi się tutaj i na Discordzie.' }));
+        return showCodes(null);
       }).catch(function (err) {
         box.textContent = '';
         box.appendChild(el('p', { class: 'notice bad', text: err.message }));
+        return showCodes(null);
       });
     })();
-    history.replaceState(null, '', '/launcher#plus');
+    cleanAddress(['payment', 'session_id']);
+    return true;
   }
 
   // ── „Zaproś znajomego”: the personal link, the numbers, the days to claim ──
@@ -250,36 +337,135 @@
       box.hidden = !box.children.length;
     }).catch(function () { /* the card stays as it is */ });
   }
-  $('ref-copy').addEventListener('click', function () {
-    var link = $('ref-link').value;
-    navigator.clipboard.writeText(link).then(function () { toast('Link skopiowany – wyślij go znajomemu.'); }, function () { $('ref-link').select(); toast('Zaznaczyliśmy link – skopiuj go (Ctrl+C).', true); });
-  });
-  $('ref-claim').addEventListener('submit', function (event) {
-    event.preventDefault();
-    var button = $('ref-claim-btn');
-    var error = $('ref-error');
-    button.disabled = true;
-    button.textContent = 'Sprawdzam nick…';
-    error.hidden = true;
-    post('/api/shop/referrals/claim', { nick: $('ref-nick').value.trim() })
-      .then(function (r) {
-        var box = $('ref-result');
-        box.textContent = '';
-        box.appendChild(rewardCard(r, true));
-        box.hidden = false;
-        $('ref-nick').value = '';
-        toast('Gotowe! Kod Hammer+ dla konta ' + r.nick + ' jest poniżej i na Discordzie.');
-        return showReferrals(true);
-      })
-      .catch(function (err) { error.textContent = err.message; error.hidden = false; })
-      .then(function () { button.disabled = false; button.textContent = 'Odbierz'; });
-  });
+  function referralForm() {
+    $('ref-copy').addEventListener('click', function () {
+      var link = $('ref-link').value;
+      navigator.clipboard.writeText(link).then(function () { toast('Link skopiowany – wyślij go znajomemu.'); }, function () { $('ref-link').select(); toast('Zaznaczyliśmy link – skopiuj go (Ctrl+C).', true); });
+    });
+    $('ref-claim').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var button = $('ref-claim-btn');
+      var error = $('ref-error');
+      button.disabled = true;
+      button.textContent = 'Sprawdzam nick…';
+      error.hidden = true;
+      post('/api/shop/referrals/claim', { nick: $('ref-nick').value.trim() })
+        .then(function (r) {
+          var box = $('ref-result');
+          box.textContent = '';
+          box.appendChild(rewardCard(r, true));
+          box.hidden = false;
+          $('ref-nick').value = '';
+          toast('Gotowe! Kod Hammer+ dla konta ' + r.nick + ' jest poniżej i na Discordzie.');
+          return showReferrals(true);
+        })
+        .catch(function (err) { error.textContent = err.message; error.hidden = false; })
+        .then(function () { button.disabled = false; button.textContent = 'Odbierz'; });
+    });
+  }
+
+  // ── Kontakt: the form goes to POST /api/shop/contact; the address and the topics come from GET /api/shop/contact ──
+  function contactForm() {
+    var form = $('contact-form');
+    var done = $('contact-done');
+    var error = $('contact-error');
+    var button = $('contact-send');
+    var field = { name: $('contact-name'), email: $('contact-email'), topic: $('contact-topic'), message: $('contact-message') };
+    var sending = false;
+    var pickTopic = function (id) { if (id && all('#contact-topic option').some(function (o) { return o.value === id; })) field.topic.value = id; };
+    pickTopic(params.get('temat')); // links like /kontakt?temat=bug open the form on that topic
+    api('/api/shop/contact').then(function (info) {
+      if (info.email) {
+        $('contact-mail').href = 'mailto:' + info.email;
+        $('contact-mail-text').textContent = info.email;
+        $('contact-mail').hidden = false;
+      }
+      if (!Array.isArray(info.topics) || !info.topics.length) return;
+      var current = field.topic.value;
+      field.topic.textContent = '';
+      info.topics.forEach(function (t) { field.topic.appendChild(el('option', { value: String(t.id), text: String(t.label) })); });
+      pickTopic(current);
+    }).catch(function () { /* the form works with the topics it came with */ });
+
+    var count = function () { $('contact-count').textContent = String(field.message.value.length); };
+    field.message.addEventListener('input', count);
+    count();
+    /** The message under a field (in its label) – empty text takes it away. */
+    function mark(input, text) {
+      var label = input.closest('label');
+      var note = label.querySelector('.field-error');
+      if (!text) {
+        if (note) note.remove();
+        input.removeAttribute('aria-invalid');
+        input.removeAttribute('aria-describedby');
+        return;
+      }
+      if (!note) note = label.appendChild(el('span', { class: 'field-error', id: input.id + '-error' }));
+      note.textContent = text;
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-describedby', note.id);
+    }
+    Object.keys(field).forEach(function (k) { field[k].addEventListener('input', function () { mark(field[k], ''); }); });
+    /** What is wrong with each field – the same limits the server has (it checks again anyway). */
+    function problems() {
+      var name = field.name.value.trim();
+      var email = field.email.value.trim();
+      var message = field.message.value.trim();
+      return {
+        name: name.length < 2 ? 'Podaj imię albo nick – co najmniej 2 znaki.' : name.length > 60 ? 'Imię albo nick może mieć najwyżej 60 znaków.' : '',
+        email: !email ? 'Podaj swój e-mail – na niego odpiszemy.' : email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? 'Ten adres e-mail wygląda na niepoprawny – sprawdź go.' : '',
+        topic: field.topic.value ? '' : 'Wybierz temat wiadomości.',
+        message: message.length < 10 ? 'Napisz trochę więcej – co najmniej 10 znaków.' : message.length > 2000 ? 'Wiadomość może mieć najwyżej 2000 znaków.' : '',
+      };
+    }
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (sending) return; // one message per click, however fast the clicks are
+      var wrong = problems();
+      var first = null;
+      Object.keys(field).forEach(function (k) {
+        mark(field[k], wrong[k]);
+        if (wrong[k] && !first) first = field[k];
+      });
+      error.hidden = true;
+      if (first) return first.focus();
+      sending = true;
+      button.disabled = true;
+      button.querySelector('span').textContent = 'Wysyłam…';
+      var email = field.email.value.trim();
+      post('/api/shop/contact', { name: field.name.value.trim(), email: email, topic: field.topic.value, message: field.message.value.trim(), website: $('contact-website').value })
+        .then(function () {
+          $('contact-done-mail').textContent = email;
+          form.hidden = true;
+          done.hidden = false;
+          done.focus();
+        })
+        .catch(function (err) { error.textContent = err.message; error.hidden = false; }) // the server's own sentence, as it is
+        .then(function () {
+          sending = false;
+          button.disabled = false;
+          button.querySelector('span').textContent = 'Wyślij wiadomość';
+        });
+    });
+    $('contact-again').addEventListener('click', function () {
+      field.message.value = '';
+      count();
+      done.hidden = true;
+      form.hidden = false;
+      field.message.focus();
+    });
+  }
+  /** Signed in: the form starts with the Discord name (the visitor can change it). */
+  function contactName() {
+    var input = $('contact-name');
+    if (input && session.user && !input.value) input.value = String(session.user.name || session.user.username || '').slice(0, 60);
+  }
 
   // ── Start ──
   function showUser() {
     var who = $('who');
     if (!session.user) {
-      $('login').hidden = !plus.authReady;
+      $('login').hidden = !site.authReady;
       return;
     }
     who.textContent = '';
@@ -288,41 +474,63 @@
   }
   if (params.get('auth') === 'failed') toast('Logowanie przez Discord nie powiodło się. Spróbuj ponownie.', true);
   if (params.get('auth') === 'unavailable') toast('Logowanie przez Discord nie jest jeszcze uruchomione.', true);
+  if (params.get('auth') === 'cancelled' && params.get('download') !== '1') toast('Logowanie przez Discord anulowane.', true);
   if (params.get('download') === 'none') toast('Launcher nie jest jeszcze dostępny do pobrania – już wkrótce!');
-  if (params.get('invited')) {
-    $('invited').hidden = false;
-    history.replaceState(null, '', location.pathname + location.hash);
-  }
+  if (params.get('invited') && $('invited')) $('invited').hidden = false;
+  // (?download=1 stays until the download has started – downloadAfterSignIn; ?payment=… until afterPayment has read it)
+  var dealtWith = ['auth', 'connected', 'joined', 'invited'].concat(params.get('download') === 'none' ? ['download'] : []).filter(function (n) { return params.has(n); });
+  if (dealtWith.length && params.get('download') !== '1') cleanAddress(dealtWith);
 
-  api('/api/launcher/news').then(function (feed) { release = feed.release || null; showRelease(); downloadAfterSignIn(); showNews(feed.news); }).catch(function () { release = null; showRelease(); });
-  api('/api/shop/store').then(function (store) {
-    var invite = httpsOnly(store.discordUrl);
-    if (invite) {
-      [$('nav-discord')].concat(Array.prototype.slice.call(document.querySelectorAll('[data-discord]'))).forEach(function (a) { a.href = invite; a.hidden = false; });
-    }
-  }).catch(function () {});
-  Promise.all([api('/api/shop/session').catch(function () { return { user: null }; }), api('/api/shop/plus').catch(function () { return plus; })]).then(function (r) {
+  if ($('plans')) { plusForm(); codesFold(); }
+  if ($('ref-out')) referralForm();
+  if ($('contact-form')) contactForm();
+
+  // The installer and the news: only where a page shows them (a download button, the news, the version).
+  if (downloads.length || $('news')) {
+    var loadFeed = function () { return api('/api/launcher/news'); };
+    ($('news') ? loadFeed() : remembered('hs_feed', 3, loadFeed)).then(function (feed) {
+      release = feed.release || null;
+      showRelease();
+      downloadAfterSignIn();
+      showNews(feed);
+    }).catch(function () {
+      release = null;
+      showRelease();
+      showNews({ release: null, news: [] });
+    });
+  }
+  // The Discord invite and whether sign-in is set up: the same on every page.
+  var siteInfo = remembered('hs_site', 10, function () {
+    return api('/api/shop/store').then(function (store) { return { discord: httpsOnly(store.discordUrl), authReady: Boolean(store.authReady) }; });
+  }).catch(function () { return site; });
+  siteInfo.then(function (info) {
+    if (info.discord) all('[data-discord]').forEach(function (a) { a.href = info.discord; a.hidden = false; });
+  });
+  var asked = [api('/api/shop/session').catch(function () { return { user: null }; }), siteInfo];
+  if ($('plans')) asked.push(api('/api/shop/plus').catch(function () { return plus; }));
+  Promise.all(asked).then(function (r) {
     session = r[0];
-    plus = r[1];
+    site = r[1];
     signedKnown = true;
+    showUser();
     showRelease();
     downloadAfterSignIn();
-    showReferrals();
-    showUser();
+    contactName();
+    if ($('ref-out')) showReferrals();
+    if (!$('plans')) return;
+    plus = r[2];
     showPlans();
-    afterPayment();
-    showCodes(null);
+    if (!afterPayment()) showCodes(null);
     // Signed in because of a "Kup" click → carry on with that plan.
     var wanted = null;
     try { wanted = sessionStorage.getItem('hs_plan'); sessionStorage.removeItem('hs_plan'); } catch (e) { /* private mode */ }
     var plan = wanted && session.user && plus.plans.filter(function (p) { return p.id === wanted; })[0];
-    if (plan && params.get('connected')) { location.hash = '#plus'; choose(plan); }
+    if (plan && params.get('connected')) choose(plan);
   });
 
-  // ── The look: the header, the menu on small screens, the section in view, scroll reveal, tabs, 3D, themes, clips ──
+  // ── The look: the header, the menu on small screens, scroll reveal, clips, tabs, 3D, themes ──
   var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   var mouse = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
-  var each = function (selector, fn) { Array.prototype.forEach.call(document.querySelectorAll(selector), fn); };
   var bar = $('top');
   var onScroll = function () { bar.classList.toggle('scrolled', window.scrollY > 8); };
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -343,34 +551,23 @@
   document.addEventListener('click', function (event) { if (bar.classList.contains('menu-open') && !bar.contains(event.target)) menu(false); });
 
   var watch = 'IntersectionObserver' in window;
-  if (watch) {
-    // The link of the section in the middle of the screen is lit.
-    var links = {};
-    Array.prototype.forEach.call(nav.querySelectorAll('a[href^="#"]'), function (a) { if (a.getAttribute('href').length > 1) links[a.getAttribute('href').slice(1)] = a; });
-    var inView = {};
-    var spy = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) { inView[entry.target.id] = entry.isIntersecting; });
-      Object.keys(links).forEach(function (id) { links[id].classList.toggle('is-active', Boolean(inView[id])); });
-    }, { rootMargin: '-45% 0px -50% 0px' });
-    Object.keys(links).forEach(function (id) { if ($(id)) spy.observe($(id)); });
-    // Sections ease in as they come into view; once settled, the classes go (so they never fight hover or tilt).
-    if (!calm) {
-      document.documentElement.classList.add('reveal-on');
-      var shown = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          var node = entry.target;
-          node.classList.add('in');
-          shown.unobserve(node);
-          setTimeout(function () { node.classList.remove('reveal', 'in'); }, 1200);
-        });
-      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
-      each('.reveal', function (node) { shown.observe(node); });
-    }
+  // Parts of a page ease in as they come into view; once settled, the classes go (so they never fight hover or tilt).
+  if (watch && !calm && all('.reveal').length) {
+    root.classList.add('reveal-on');
+    var shown = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var node = entry.target;
+        node.classList.add('in');
+        shown.unobserve(node);
+        setTimeout(function () { node.classList.remove('reveal', 'in'); }, 1200);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+    all('.reveal').forEach(function (node) { shown.observe(node); });
   }
 
   // ── The clips: muted looping videos that play only while on screen (and in the open tab), never with less motion ──
-  var clips = Array.prototype.slice.call(document.querySelectorAll('video.clip'));
+  var clips = all('video.clip');
   var seen = new Map();
   function syncClips() {
     clips.forEach(function (video) {
@@ -383,36 +580,35 @@
       } else if (!go && !video.paused) video.pause();
     });
   }
-  clips.forEach(function (video) {
-    var button = video.parentNode.querySelector('.clip-toggle');
-    if (!button || calm) return;
-    button.hidden = false;
-    button.addEventListener('click', function () {
-      video.userPaused = !video.userPaused;
-      button.classList.toggle('paused', video.userPaused);
-      button.querySelector('.sr-only').textContent = video.userPaused ? 'Odtwórz nagranie' : 'Zatrzymaj nagranie';
-      syncClips();
+  if (clips.length) {
+    clips.forEach(function (video) {
+      var button = video.parentNode.querySelector('.clip-toggle');
+      if (!button || calm) return;
+      button.hidden = false;
+      button.addEventListener('click', function () {
+        video.userPaused = !video.userPaused;
+        button.classList.toggle('paused', video.userPaused);
+        button.querySelector('.sr-only').textContent = video.userPaused ? 'Odtwórz nagranie' : 'Zatrzymaj nagranie';
+        syncClips();
+      });
     });
-  });
-  // The posters (first frames) come only when a clip is near – a browser fetches a poster at once otherwise.
-  var posterOf = function (video) { if (!video.poster && video.getAttribute('data-poster')) video.poster = video.getAttribute('data-poster'); };
-  if (watch) {
-    var near = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) { if (entry.isIntersecting) { posterOf(entry.target); near.unobserve(entry.target); } });
-    }, { rootMargin: '300px 0px' });
-    clips.forEach(function (video) { near.observe(video); });
-  } else clips.forEach(posterOf);
-  if (watch) {
-    var onScreen = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) { seen.set(entry.target, entry.isIntersecting); });
-      syncClips();
-    }, { threshold: 0.3 });
-    clips.forEach(function (video) { onScreen.observe(video); });
-    document.addEventListener('visibilitychange', syncClips);
+    // The posters (first frames) come only when a clip is near – a browser fetches a poster at once otherwise.
+    var posterOf = function (video) { if (!video.poster && video.getAttribute('data-poster')) video.poster = video.getAttribute('data-poster'); };
+    if (watch) {
+      var near = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) { if (entry.isIntersecting) { posterOf(entry.target); near.unobserve(entry.target); } });
+      }, { rootMargin: '300px 0px' });
+      var onScreen = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) { seen.set(entry.target, entry.isIntersecting); });
+        syncClips();
+      }, { threshold: 0.3 });
+      clips.forEach(function (video) { near.observe(video); onScreen.observe(video); });
+      document.addEventListener('visibilitychange', syncClips);
+    } else clips.forEach(posterOf);
   }
 
   // Tabs (the features): arrows, Home and End move between them, as in any tab list.
-  each('[data-tabs]', function (box) {
+  all('[data-tabs]').forEach(function (box) {
     var tabs = Array.prototype.slice.call(box.querySelectorAll('[role="tab"]'));
     function select(tab, focus) {
       tabs.forEach(function (t) {
@@ -511,48 +707,48 @@
         node.style.setProperty('--rx', '0deg');
       });
     };
-    each('.tile, .client-list li, .step, .cosm-card, .collab-cards .card', function (node) { tiltOn(node, 9); });
-    each('.tabpanel .shot, .live-card .shot, .client-shot', function (node) { tiltOn(node, 5); });
+    all('.tile, .client-list li, .step, .cosm-card, .collab-cards .card, .go-card, .plus-how li, .shop-list li').forEach(function (node) { tiltOn(node, 9); });
+    all('.tabpanel .shot, .live-card .shot, .client-shot').forEach(function (node) { tiltOn(node, 5); });
   }
 
   // ── „Wygląd po Twojemu”: a 3D deck of the launcher's themes – the chosen one in front, the rest turned away ──
-  var THEMES = {
-    domyslny: ['Domyślny', 'Ciepły pomarańcz Hammera – za darmo dla każdego.'],
-    nether: ['Nether', 'Lawa, żar i popiół w ruchomym tle.'],
-    end: ['End', 'Fiolet pustki, gwiazdy i blask prętów Endu.'],
-    ocean: ['Ocean', 'Pryzmaryn, bąbelki i światło z góry.'],
-    wisnia: ['Wiśniowy gaj', 'Różowe barwy i spadające płatki wiśni.'],
-    mrok: ['Głęboki mrok', 'Pulsujący sculk prosto z głębin.'],
-  };
-  var picks = Array.prototype.slice.call(document.querySelectorAll('.theme-pick'));
   var deck = $('theme-deck');
-  var cards = deck ? Array.prototype.slice.call(deck.querySelectorAll('.theme-card')) : [];
-  function showTheme(id) {
-    var info = THEMES[id];
-    if (!info) return;
-    var at = cards.map(function (c) { return c.getAttribute('data-theme'); }).indexOf(id);
-    var narrow = window.innerWidth < 640;
-    var n = cards.length;
-    cards.forEach(function (card, i) {
-      var d = (((i - at) % n) + n) % n; // the deck goes round: there are always themes on both sides
-      if (d > n / 2) d -= n;
-      var far = Math.abs(d);
-      card.style.setProperty('--tx', (d * (narrow ? 62 : 46)) + '%');
-      card.style.setProperty('--tz', (-far * (narrow ? 260 : 210)) + 'px');
-      card.style.setProperty('--ry', (Math.sign(d) * Math.min(far, 2) * -24) + 'deg');
-      card.style.setProperty('--o', far > 2 ? '0' : String(1 - far * 0.18));
-      card.style.setProperty('--dim', String(Math.min(0.6, far * 0.32)));
-      card.style.setProperty('--z', String(10 - far));
-      card.setAttribute('aria-hidden', String(d !== 0));
-    });
-    picks.forEach(function (p) { p.setAttribute('aria-pressed', String(p.getAttribute('data-theme') === id)); });
-    $('theme-stage').setAttribute('data-theme', id);
-    var caption = $('theme-caption');
-    caption.textContent = '';
-    caption.appendChild(el('b', { text: info[0] }));
-    caption.appendChild(document.createTextNode(' ' + info[1]));
-  }
   if (deck) {
+    var THEMES = {
+      domyslny: ['Domyślny', 'Ciepły pomarańcz Hammera – za darmo dla każdego.'],
+      nether: ['Nether', 'Lawa, żar i popiół w ruchomym tle.'],
+      end: ['End', 'Fiolet pustki, gwiazdy i blask prętów Endu.'],
+      ocean: ['Ocean', 'Pryzmaryn, bąbelki i światło z góry.'],
+      wisnia: ['Wiśniowy gaj', 'Różowe barwy i spadające płatki wiśni.'],
+      mrok: ['Głęboki mrok', 'Pulsujący sculk prosto z głębin.'],
+    };
+    var picks = all('.theme-pick');
+    var cards = Array.prototype.slice.call(deck.querySelectorAll('.theme-card'));
+    var showTheme = function (id) {
+      var info = THEMES[id];
+      if (!info) return;
+      var at = cards.map(function (c) { return c.getAttribute('data-theme'); }).indexOf(id);
+      var narrow = window.innerWidth < 640;
+      var n = cards.length;
+      cards.forEach(function (card, i) {
+        var d = (((i - at) % n) + n) % n; // the deck goes round: there are always themes on both sides
+        if (d > n / 2) d -= n;
+        var far = Math.abs(d);
+        card.style.setProperty('--tx', (d * (narrow ? 62 : 46)) + '%');
+        card.style.setProperty('--tz', (-far * (narrow ? 260 : 210)) + 'px');
+        card.style.setProperty('--ry', (Math.sign(d) * Math.min(far, 2) * -24) + 'deg');
+        card.style.setProperty('--o', far > 2 ? '0' : String(1 - far * 0.18));
+        card.style.setProperty('--dim', String(Math.min(0.6, far * 0.32)));
+        card.style.setProperty('--z', String(10 - far));
+        card.setAttribute('aria-hidden', String(d !== 0));
+      });
+      picks.forEach(function (p) { p.setAttribute('aria-pressed', String(p.getAttribute('data-theme') === id)); });
+      $('theme-stage').setAttribute('data-theme', id);
+      var caption = $('theme-caption');
+      caption.textContent = '';
+      caption.appendChild(el('b', { text: info[0] }));
+      caption.appendChild(document.createTextNode(' ' + info[1]));
+    };
     deck.classList.add('deck-ready');
     picks.forEach(function (pick) { pick.addEventListener('click', function () { showTheme(pick.getAttribute('data-theme')); }); });
     cards.forEach(function (card) { card.addEventListener('click', function () { showTheme(card.getAttribute('data-theme')); }); });
