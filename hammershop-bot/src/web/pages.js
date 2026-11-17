@@ -27,7 +27,7 @@
  *   data-nav="<page>"      on links: the current page's link gets aria-current="page"
  *
  * Addresses the one long page had (/launcher, /#plus, ?payment=return …) still work: what the server can see is
- * answered here (`resolve`), a # is handled by the start page itself (web/public/assets/launcher-old.js).
+ * answered here (`resolve`), a # is handled by the start page itself (web/public/assets/launcher-redirect.js).
  */
 
 const fs = require('node:fs');
@@ -44,7 +44,7 @@ const BRAND = 'Hammer Launcher';
 /** title: what the tab and a shared link say; description: the line under it in a search result or on Discord. */
 const PAGES = [
   {
-    id: 'start', slug: '', file: 'start.html', head: '<script src="/assets/launcher-old.js"></script>',
+    id: 'start', slug: '', file: 'start.html', head: '<script src="/assets/launcher-redirect.js"></script>',
     title: profile.launcher ? 'Hammer Launcher – nasz własny launcher Minecrafta' : 'Hammer Launcher – launcher Minecrafta od HammerShop',
     ogTitle: 'Hammer Launcher – nasz własny launcher Minecrafta',
     description: 'Hammer Launcher (beta) – nasz własny launcher Minecrafta: instancje, ponad tysiąc modów z Modrinth, FPS boost jednym kliknięciem i własny klient w grze. Pobierz za darmo na Windows.',

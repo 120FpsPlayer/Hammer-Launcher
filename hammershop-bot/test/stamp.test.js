@@ -41,7 +41,7 @@ test('the launcher\'s pages: clips, posters, pictures, fonts, scripts and styles
     assert.match(other, /src="\/assets\/_v\/[0-9a-f]{8}\/launcher\.js"/, page);
     assert.doesNotMatch(other, /"\/assets\/(?!_v\/)[^"]+\.(?:png|webp|jpe?g|mp4|webm|css|js)"/, page);
   }
-  assert.match(await (await fetch(`${base}/`)).text(), /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-old\.js"><\/script>/);
+  assert.match(await (await fetch(`${base}/`)).text(), /<script src="\/assets\/_v\/[0-9a-f]{8}\/launcher-redirect\.js"><\/script>/);
   // The stamped address serves the very file – also in parts (Range), as browsers ask for videos.
   const res = await fetch(`${base}/assets/_v/${clip[1]}/${clip[2]}`, { headers: { range: 'bytes=0-15' } });
   assert.ok([200, 206].includes(res.status));

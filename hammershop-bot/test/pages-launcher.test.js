@@ -144,7 +144,7 @@ test('every page answers with its own title, description and address – and mar
     // One <h1>, the page's own; nothing of the sources' markers is left; no inline script or style (the CSP forbids them).
     assert.equal(html.match(/<h1[ >]/g).length, 1, address);
     assert.match(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html)[1], h1, address);
-    assert.doesNotMatch(html, /\{\{|<!--|data-nav=|<style|style="|<script(?! src="\/assets\/_v\/[0-9a-f]{8}\/launcher(?:-old)?\.js"><\/script>)/, address);
+    assert.doesNotMatch(html, /\{\{|<!--|data-nav=|<style|style="|<script(?! src="\/assets\/_v\/[0-9a-f]{8}\/launcher(?:-redirect)?\.js"><\/script>)/, address);
     // The current page's link is marked – in the header's menu and in the footer.
     const current = [...html.matchAll(/<a [^>]*href="([^"]*)"[^>]* aria-current="page"/g)].map((m) => m[1]);
     assert.ok(current.length >= 2 && current.every((href) => href === address), `${address}: aria-current on ${current}`);
@@ -209,9 +209,9 @@ test('old addresses: what the server can see goes to the page that has that part
   assert.equal(viaOld.location, '/?payment=return&session_id=cs_test_1'); // … and from there to /hammer-plus, as above
   // A # never reaches the server: the start page loads the script that sends #plus, #polecaj … on – before anything else.
   const start = (await call('GET', '/')).body;
-  assert.ok(start.indexOf('launcher-old.js') > 0 && start.indexOf('launcher-old.js') < start.indexOf('</head>'), 'in the <head> of the start page');
-  assert.doesNotMatch((await call('GET', '/hammer-plus')).body, /launcher-old\.js/);
-  const script = fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher-old.js'), 'utf8');
+  assert.ok(start.indexOf('launcher-redirect.js') > 0 && start.indexOf('launcher-redirect.js') < start.indexOf('</head>'), 'in the <head> of the start page');
+  assert.doesNotMatch((await call('GET', '/hammer-plus')).body, /launcher-redirect\.js/);
+  const script = fs.readFileSync(path.join(__dirname, '..', 'web', 'public', 'assets', 'launcher-redirect.js'), 'utf8');
   for (const [hash, page] of [['plus', 'hammer-plus'], ['polecaj', 'polecaj'], ['faq', 'pomoc'], ['funkcje', 'funkcje'], ['klient', 'hammer-client'], ['wyglad', 'wyglad'], ['aktualnosci', 'aktualnosci'], ['hammershop', 'hammershop']]) {
     assert.match(script, new RegExp(`${hash}(: | = )'${page}'`), `#${hash} → /${page}`);
     assert.ok(pages.PAGES.some((p) => p.id === page), `/${page} is a page`);
@@ -417,6 +417,7 @@ test('the real pages in a browser: the menu, old #links, „Twoje kody” withou
       assert.equal(await tab.locator('#contact-topic').inputValue(), 'bug');
       assert.deepEqual(await tab.locator('#contact-topic option').allTextContents(), ['Pomoc z launcherem', 'Hammer+ i płatności', 'Zgłoszenie błędu', 'Współpraca', 'Inne']);
       await tab.waitForFunction(() => document.getElementById('contact-name').value === 'Kupujacy');
+      assert.ok((await tab.locator('#contact-website').boundingBox()).x < 0, 'the trap field is off the screen');
       // Nothing typed: every field says what is wrong, in Polish, and nothing is sent.
       await tab.locator('#contact-name').fill('');
       await tab.locator('#contact-send').click();
@@ -447,7 +448,6 @@ test('the real pages in a browser: the menu, old #links, „Twoje kody” withou
       assert.match(await tab.locator('#contact-done').textContent(), /Dziękujemy – odpiszemy na podany e-mail[\s\S]*ola@example\.com/);
       assert.equal(await tab.locator('#contact-form').isHidden(), true);
       assert.deepEqual(sent, [{ name: 'Ola', email: 'ola@example.com', topic: 'bug', message: 'Launcher nie startuje po aktualizacji.', website: '' }]);
-      assert.ok((await tab.locator('#contact-website').boundingBox()).x < 0, 'the trap field is off the screen');
       if (shots) await tab.screenshot({ path: `${shots}/kontakt-wyslane-${w}.png` });
       await tab.locator('#contact-again').click();
       assert.deepEqual([await tab.locator('#contact-form').isVisible(), await tab.locator('#contact-message').inputValue(), await tab.locator('#contact-name').inputValue()], [true, '', 'Ola']);
@@ -464,7 +464,9 @@ test('the real pages in a browser: the menu, old #links, „Twoje kody” withou
       assert.equal(await tab.locator('#news-empty').isHidden(), true);
       for (const n of webStore.newsList()) webStore.removeNews(n.id);
 
-      assert.deepEqual(problems, [], `no errors at ${w}`);
+      // (the browser itself notes the 429 the form was answered with above – that one is the test's doing)
+      assert.deepEqual(problems.filter((p) => !/status of 429/.test(p)), [], `no errors at ${w}`);
+      assert.equal(problems.length, 1);
       await context.close();
     }
   } finally {

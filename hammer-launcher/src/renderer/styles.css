@@ -320,6 +320,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 .modal-head{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
 .modal-head h2{flex:1}
 .modal-body{padding:20px;overflow:auto}
+/* A long name without spaces (a world, an instance, a server address) wraps in a window and in a message – it never
+   pushes the close button out of the window, makes the window scroll sideways or runs out of the message. */
+.modal-head h2{min-width:0}
+.modal-head h2,.modal-body,.toast{overflow-wrap:break-word}
+.toast>div{min-width:0}
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}
 .form{display:grid;gap:14px}
 .form .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}

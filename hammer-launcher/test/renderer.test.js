@@ -27,12 +27,8 @@ const skip = available ? false : 'Chromium (Playwright) is not installed here �
 const COSMETICS = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'assets', 'cosmetics', 'cosmetics.json'), 'utf8'));
 
 let browser = null;
-test.before(async () => {
-  if (available) browser = await chromium.launch();
-});
-test.after(async () => {
-  await browser?.close();
-});
+const walks = []; // [name, walk] – run at the bottom of the file, a few windows at a time
+const ui = (name, walk) => walks.push([name, walk]);
 
 /**
  * Opens the launcher's window on the fake launcher and runs `walk({ page, nav, until })` in it. `patch(arg)` (one
@@ -53,7 +49,7 @@ async function withLauncher({ patch = null, arg = null, width = 1240, height = 7
     await page.waitForSelector('#app:not(.booting)');
     const nav = (title) => page.locator('.nav-item', { hasText: title }).click();
     /** Waits until fn() – run in the page – answers something true, and returns it. */
-    const until = (fn, value) => page.waitForFunction(fn, value, { timeout: 5000 }).then((handle) => handle.jsonValue());
+    const until = (fn, value) => page.waitForFunction(fn, value, { timeout: 10000 }).then((handle) => handle.jsonValue());
     await walk({ page, nav, until });
     assert.deepEqual(errors, [], 'no errors in the page');
   } finally {
@@ -86,7 +82,7 @@ function slowForge() {
     });
 }
 
-test('a download in progress does not eat clicks: progress moves only the progress bar, the lists stay as they are', { skip }, async () => {
+ui('a download in progress does not eat clicks: progress moves only the progress bar, the lists stay as they are', async () => {
   await withLauncher({}, async ({ page, nav, until }) => {
     // Another instance is being downloaded: the launcher sends its progress ten times a second.
     await page.evaluate(() => {
@@ -147,7 +143,7 @@ test('a download in progress does not eat clicks: progress moves only the progre
   });
 });
 
-test('instance editor: a late answer for a loader the player has already left never replaces the list', { skip }, async () => {
+ui('instance editor: a late answer for a loader the player has already left never replaces the list', async () => {
   await withLauncher({ patch: slowForge }, async ({ page, nav, until }) => {
     const loaderList = () => page.evaluate(() => [...document.querySelectorAll('.modal select')[1].options].slice(0, 3).map((o) => o.textContent));
     const pick = (name) => page.locator('.modal .seg button', { hasText: new RegExp(`^${name}$`) }).click();
@@ -183,7 +179,7 @@ test('instance editor: a late answer for a loader the player has already left ne
   });
 });
 
-test('instance editor: „pokaż snapshoty” ticked while the first list is still loading keeps the snapshots', { skip }, async () => {
+ui('instance editor: „pokaż snapshoty” ticked while the first list is still loading keeps the snapshots', async () => {
   const patch = () => {
     const releases = ['1.21.1', '1.20.1'].map((id) => ({ id, type: 'release' }));
     let first = true;
@@ -206,7 +202,7 @@ test('instance editor: „pokaż snapshoty” ticked while the first list is sti
   });
 });
 
-test('instance editor: a loader version that is not among the newest 80 stays selected – not „Najnowsza zalecana”', { skip }, async () => {
+ui('instance editor: a loader version that is not among the newest 80 stays selected – not „Najnowsza zalecana”', async () => {
   const patch = () => {
     window.__forgeAtOnce = true;
     // A modpack asked for an older Forge build (the list has 120 – only the newest 80 are offered).
@@ -225,7 +221,7 @@ test('instance editor: a loader version that is not among the newest 80 stays se
   });
 });
 
-test('invitation: the window closed while the modpack downloads – the new instance still shows up, with a message', { skip }, async () => {
+ui('invitation: the window closed while the modpack downloads – the new instance still shows up, with a message', async () => {
   const patch = () => {
     window.hs.invite.accept = () =>
       new Promise((resolve) => {
@@ -253,7 +249,7 @@ test('invitation: the window closed while the modpack downloads – the new inst
   });
 });
 
-test('Mody: after „Zmień loader” the page is drawn for the new loader, not left on „czysty Minecraft”', { skip }, async () => {
+ui('Mody: after „Zmień loader” the page is drawn for the new loader, not left on „czysty Minecraft”', async () => {
   await withLauncher({}, async ({ page, nav, until }) => {
     await page.evaluate(() => HS.state.selectInstance('pvp')); // a vanilla instance
     await nav('Mody');
@@ -269,7 +265,7 @@ test('Mody: after „Zmień loader” the page is drawn for the new loader, not 
   });
 });
 
-test('a crash of an instance that is not the selected one: Konsola opens on that instance, with the explanation', { skip }, async () => {
+ui('a crash of an instance that is not the selected one: Konsola opens on that instance, with the explanation', async () => {
   await withLauncher({}, async ({ page, nav, until }) => {
     await page.evaluate(() => {
       HS.state.running.set('survival', 'running');
@@ -283,7 +279,7 @@ test('a crash of an instance that is not the selected one: Konsola opens on that
   });
 });
 
-test('Escape closes only the window on top', { skip }, async () => {
+ui('Escape closes only the window on top', async () => {
   await withLauncher({}, async ({ page, nav, until }) => {
     await nav('Mody');
     await page.locator('.seg button', { hasText: 'Paczki modów' }).click();
@@ -298,7 +294,7 @@ test('Escape closes only the window on top', { skip }, async () => {
   });
 });
 
-test('Optymalizacja: the summary names the instance that was optimised, also when another one was picked meanwhile', { skip }, async () => {
+ui('Optymalizacja: the summary names the instance that was optimised, also when another one was picked meanwhile', async () => {
   const patch = () => {
     const apply = window.hs.optimizer.apply;
     window.hs.optimizer.apply = (...args) => new Promise((resolve) => (window.__letGo = () => resolve(apply(...args))));
@@ -314,7 +310,7 @@ test('Optymalizacja: the summary names the instance that was optimised, also whe
   });
 });
 
-test('Optymalizacja without any instance: after „Nowa instancja” the page is there for it', { skip }, async () => {
+ui('Optymalizacja without any instance: after „Nowa instancja” the page is there for it', async () => {
   const patch = () => {
     window.hs.instances.list = async () => window.__made ?? [];
     window.hs.instances.create = async (data) => (window.__made = [{ id: 'nowa', playTimeMs: 0, lastPlayed: null, ...data }])[0];
@@ -330,7 +326,7 @@ test('Optymalizacja without any instance: after „Nowa instancja” the page is
   });
 });
 
-test('GRAJ clicked twice in a row starts the game once', { skip }, async () => {
+ui('GRAJ clicked twice in a row starts the game once', async () => {
   const patch = () => {
     // A slow disk: saving the selected instance takes a moment – long enough for the second click.
     const set = window.hs.settings.set;
@@ -356,7 +352,7 @@ test('GRAJ clicked twice in a row starts the game once', { skip }, async () => {
   });
 });
 
-test('a long instance name at the smallest window: the switcher is cut with „…”, nothing runs off the page', { skip }, async () => {
+ui('a long instance name at the smallest window: the switcher is cut with „…”, nothing runs off the page', async () => {
   const patch = () => {
     const list = window.hs.instances.list;
     window.hs.instances.list = async () => (await list()).map((i) => (i.id === 'hammershop' ? { ...i, name: 'M'.repeat(48) } : i)); // 48 = the longest name an instance can have
@@ -376,4 +372,50 @@ test('a long instance name at the smallest window: the switcher is cut with „�
       if (box.headWidth != null) assert.ok(box.headWidth >= 120, `${title}: the heading keeps its room (${box.headWidth}px)`);
     }
   });
+});
+
+ui('a name without spaces wraps in a window and in a message – the close button stays, nothing scrolls sideways', async () => {
+  const patch = () => {
+    const instances = window.hs.instances.list;
+    const worlds = window.hs.worlds.list;
+    window.hs.instances.list = async () => (await instances()).map((i) => (i.id === 'hammershop' ? { ...i, name: 'M'.repeat(48) } : i));
+    window.hs.worlds.list = async (id) => (await worlds(id)).map((w, n) => (n === 0 ? { ...w, name: 'W'.repeat(64), folder: 'W'.repeat(64) } : w));
+  };
+  await withLauncher({ patch, width: 1040, height: 660 }, async ({ page, nav, until }) => {
+    /** How far the newest window's content reaches past its right edge, and how far its text scrolls sideways. */
+    const spill = () =>
+      page.evaluate(() => {
+        const box = [...document.querySelectorAll('#modal-root .modal')].at(-1);
+        const body = box.querySelector('.modal-body');
+        const right = Math.max(...[...box.querySelectorAll('.modal-head *')].map((el) => el.getBoundingClientRect().right));
+        return { head: Math.max(0, Math.round(right - box.getBoundingClientRect().right)), body: body.scrollWidth - body.clientWidth };
+      });
+    await page.evaluate(() => HS.editInstance(HS.state.instance)); // „Edytuj: MMMM…”
+    await page.locator('.modal').waitFor();
+    assert.deepEqual(await spill(), { head: 0, body: 0 }, 'the title of „Edytuj”');
+    await page.keyboard.press('Escape');
+
+    await nav('Światy');
+    await page.locator('.world-row .row-acts .danger').first().click(); // „Usunąć świat?” with the name in its text
+    await page.locator('.modal').waitFor();
+    assert.deepEqual(await spill(), { head: 0, body: 0 }, 'the text of „Usunąć świat?”');
+    await page.locator('.modal .btn.danger').click();
+    await page.locator('.toast.ok').waitFor(); // „Świat „WWWW…” jest w koszu.”
+    const toast = await page.evaluate(() => {
+      const el = document.querySelector('.toast.ok');
+      return Math.round(Math.max(...[...el.querySelectorAll('*')].map((x) => x.getBoundingClientRect().right)) - el.getBoundingClientRect().right);
+    });
+    assert.ok(toast <= 0, `the message keeps its text inside (${toast}px over)`);
+  });
+});
+
+/* One Chromium for the whole file; every test has a window (and a fake launcher) of its own. */
+test.describe('the interface in Chromium', { concurrency: 4 }, () => {
+  test.before(async () => {
+    if (available) browser = await chromium.launch();
+  });
+  test.after(async () => {
+    await browser?.close();
+  });
+  for (const [name, walk] of walks) test(name, { skip }, walk);
 });

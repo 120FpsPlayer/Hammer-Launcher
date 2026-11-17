@@ -119,7 +119,9 @@ function update(instance, index, patch = {}, expected) {
   const data = load(instance);
   const shown = shownOf(data.list);
   const entry = pick(shown, index, expected);
-  if (patch.address !== undefined) {
+  // An address that was not touched is not checked again: the game took it as it is (an IPv6 address, a name that
+  // ends with a dot), and the form sends it back with every change of the name.
+  if (patch.address !== undefined && String(patch.address) !== text(get(entry, 'ip'))) {
     const ip = cleanAddress(patch.address);
     if (ip !== text(get(entry, 'ip'))) {
       entry.value.set('ip', tag.string(ip));
@@ -153,7 +155,8 @@ function move(instance, from, to) {
 /**
  * Makes the shown list equal to `entries` ([{ name, address }], in that order) – used when a copy from the cloud
  * is taken. A server that stays (same address) keeps its icon and resource-pack choice; entries with a bad
- * address are left out. Returns true when the list changed – an equal list is not written again.
+ * address are left out – unless this instance has a server under exactly that address already (the game was
+ * less strict). Returns true when the list changed – an equal list is not written again.
  */
 function replace(instance, entries) {
   const data = load(instance);
@@ -163,12 +166,16 @@ function replace(instance, entries) {
   const have = shown.map((entry) => ({ entry, address: text(get(entry, 'ip')) ?? '', used: false }));
   const next = [];
   for (const item of Array.isArray(entries) ? entries.slice(0, 500) : []) {
-    let ip;
+    const raw = typeof item?.address === 'string' ? item.address : '';
+    let ip = null;
     try {
       ip = cleanAddress(item?.address);
     } catch {
-      continue;
+      // An address the launcher would not take itself, but the game did (IPv6, a name ending with a dot): the
+      // server that is here under exactly that address stays – taking a copy never costs the player a server.
+      ip = raw && have.some((x) => !x.used && x.address === raw) ? raw : null;
     }
+    if (!ip) continue;
     const name = String(item?.name ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, MAX_NAME) || ip;
     const old = have.find((x) => !x.used && x.address === ip);
     if (old) {

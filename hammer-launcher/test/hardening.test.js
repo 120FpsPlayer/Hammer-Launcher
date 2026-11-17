@@ -21,6 +21,7 @@ const { createAccounts, createCrypt } = require('../src/main/accounts');
 const { createServices } = require('../src/main/services');
 const worlds = require('../src/main/worlds');
 const versions = require('../src/main/versions');
+const serverList = require('../src/main/servers');
 const { writeNbt, tag } = require('../src/main/nbt');
 const { tmpDir, fabricJar, mrVersion, sha1 } = require('./helpers');
 
@@ -344,6 +345,33 @@ test('worlds: what a backup that was cut off left behind (…zip.part) is remove
   assert.equal(made.file, 'Nasz świat-2026-11-12_18-05.zip');
   assert.ok(seen.length && seen.every((parts) => parts.includes('Nasz świat-2026-11-12_18-05.zip.part')), 'the backup being packed keeps its own .part file');
   assert.deepEqual(fs.readdirSync(backups).sort(), ['Folder-2026-11-10_18-05.zip.part', made.file, ...foreign].sort());
+});
+
+/* ── the server list ── */
+
+test('servers: one the game took with an address the launcher would not (IPv6, a trailing dot) can be renamed and survives a cloud copy', () => {
+  const instance = { id: 'hammer', dir: path.join(tmpDir(), 'hammer') };
+  fs.mkdirSync(instance.dir, { recursive: true });
+  const icon = Buffer.alloc(300, 7).toString('base64');
+  const entry = (name, ip) => tag.compound({ name: tag.string(name), ip: tag.string(ip), icon: tag.string(icon), acceptTextures: tag.byte(1) });
+  const game = [entry('HammerShop', 'mc.hammershop.pl'), entry('Serwer brata', '[2001:db8::1]:25565'), entry('Szkolny', 'mc.szkola.example.')];
+  fs.writeFileSync(path.join(instance.dir, 'servers.dat'), writeNbt(Object.assign(tag.compound({ servers: tag.list('compound', game) }), { name: '' }), { gzip: false }));
+
+  // The edit window sends the name and the (untouched) address.
+  const renamed = serverList.update(instance, 1, { name: 'Serwer Kuby', address: '[2001:db8::1]:25565' }, '[2001:db8::1]:25565');
+  assert.deepEqual(renamed.map((s) => [s.name, s.address, Boolean(s.icon), s.acceptTextures]), [['HammerShop', 'mc.hammershop.pl', true, true], ['Serwer Kuby', '[2001:db8::1]:25565', true, true], ['Szkolny', 'mc.szkola.example.', true, true]]);
+  // An address that is typed in is still checked.
+  assert.throws(() => serverList.update(instance, 1, { name: 'Serwer Kuby', address: '[2001:db8::2]:25565' }, '[2001:db8::1]:25565'), /Podaj poprawny adres serwera/);
+  assert.throws(() => serverList.add(instance, { name: 'Nowy', address: '[2001:db8::2]:25565' }), /Podaj poprawny adres serwera/);
+
+  // „Pobierz z chmury” of the copy this very computer sent: nothing changes, nothing is lost.
+  const mine = serverList.list(instance).map(({ name, address }) => ({ name, address }));
+  assert.equal(serverList.replace(instance, mine), false);
+  assert.equal(serverList.list(instance).length, 3);
+  // A copy in another order, with a server this computer does not have: the odd addresses that are here stay
+  // (icons too), an odd address that is only in the copy is still left out.
+  assert.equal(serverList.replace(instance, [mine[2], { name: 'Obcy', address: '[2001:db8::9]:25565' }, mine[1], { name: 'Nowy', address: 'nowy.example.pl' }]), true);
+  assert.deepEqual(serverList.list(instance).map((s) => [s.name, s.address, Boolean(s.icon)]), [['Szkolny', 'mc.szkola.example.', true], ['Serwer Kuby', '[2001:db8::1]:25565', true], ['Nowy', 'nowy.example.pl', false]]);
 });
 
 /* ── the end of a game session ── */
