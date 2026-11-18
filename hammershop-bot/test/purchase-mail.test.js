@@ -74,15 +74,21 @@ async function quietly(fn) {
 }
 
 /** The parts of a multipart message as the fake SMTP server got it: [{ type, encoding, text }]. */
+/** The parts of a multipart body (a multipart/related part – the HTML with its pictures – is opened: its parts follow). */
+function split(body, boundary) {
+  return body.split(`--${boundary}`).slice(1, -1).flatMap((chunk) => {
+    const [head, ...rest] = chunk.replace(/^\r\n/, '').split('\r\n\r\n');
+    const headers = Object.fromEntries(head.split('\r\n').map((l) => [l.slice(0, l.indexOf(':')).toLowerCase(), l.slice(l.indexOf(':') + 1).trim()]));
+    const inner = /^multipart\/related; boundary="([^"]+)"/.exec(headers['content-type'] ?? '')?.[1];
+    if (inner) return split(rest.join('\r\n\r\n'), inner);
+    const data = Buffer.from(rest.join('').replace(/\s+/g, ''), 'base64');
+    return [{ type: headers['content-type'], encoding: headers['content-transfer-encoding'], cid: headers['content-id'] ?? null, data, text: data.toString('utf8').replace(/\r\n/g, '\n') }];
+  });
+}
 function partsOf(message) {
   const boundary = /boundary="([^"]+)"/.exec(message.headers['content-type'] ?? '')?.[1];
   if (!boundary) return null;
-  const body = message.raw.split('\r\n\r\n').slice(1).join('\r\n\r\n');
-  return body.split(`--${boundary}`).slice(1, -1).map((chunk) => {
-    const [head, ...rest] = chunk.replace(/^\r\n/, '').split('\r\n\r\n');
-    const headers = Object.fromEntries(head.split('\r\n').map((l) => [l.slice(0, l.indexOf(':')).toLowerCase(), l.slice(l.indexOf(':') + 1).trim()]));
-    return { type: headers['content-type'], encoding: headers['content-transfer-encoding'], text: Buffer.from(rest.join('').replace(/\s+/g, ''), 'base64').toString('utf8').replace(/\r\n/g, '\n') };
-  });
+  return split(message.raw.split('\r\n\r\n').slice(1).join('\r\n\r\n'), boundary);
 }
 const to = (address) => smtp.messages.filter((m) => m.to.includes(address));
 
@@ -212,9 +218,13 @@ test('the buyer gets the confirmation with the code (HTML + text) at the address
   assert.equal(buyer.subject, 'Dziękujemy za zakup Hammer+ – Twój kod');
   assert.deepEqual([buyer.from, buyer.headers['reply-to']], [ADDRESS, `<${ADDRESS}>`]);
   assert.match(buyer.headers['content-type'], /^multipart\/alternative; boundary="=_hs_[0-9a-f]{24}"$/);
-  const [text, html] = partsOf(buyer);
+  const [text, html, icon] = partsOf(buyer);
   assert.equal(text.type, 'text/plain; charset=utf-8');
   assert.equal(html.type, 'text/html; charset=utf-8');
+  // The server's icon travels inside the e-mail (no picture is loaded from the internet) and sits next to the name.
+  assert.deepEqual([icon.type, icon.cid], ['image/png', '<logo>']);
+  assert.ok(icon.data.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')), 'a real PNG');
+  assert.match(html.text, /<img src="cid:logo" width="44" height="44" alt=""/);
   for (const line of ['Dziękujemy za zakup Hammer+!', `\n\n${code}\n\n`, 'Plan: Hammer+ na 30 dni', 'Konto Minecraft: Steve', 'Ważny: do ', `Numer zamówienia: ${orderId}`, 'Zapłacono: 14,99 PLN · płatność online', '1. Otwórz Hammer Launcher i wejdź w zakładkę Hammer+.', '2. Kliknij „Mam kod” i wklej kod.', '3. Kliknij „Aktywuj” – gotowe.', 'Kod działa tylko na koncie Minecraft Steve.', `${base}/hammer-plus`, `Otwórz ticket „Hammer+ i płatności” na naszym Discordzie (${env.web.invite})`, ADDRESS]) {
     assert.ok(text.text.includes(line), `${line}\n---\n${text.text}`);
   }
@@ -222,7 +232,8 @@ test('the buyer gets the confirmation with the code (HTML + text) at the address
     assert.ok(html.text.includes(piece), `${piece}\n---\n${html.text.slice(0, 400)}`);
   }
   // Gmail-safe: inline styles only, nothing loaded from anywhere, no scripts.
-  assert.doesNotMatch(html.text, /<script|<style|<img|<link|url\(|src=/i);
+  assert.doesNotMatch(html.text, /<script|<style|<link|url\(/i);
+  assert.deepEqual(html.text.match(/src="[^"]*"/g), ['src="cid:logo"'], 'the only picture is the one inside the e-mail');
   assert.match(html.text, /^<!doctype html>/);
 
   // The owner's e-mail: the code and the buyer's address, and that the confirmation went out.

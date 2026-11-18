@@ -297,3 +297,20 @@ test('real TLS: port 465 style (TLS from the first byte) and STARTTLS – the ce
     upgrade.close();
   }
 });
+
+test('a picture inside the HTML (the server icon): multipart/related next to the plain text, Content-ID, base64 – and nothing odd gets into the headers', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  const raw = mail.compose({
+    from: ADDRESS, fromName: 'Hammer Launcher', to: ADDRESS, subject: 'Dziękujemy za zakup', text: 'Tekst', html: '<p><img src="cid:logo"> Treść</p>',
+    inline: [{ cid: 'logo', type: 'image/png', data: png, name: 'logo.png' }, { cid: 'zły\r\nBcc: ktoś@x.pl', type: 'image/png', data: png }, { cid: 'x', type: 'text/html', data: png }],
+  });
+  const head = raw.split('\r\n\r\n')[0];
+  assert.match(head, /^Content-Type: multipart\/alternative; boundary="(=_hs_[0-9a-f]+)"$/m);
+  assert.match(raw, /Content-Type: multipart\/related; boundary="=_hs_[0-9a-f]+"/);
+  assert.match(raw, /Content-Type: image\/png\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <logo>\r\nContent-Disposition: inline; filename="logo\.png"\r\n\r\niVBORw0KGgo/);
+  assert.equal((raw.match(/Content-ID:/g) ?? []).length, 1, 'only the valid picture goes in');
+  assert.doesNotMatch(raw, /Bcc:/);
+  // The plain text still comes first; without pictures the message is as before.
+  assert.ok(raw.indexOf('text/plain') < raw.indexOf('multipart/related'));
+  assert.doesNotMatch(mail.compose({ from: ADDRESS, to: ADDRESS, subject: 's', text: 't', html: '<p>h</p>' }), /multipart\/related/);
+});

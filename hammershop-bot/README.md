@@ -408,6 +408,8 @@ Na ten sam adres przychodzi też e-mail o **każdym zakupie na stronie** (numer 
 
 **Kupujący też dostaje e-mail** – na adres, który wpisał na stronie płatności Stripe: ładne potwierdzenie (wersja HTML i zwykły tekst) z kodem Hammer+, planem, kontem Minecraft, datą ważności, trzema krokami aktywacji, numerem zamówienia i informacją, gdzie szukać pomocy (zakup w sklepie: co kupił i gdzie dostanie zamówienie). Każdy z tych e-maili wychodzi **raz na zamówienie**, a panel admina → **Zamówienia** pokazuje przy każdym opłaconym zamówieniu, czy poszedł: „e-mail do kupującego: wysłany na …” albo „nie wysłano – …” z powodem (np. brak `MAIL_PASS`, złe hasło, Stripe nie podał adresu).
 
+**Ikonka w e-mailu i przy nadawcy.** Na górze e-maila jest ikona serwera (młot z wokseli) – wysłana w samym e-mailu, więc widać ją od razu, bez ładowania obrazków. Kółko z ikonką obok nadawcy w Gmailu (domyślnie szary ludzik) to **zdjęcie profilowe konta Google**, z którego bot wysyła pocztę – ustawisz je tak: zaloguj się na hammerlauncherclient@gmail.com → myaccount.google.com → **Informacje osobiste** → **Zdjęcie** → wgraj `assets/brand/logo-launcher.png` (kwadrat 1024 px). Gmail pokaże je przy każdym e-mailu od bota (zmiana może zająć do kilku godzin).
+
 **Jak włączyć e-mail (darmowy Gmail, 5 minut):**
 1. Zaloguj się na konto Gmail z adresu kontaktowego i na stronie `myaccount.google.com/security` włącz **Weryfikację dwuetapową**.
 2. Wejdź na `myaccount.google.com/apppasswords`, wpisz dowolną nazwę (np. *Strona Hammer*) i kliknij **Utwórz**. Google pokaże 16 liter – to „hasło do aplikacji”.
@@ -864,7 +866,7 @@ test/                        testy z symulowanym serwerem Discord (npm test)
 ```bash
 npm test
 ```
-643 testy działają na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
+644 testy działają na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
 znaków na kartę, miejsca na emotki, uprawnienia, reguły AutoMod, tryb społeczności): pełna budowa, wyczyść i zbuduj,
 każde uprawnienie, ścieżka sklep → ticket → zamówienie → opinia, warianty, licznik sztuk, promocje błyskawiczne, odznaki, Zapłać,
 DM-y o statusie zamówienia, Moje zamówienia, przypomnienia dla zespołu, karty płatności, linki do płatności Stripe i PayPal,

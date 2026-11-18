@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 /**
  * The buyer's e-mail after a paid website order (src/features/website.js buyerMail): one message in two versions –
  * HTML for Gmail and phones, plain text for every other mail app (src/lib/mail.js sends both as
@@ -23,11 +26,28 @@ const PLAIN_ADDRESS = /^[A-Za-z0-9._+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,2
 const mailto = (address) => (typeof address === 'string' && PLAIN_ADDRESS.test(address) ? address : null);
 const plDateTime = (ms) => new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' }).format(new Date(ms));
 
-/** "Hammer Launcher" → Hammer + an orange "Launcher" (the website's logo, as text). */
-function logo(brand) {
+/**
+ * The server's icon (the same picture as the Discord server and the website), sent inside the e-mail – no picture is
+ * loaded from the internet, so it shows at once, also where outside pictures are blocked. Launcher profile: the voxel
+ * hammer; the shop: its own icon.
+ */
+const LOGO_CID = 'logo';
+function logoImage() {
+  const file = path.join(__dirname, '..', '..', 'web', 'public', 'assets', require('./profile').launcher ? 'launcher-icon.png' : 'hammershop-icon.png');
+  try {
+    return { cid: LOGO_CID, type: 'image/png', data: fs.readFileSync(file), name: 'logo.png' };
+  } catch {
+    return null; // no picture – the name alone, as text
+  }
+}
+
+/** The icon and "Hammer Launcher" → Hammer + an orange "Launcher" (the website's logo). */
+function logo(brand, withImage) {
   const m = /^(Hammer)\s?(.+)$/.exec(String(brand ?? ''));
   const style = `font-family:${FONT};font-size:20px;line-height:1.2;font-weight:800;color:${C.text};letter-spacing:-0.2px;`;
-  return m ? `<span style="${style}">${esc(m[1])}<span style="color:${C.accent};">${esc(m[2])}</span></span>` : `<span style="${style}">${esc(brand)}</span>`;
+  const name = m ? `<span style="${style}">${esc(m[1])}<span style="color:${C.accent};">${esc(m[2])}</span></span>` : `<span style="${style}">${esc(brand)}</span>`;
+  if (!withImage) return name;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding-right:12px;vertical-align:middle;"><img src="cid:${LOGO_CID}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;border-radius:12px;"></td><td style="vertical-align:middle;">${name}</td></tr></table>`;
 }
 
 const p = (html, { size = 15, color = C.soft, margin = '0 0 14px', weight = 400 } = {}) => `<p style="margin:${margin};font-family:${FONT};font-size:${size}px;line-height:1.55;font-weight:${weight};color:${color};">${html}</p>`;
@@ -47,7 +67,7 @@ const button = (url, label) =>
   `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 6px;"><tr><td bgcolor="${C.accent}" style="background:${C.accent};border-radius:10px;"><a href="${esc(url)}" style="display:inline-block;padding:13px 22px;font-family:${FONT};font-size:15px;font-weight:700;color:${C.ink};text-decoration:none;border-radius:10px;">${esc(label)}</a></td></tr></table>`;
 
 /** The whole page around a card: the logo, the card, the help and the small print under it. */
-function page({ title, preheader, brand, card, help, footer }) {
+function page({ title, preheader, brand, card, help, footer, withImage = false }) {
   return [
     '<!doctype html>',
     '<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">',
@@ -57,7 +77,7 @@ function page({ title, preheader, brand, card, help, footer }) {
     `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${C.page};font-size:1px;line-height:1px;">${esc(preheader)}</div>`,
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.page}" style="background:${C.page};"><tr><td align="center" style="padding:24px 12px 32px;">`,
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">',
-    `<tr><td style="padding:0 6px 16px;">${logo(brand)}</td></tr>`,
+    `<tr><td style="padding:0 6px 16px;">${logo(brand, withImage)}</td></tr>`,
     `<tr><td bgcolor="${C.accent}" style="background:${C.accent};height:4px;line-height:4px;font-size:0;border-radius:16px 16px 0 0;">&nbsp;</td></tr>`,
     `<tr><td bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.line};border-top:0;border-radius:0 0 16px 16px;padding:28px 24px 22px;">${card}</td></tr>`,
     `<tr><td style="padding:20px 6px 0;">${help}</td></tr>`,
@@ -132,6 +152,7 @@ function plusReceipt({ brand, orderId, amount, paidAt, plan, nick, until, code, 
     code ? p(`Kod działa tylko na koncie Minecraft <b style="color:${C.text};">${esc(nick)}</b>.`, { size: 13, color: C.muted, margin: '0 0 18px' }) : '',
     page_ ? button(page_, 'Moje kody na stronie') : '',
   ].join('\n');
+  const image = logoImage();
   const html = page({
     title: subject,
     preheader: code ? `Twój kod Hammer+ dla konta ${nick} – wklej go w launcherze: Hammer+ → „Mam kod”.` : `Płatność za Hammer+ dla konta ${nick} przyjęta.`,
@@ -139,8 +160,9 @@ function plusReceipt({ brand, orderId, amount, paidAt, plan, nick, until, code, 
     card,
     help: help_.html,
     footer: `Dostajesz tę wiadomość, bo kupiłeś(-aś) Hammer+ na stronie ${esc(brand)}, podając ten adres przy płatności. Zachowaj ją – to Twoje potwierdzenie zakupu.`,
+    withImage: Boolean(image),
   });
-  return { subject, text, html };
+  return { subject, text, html, inline: image ? [image] : [] };
 }
 
 /** A shop order (products) paid on the website: what was bought, for how much, and where it is delivered. */
@@ -173,8 +195,9 @@ function shopReceipt({ brand, orderId, amount, paidAt, items = [], delivery = nu
     delivery ? p(esc(delivery), { margin: '0 0 18px' }) : '',
     ticket ? button(ticket, 'Otwórz ticket na Discordzie') : '',
   ].join('\n');
-  const html = page({ title: subject, preheader: `Zamówienie ${orderId} opłacone – ${lines.join(', ')}`.slice(0, 140), brand, card, help: help_.html, footer: `Dostajesz tę wiadomość, bo kupiłeś(-aś) coś na stronie ${esc(brand)}, podając ten adres przy płatności. Zachowaj ją – to Twoje potwierdzenie zakupu.` });
-  return { subject, text, html };
+  const image = logoImage();
+  const html = page({ title: subject, preheader: `Zamówienie ${orderId} opłacone – ${lines.join(', ')}`.slice(0, 140), brand, card, help: help_.html, footer: `Dostajesz tę wiadomość, bo kupiłeś(-aś) coś na stronie ${esc(brand)}, podając ten adres przy płatności. Zachowaj ją – to Twoje potwierdzenie zakupu.`, withImage: Boolean(image) });
+  return { subject, text, html, inline: image ? [image] : [] };
 }
 
 module.exports = { plusReceipt, shopReceipt, esc, plDateTime };

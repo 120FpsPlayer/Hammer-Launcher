@@ -111,7 +111,13 @@ const lines = (value) => String(value ?? '')
   .replace(/\n/g, '\r\n');
 const base64Lines = (value) => (Buffer.from(value, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
 
-function compose({ from, fromName, to, replyTo, subject, text, html = null, date = new Date() }) {
+/**
+ * Pictures inside the HTML (the logo at the top): [{ cid, type, data: Buffer, name }] → shown with <img src="cid:…">.
+ * Only plain names and image types – nothing from outside goes into these headers.
+ */
+const inlineOk = (img) => img && /^[A-Za-z0-9._-]{1,60}$/.test(img.cid ?? '') && /^image\/(png|jpeg|gif)$/.test(img.type ?? '') && Buffer.isBuffer(img.data) && img.data.length <= 512 * 1024;
+
+function compose({ from, fromName, to, replyTo, subject, text, html = null, inline = [], date = new Date() }) {
   const name = oneLine(fromName, 100);
   const body = lines(text);
   const headers = [
@@ -129,8 +135,17 @@ function compose({ from, fromName, to, replyTo, subject, text, html = null, date
   }
   const boundary = `=_hs_${crypto.randomBytes(12).toString('hex')}`;
   headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-  const part = (type, content) => [`--${boundary}`, `Content-Type: ${type}; charset=utf-8`, 'Content-Transfer-Encoding: base64', '', base64Lines(content)].join('\r\n');
-  return `${headers.join('\r\n')}\r\n\r\n${part('text/plain', body)}\r\n${part('text/html', lines(html))}\r\n--${boundary}--\r\n`;
+  const part = (type, content, b = boundary) => [`--${b}`, `Content-Type: ${type}; charset=utf-8`, 'Content-Transfer-Encoding: base64', '', base64Lines(content)].join('\r\n');
+  const images = (inline ?? []).filter(inlineOk);
+  // With pictures the HTML and its pictures travel together (multipart/related) as the second alternative.
+  let rich = part('text/html', lines(html));
+  if (images.length) {
+    const related = `=_hs_${crypto.randomBytes(12).toString('hex')}`;
+    const picture = (img) =>
+      [`--${related}`, `Content-Type: ${img.type}`, 'Content-Transfer-Encoding: base64', `Content-ID: <${img.cid}>`, `Content-Disposition: inline; filename="${String(img.name || img.cid).replace(/[^A-Za-z0-9._-]/g, '')}"`, '', (img.data.toString('base64').match(/.{1,76}/g) ?? []).join('\r\n')].join('\r\n');
+    rich = [`--${boundary}`, `Content-Type: multipart/related; boundary="${related}"`, '', part('text/html', lines(html), related), ...images.map(picture), `--${related}--`].join('\r\n');
+  }
+  return `${headers.join('\r\n')}\r\n\r\n${part('text/plain', body)}\r\n${rich}\r\n--${boundary}--\r\n`;
 }
 
 /** SMTP's "a line with only a dot ends the message": a line that starts with a dot gets one more. */
@@ -327,12 +342,12 @@ let workingPort = null; // { key: 'host:port' as configured, port: the one that 
 let last = { ok: null, at: null, reason: null }; // the newest attempt – the admin panel shows it
 let said = null; // the cause the console was told about last
 
-async function deliver({ subject, text, html, replyTo, to }) {
+async function deliver({ subject, text, html, inline, replyTo, to }) {
   const cfg = settings();
   if (!ready()) return { ok: false, code: 'off', reason: offReason(cfg) };
   const rcpt = to == null ? cfg.to : oneLine(to);
   if (!isAddress(rcpt)) return { ok: false, code: 'address', reason: 'Nieprawidłowy adres odbiorcy.' };
-  const data = compose({ from: cfg.from, fromName: config.brand?.name, to: rcpt, replyTo: oneLine(replyTo), subject, text, html });
+  const data = compose({ from: cfg.from, fromName: config.brand?.name, to: rcpt, replyTo: oneLine(replyTo), subject, text, html, inline });
   const envelope = { from: cfg.from, to: rcpt };
   const key = `${cfg.host}:${cfg.port}`;
   const first = workingPort?.key === key ? workingPort.port : cfg.port;
@@ -355,7 +370,8 @@ async function deliver({ subject, text, html, replyTo, to }) {
 }
 
 /**
- * send({ subject, text, html?, replyTo?, to? }) → { ok: true } | { ok: false, code, reason }. Never throws.
+ * send({ subject, text, html?, inline?, replyTo?, to? }) → { ok: true } | { ok: false, code, reason }. Never throws.
+ * inline: pictures the HTML shows with <img src="cid:…"> (compose()).
  * to: default MAIL_TO; replyTo: where "Reply" goes (left out when it is not a plain address); html: the same message
  * as a web page – sent next to the text, never instead of it.
  */
