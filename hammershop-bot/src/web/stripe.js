@@ -52,7 +52,8 @@ function createCheckout({ order, user, lines, currency, idempotencyKey, returnPa
       mode: 'payment',
       submit_type: 'pay',
       locale: 'pl', // Stripe's own page in Polish too
-      custom_text: { submit: { message: message ?? 'Zaraz po płatności Twoje zamówienie otworzy się w prywatnym tickecie na Discordzie HammerShop – produkty z dostawą natychmiastową dostarczymy tam i w wiadomości prywatnej.' } },
+      // message: the line under the Pay button – null = the shop's own, '' = none.
+      ...(message === '' ? {} : { custom_text: { submit: { message: message ?? 'Zaraz po płatności Twoje zamówienie otworzy się w prywatnym tickecie na Discordzie HammerShop – produkty z dostawą natychmiastową dostarczymy tam i w wiadomości prywatnej.' } } }),
       success_url: `${back}?payment=return&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${back}?payment=cancelled`,
       client_reference_id: user.id,

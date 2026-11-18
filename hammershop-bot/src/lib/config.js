@@ -19,6 +19,9 @@ const FEATURE_DEFAULTS = {
   contact: { email: '' },
   // The Hammer Launcher server's co-creator, shown on its own channel (#hammershop): url – its site, discord – an invite ('' = no button).
   partner: { name: '', url: '', discord: '' },
+  // Stripe's page when someone buys Hammer+ on the website: the name above the price, the line under it and the text under
+  // the Pay button ('' = without it). {plan} {nick} {time} {days} are filled in (src/web/server.js).
+  checkout: { plusName: '{plan} – {nick}', plusDescription: 'Hammer+ w Hammer Launcherze dla konta Minecraft {nick} – {time}', plusMessage: "Zaraz po płatności zobaczysz swój kod Hammer+ na stronie i dostaniesz go w wiadomości prywatnej na Discordzie oraz na e-mail podany wyżej. Wpisujesz go w Hammer Launcherze: Hammer+ → „Mam kod”." },
   chatFilter: { enabled: true, noLinks: ['chat'], allowGifs: true, allowedDomains: [], slurs: 'everywhere', profanity: 'public', extraWords: [], allowedWords: [], strikes: 3, strikeMinutes: 10, timeoutMinutes: 10 },
   // Short pointers to the right channel when someone in the chat asks a usual question (src/features/chathints.js).
   // Off here – the Hammer Launcher server turns it on with its own topics in config.launcher.json. question: what makes a

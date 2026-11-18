@@ -410,6 +410,8 @@ Na ten sam adres przychodzi też e-mail o **każdym zakupie na stronie** (numer 
 
 **Ikonka w e-mailu i przy nadawcy.** Na górze e-maila jest ikona serwera (młot z wokseli) – wysłana w samym e-mailu, więc widać ją od razu, bez ładowania obrazków. Kółko z ikonką obok nadawcy w Gmailu (domyślnie szary ludzik) to **zdjęcie profilowe konta Google**, z którego bot wysyła pocztę – ustawisz je tak: zaloguj się na hammerlauncherclient@gmail.com → myaccount.google.com → **Informacje osobiste** → **Zdjęcie** → wgraj `assets/brand/logo-launcher.png` (kwadrat 1024 px). Gmail pokaże je przy każdym e-mailu od bota (zmiana może zająć do kilku godzin).
 
+**Tekst pod przyciskiem „Zapłać” na stronie Stripe** (np. „Zaraz po płatności zobaczysz swój kod Hammer+…”) wysyła bot przy każdej płatności – w panelu Stripe go nie zmienisz. Tak samo nazwę nad ceną i linijkę pod ceną. Wszystkie trzy zmieniasz w `config.launcher.json` → `checkout`: `plusName` (nazwa nad ceną), `plusDescription` (linijka pod ceną) i `plusMessage` (tekst pod przyciskiem, do 1200 znaków; pusty = bez tej linijki). Bot sam wstawia `{plan}` (nazwa planu z panelu admina → Hammer+), `{nick}` (konto Minecraft), `{time}` („30 dni” albo „na zawsze”) i `{days}`. Po zmianie uruchom bota ponownie. Kolory, logo i czcionkę strony płatności ustawiasz w panelu Stripe: **Settings → Branding**.
+
 **Jak włączyć e-mail (darmowy Gmail, 5 minut):**
 1. Zaloguj się na konto Gmail z adresu kontaktowego i na stronie `myaccount.google.com/security` włącz **Weryfikację dwuetapową**.
 2. Wejdź na `myaccount.google.com/apppasswords`, wpisz dowolną nazwę (np. *Strona Hammer*) i kliknij **Utwórz**. Google pokaże 16 liter – to „hasło do aplikacji”.

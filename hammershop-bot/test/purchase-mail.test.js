@@ -206,6 +206,12 @@ test('the buyer gets the confirmation with the code (HTML + text) at the address
   mailOn();
   smtp.messages.length = 0;
   const { sessionId, orderId } = await buyPlus('p30', 'Steve', { customer_details: { email: BUYER_MAIL, name: 'Jan Kowalski' } });
+  // The line under Stripe's Pay button comes from config.launcher.json → checkout.plusMessage – and mentions the e-mail.
+  assert.equal(fakes.state.lastCheckout.get('custom_text[submit][message]'), require('../src/lib/config').checkout.plusMessage);
+  assert.match(fakes.state.lastCheckout.get('custom_text[submit][message]'), /na e-mail podany wyżej/);
+  // The name above the price and the line under it: config.launcher.json → checkout.plusName / plusDescription.
+  assert.match(fakes.state.lastCheckout.get('line_items[0][price_data][product_data][name]'), / – Steve$/);
+  assert.equal(fakes.state.lastCheckout.get('line_items[0][price_data][product_data][description]'), 'Hammer+ w Hammer Launcherze dla konta Minecraft Steve – 30 dni');
   await until(() => to(BUYER_MAIL).length === 1 && to(ADDRESS).length === 1, 'both e-mails');
   const order = webStore.getOrder(orderId);
   assert.equal(order.email, BUYER_MAIL, 'the order keeps the address from the Checkout Session');

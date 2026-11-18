@@ -369,14 +369,23 @@ async function checkoutPlus(res, user, body, requestId) {
   // Hammer+ forever already: another plan would add nothing – nobody pays for that.
   if (hooks.plus.until?.(account.mc) === 0) return fail(res, 409, `Konto ${account.nick} ma już Hammer+ na zawsze – nie musisz go kupować ponownie. Nic nie zostało pobrane.`);
   const currency = hooks.currency();
-  const name = `${plan.name} – ${account.nick}`;
+  // What Stripe's page shows above and under the price – config.launcher.json → checkout (plusName, plusDescription), with
+  // {plan} (the plan's name from the admin panel), {nick}, {time} („30 dni” / „na zawsze”) and {days}.
+  const fill = (template, fallback) => {
+    const time = plan.days ? `${plan.days} dni` : 'na zawsze';
+    const text = String(template ?? '').replace(/\{(plan|nick|time|days)\}/g, (_, k) => ({ plan: plan.name, nick: account.nick, time, days: String(plan.days ?? '') })[k]).replace(/\s+/g, ' ').trim();
+    return text || fallback;
+  };
+  const name = fill(config.checkout?.plusName, `${plan.name} – ${account.nick}`).slice(0, 200);
+  const description = fill(config.checkout?.plusDescription, '').slice(0, 500);
   const items = [{ id: `plus:${plan.id}`, name, price: plan.price, quantity: 1, productId: null, variant: null, eta: 'Kod od razu po płatności' }];
   const order = store.createOrder({ userId: user.id, kind: 'plus', items, amount: plan.price, currency, requestId, plus: { plan: plan.id, days: plan.days, mc: account.mc, nick: account.nick } });
   try {
     const session = await stripe.createCheckout({
       order, user, currency, idempotencyKey: `hs-${order.id}`, returnPath: pages.pathOf('hammer-plus'),
-      lines: [{ name, amount: plan.price, quantity: 1, description: `Hammer+ w Hammer Launcherze dla konta Minecraft ${account.nick} – ${plan.days ? `${plan.days} dni` : 'na zawsze'}` }],
-      message: 'Zaraz po płatności zobaczysz swój kod Hammer+ na stronie i dostaniesz go w wiadomości prywatnej na Discordzie. Wpisujesz go w Hammer Launcherze: Hammer+ → „Mam kod”.',
+      lines: [{ name, amount: plan.price, quantity: 1, ...(description && { description }) }],
+      // The line under Stripe's Pay button – config.launcher.json → checkout.plusMessage (Stripe takes up to 1200 characters).
+      message: String(config.checkout?.plusMessage ?? '').trim().slice(0, 1200), // '' = no line
     });
     store.updateOrder(order.id, { stripe_id: session.id, url: session.url });
     return send(res, 200, { url: session.url, order: order.id });

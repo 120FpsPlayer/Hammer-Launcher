@@ -15,6 +15,11 @@
   "contact": {
     "email": "hammerlauncherclient@gmail.com"
   },
+  "checkout": {
+    "plusName": "{plan} – {nick}",
+    "plusDescription": "Hammer+ w Hammer Launcherze dla konta Minecraft {nick} – {time}",
+    "plusMessage": "Zaraz po płatności zobaczysz swój kod Hammer+ na stronie i dostaniesz go w wiadomości prywatnej na Discordzie oraz na e-mail podany wyżej. Wpisujesz go w Hammer Launcherze: Hammer+ → „Mam kod”."
+  },
   "partner": {
     "name": "HammerShop",
     "url": "https://hammershop.pl",
