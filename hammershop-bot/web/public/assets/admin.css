@@ -146,3 +146,12 @@ legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 8
   .plan-item { grid-template-columns: auto minmax(0, 1fr); }
   .plan-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }
+/* Zamówienia: how the order's e-mails went (to the buyer, to the owner) */
+.order-status { min-width: 190px; }
+.mail-line { margin-top: 3px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.mail-line.ok { color: var(--ok); }
+.mail-line.bad { color: var(--bad); }
+/* Pulpit: „Wyzeruj statystyki” (owner) */
+.reset-card { border-color: #ff6b5e33; }
+#reset-dialog .fields { gap: 12px; }
+#reset-confirm { text-transform: uppercase; letter-spacing: .08em; }

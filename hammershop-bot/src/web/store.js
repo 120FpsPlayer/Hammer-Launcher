@@ -9,7 +9,9 @@
  * sessions[token]   = { userId, createdAt, expiresAt }
  * orders[id]        = { id, userId, kind ('products'), items [{ id, name, price, quantity }], amount, currency,
  *                       status ('pending'|'paid'|'expired'|'failed'), stripe_id, requestId, created, paidAt,
- *                       delivery, ticketNumber, ticketUrl, delivered }
+ *                       delivery, ticketNumber, ticketUrl, delivered, email (the buyer's address from Stripe's page),
+ *                       mails { buyer, owner: { state ('pending'|'sent'|'failed'|'off'|'none'), to, reason, at } },
+ *                       dm (Hammer+: the code reached the buyer's Discord DMs) }
  * cloud[mc]         = { updatedAt (ms), data {…} } – a Hammer+ account's synced launcher data (mc: Minecraft UUID, 32 hex)
  * capes[mc]         = { cape, exp, updatedAt } – the cape a Hammer+ account picked; exp: when its Hammer+ ends (unix
  *                       seconds, 0 = never) – the cape is shown to others only until then
@@ -515,6 +517,36 @@ module.exports = {
   _state: () => state,
 };
 // „Zaproś znajomego” (its own block above).
+
+/**
+ * „Wyzeruj statystyki” (the admin panel, owner only): every counter that is only a statistic goes back to 0 – the
+ * installer's downloads per day, per release and per signed-in account (the referral card's „pobrało launcher”), and
+ * the launcher starts. Nothing that anything works from is touched: orders, Hammer+ codes, accounts and sessions,
+ * referral links, who referred whom and the rewards, news, releases and their files, the price list, messages.
+ * → what there was ({ downloads, launches, releases, people }) – for the log line.
+ */
+function resetStats() {
+  const sum = (values) => values.reduce((s, n) => s + (Number(n) || 0), 0);
+  const people = Object.values(state.referrals?.people ?? {});
+  const before = {
+    downloads: sum(Object.values(state.stats.downloads)),
+    launches: sum(Object.values(state.stats.launches).map((d) => d?.total)),
+    releases: sum(state.releases.list.map((r) => r.downloads)),
+    people: people.filter((p) => p.downloads > 0).length,
+  };
+  state.stats = { downloads: {}, launches: {} };
+  seen.day = null; // today's launchers count again from 0
+  seen.keys = new Set();
+  for (const r of state.releases.list) r.downloads = 0;
+  for (const p of people) {
+    p.downloads = 0;
+    delete p.downloadedAt;
+  }
+  flushSoon(); // on the disk at once, not a moment later (a write that fails is tried again by itself)
+  return before;
+}
+module.exports.resetStats = resetStats;
+
 Object.assign(module.exports, { siteUserExists, referralCode, referrerOf, referralOf, addReferral, countUserDownload, referralStats, referralPurchase, addReferralDays, takeReferralBalance, addReferralReward, referralOverview });
 
 // ── The admin panel's „Ogłoszenia” tab: what it posted on Discord (#📢 ogłoszenia) ──

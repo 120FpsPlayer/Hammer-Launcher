@@ -113,8 +113,44 @@
       if (missing.length) problems.push('Do uzupełnienia w pliku .env na serwerze: ' + missing.join(' · '));
       $('setup').hidden = !problems.length;
       $('setup').textContent = problems.join(' ');
+      $('reset-card').hidden = me.level !== 'owner';
     });
   };
+
+  // ── „Wyzeruj statystyki” (owner): the button only opens the question – the counters go to 0 once ZERUJ is typed ──
+  (function () {
+    var dialog = $('reset-dialog');
+    var input = $('reset-confirm');
+    var yes = $('reset-yes');
+    var error = $('reset-error');
+    var typed = function () { return input.value.trim().toUpperCase() === 'ZERUJ'; };
+    input.addEventListener('input', function () { yes.disabled = !typed(); error.hidden = true; });
+    $('reset-open').addEventListener('click', function () {
+      $('reset-form').reset();
+      yes.disabled = true;
+      error.hidden = true;
+      dialog.showModal();
+      input.focus();
+    });
+    $('reset-cancel').addEventListener('click', function () { dialog.close(); });
+    $('reset-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!typed()) return;
+      yes.disabled = true;
+      yes.textContent = 'Zeruję…';
+      api('POST', 'stats/reset', { confirm: input.value.trim() }).then(function () {
+        dialog.close();
+        toast('Statystyki wyzerowane – pobrania i uruchomienia liczą się od nowa.');
+        return loaders.pulpit();
+      }).catch(function (err) {
+        error.textContent = err.message;
+        error.hidden = false;
+      }).then(function () {
+        yes.textContent = 'Wyzeruj';
+        yes.disabled = !typed();
+      });
+    });
+  })();
 
   // ── Aktualności ──
   var editing = null;
@@ -507,6 +543,18 @@
 
   // ── Zamówienia ──
   var STATUS = { paid: ['Opłacone', 'ok'], pending: ['Czeka na płatność', 'warn'], expired: ['Wygasło', ''], failed: ['Nieudane', 'bad'] };
+  /** One of the order's e-mails: sent (to whom), on its way, or not sent – and why, in a few words (the whole reason on hover). */
+  function mailLine(who, m) {
+    if (!m) return null;
+    var short = function (t) { t = String(t || 'nieznany błąd'); return t.length > 140 ? t.slice(0, 139) + '…' : t; };
+    var text = m.state === 'sent' ? 'wysłany' + (who === 'buyer' && m.to ? ' na ' + m.to : '')
+      : m.state === 'pending' ? 'w drodze…'
+      : m.state === 'off' ? 'nie wysłano – e-mail nie jest włączony' + (/MAIL_PASS/.test(m.reason || '') ? ' (brak MAIL_PASS w pliku .env)' : '')
+      : m.state === 'none' ? 'nie wysłano – Stripe nie podał adresu'
+      : 'nie wysłano – błąd: ' + short(m.reason);
+    var cls = m.state === 'sent' ? 'ok' : m.state === 'pending' ? '' : 'bad';
+    return el('div', { class: 'mail-line small ' + cls, title: m.reason || '', text: (who === 'buyer' ? 'e-mail do kupującego: ' : 'e-mail do Ciebie: ') + text });
+  }
   loaders.zamowienia = function () {
     return api('GET', 'orders').then(function (r) {
       var list = $('orders-list');
@@ -518,7 +566,7 @@
           el('td', {}, [o.user.name || '—', el('div', { class: 'muted small mono', text: o.user.id })]),
           el('td', {}, o.items.map(function (i) { return el('div', { text: (i.quantity > 1 ? i.quantity + '× ' : '') + i.name }); })),
           el('td', { class: 'nowrap', text: money(o.amount, o.currency) }),
-          el('td', {}, [el('span', { class: 'pill ' + st[1], text: st[0] }), o.status === 'paid' ? el('div', { class: 'muted small', text: o.delivered ? 'dostarczone' : 'czeka na dostawę' }) : null]),
+          el('td', { class: 'order-status' }, [el('span', { class: 'pill ' + st[1], text: st[0] }), o.status === 'paid' ? el('div', { class: 'muted small', text: o.delivered ? 'dostarczone' : 'czeka na dostawę' }) : null, o.mails ? mailLine('buyer', o.mails.buyer) : null, o.mails ? mailLine('owner', o.mails.owner) : null]),
           el('td', { class: 'nowrap muted small', text: when(o.paidAt || o.created) }),
           el('td', {}, [o.ticketUrl ? el('a', { class: 'btn small', href: o.ticketUrl, target: '_blank', rel: 'noopener', text: 'Ticket' }) : null]),
         ]));

@@ -483,7 +483,7 @@ async function buyPlus(plan, nick, who = 'buyer') {
   return { ...verified, orderId: res.body.order };
 }
 
-test('a Hammer+ purchase is e-mailed to the owner: the order, the account, the amount, who and when – never the code', async () => {
+test('a Hammer+ purchase is e-mailed to the owner: the order, the account, the amount, who and when – and the code', async () => {
   webStore.setPlusPlans([{ id: 'p30', name: 'Hammer+ na 30 dni', days: 30, price: 1499 }, { id: 'px', name: 'Hammer+ na zawsze', days: 0, price: 7999 }]);
   // E-mail off: a purchase is a purchase, nothing is sent anywhere.
   smtp.messages.length = 0;
@@ -500,12 +500,16 @@ test('a Hammer+ purchase is e-mailed to the owner: the order, the account, the a
   const order = webStore.getOrder(paid.orderId);
   assert.equal(sent.subject, '[Zakup] Hammer+ 30 dni – Steve – 14,99 PLN');
   assert.deepEqual([sent.from, sent.to, sent.headers['reply-to']], [ADDRESS, [ADDRESS], undefined]);
-  for (const line of [`Zamówienie: ${order.id}`, 'Co: Hammer+ na 30 dni – Steve', 'Konto Minecraft: Steve', 'Kupiony czas: 30 dni', 'Kwota: 14,99 PLN (karta, Stripe)', `Kupujący: Kupiec (@kupiec) · Discord ID ${BUYER.id}`, 'Kod: wystawiony', `Panel admina: ${base}/admin#zamowienia`]) {
+  for (const line of [`Zamówienie: ${order.id}`, 'Co: Hammer+ na 30 dni – Steve', 'Konto Minecraft: Steve', 'Kupiony czas: 30 dni', 'Kwota: 14,99 PLN (płatność online na stronie)', `Kupujący: Kupiec (@kupiec) · Discord ID ${BUYER.id}`, 'Kod: wystawiony', `Panel admina: ${base}/admin#zamowienia`]) {
     assert.ok(sent.text.includes(line), `${line}\n---\n${sent.text}`);
   }
   assert.match(sent.text, /Kiedy: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
   assert.match(sent.text, /Hammer\+ na tym koncie: do \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
-  assert.doesNotMatch(sent.raw + sent.text, /HP1\./, 'the code itself is never e-mailed');
+  // The owner asked for the code too („z kluczem”) – the same code as on the page and in the DM.
+  const mine = (await call('GET', '/api/shop/orders', { who: 'buyer' })).body.orders.find((o) => o.id === order.id);
+  assert.ok(sent.text.includes(`Kod Hammer+ (gdyby kupujący napisał, że go nie ma):\n${mine.plus.code}`), sent.text);
+  assert.equal(plus.verify(mine.plus.code).mc, MC.Steve);
+  assert.ok(sent.text.includes('E-mail kupującego: brak – Stripe go nie podał'), 'this payment came without an address');
   // Forever, and an amount with a different price.
   const next = smtp.next();
   await buyPlus('px', 'Steve');
@@ -517,7 +521,7 @@ test('a Hammer+ purchase is e-mailed to the owner: the order, the account, the a
   assert.deepEqual(await website.purchaseMail(shop), { ok: true });
   const products = smtp.messages.at(-1);
   assert.equal(products.subject, '[Zakup] 2 produkty – 45,50 EUR');
-  for (const line of ['Zamówienie: HS-TEST000001', 'Co: 2× Gra A\n    1× Bot B', 'Kwota: 45,50 EUR (karta, Stripe)', 'Ticket: #0007 – https://discord.com/channels/1/2']) assert.ok(products.text.includes(line), `${line}\n---\n${products.text}`);
+  for (const line of ['Zamówienie: HS-TEST000001', 'Co: 2× Gra A\n    1× Bot B', 'Kwota: 45,50 EUR (płatność online na stronie)', 'Ticket: #0007 – https://discord.com/channels/1/2']) assert.ok(products.text.includes(line), `${line}\n---\n${products.text}`);
   assert.equal(website.purchaseMail({ ...shop, status: 'pending' }), null, 'only a paid order');
 });
 

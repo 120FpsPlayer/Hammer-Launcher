@@ -54,6 +54,10 @@
         <div class="card"><h2>Pobrania instalatora</h2><p class="muted small">Kliknięcia „Pobierz” dziennie, ostatnie 14 dni.</p><div class="chart" id="chart-downloads"></div></div>
       </div>
       <div class="card"><h2>Wersje launchera używane dzisiaj</h2><div id="versions" class="row"></div></div>
+      <div class="card reset-card" id="reset-card" hidden>
+        <div class="row"><h2>Zerowanie statystyk</h2><button class="btn small danger right" type="button" id="reset-open">Wyzeruj statystyki</button></div>
+        <p class="muted small">Pobrania (dziennie, przy wersjach i przy kontach) i uruchomienia launchera wrócą do zera – na stronie, w panelu i na kanale „📥 Pobrania” na Discordzie. Zamówienia, kody Hammer+, konta, nagrody z poleceń, aktualności, wersje launchera i ustawienia zostają.</p>
+      </div>
     </section>
 
     <!-- Aktualności -->
@@ -309,6 +313,15 @@
   <h2 id="confirm-title"></h2>
   <p class="muted" id="confirm-text"></p>
   <div class="actions"><button class="btn" type="button" id="confirm-no">Anuluj</button><button class="btn danger" type="button" id="confirm-yes">Tak</button></div>
+</dialog>
+<dialog id="reset-dialog" aria-labelledby="reset-title">
+  <form method="dialog" id="reset-form" class="fields">
+    <h2 id="reset-title">Wyzerować statystyki?</h2>
+    <p class="muted">Pobrania i uruchomienia launchera spadną do 0 i będą liczyć się od nowa. Tego nie da się cofnąć. Zamówienia, kody Hammer+, konta, nagrody z poleceń, aktualności, wersje launchera i ustawienia zostają.</p>
+    <label>Wpisz ZERUJ, żeby potwierdzić<input type="text" id="reset-confirm" autocomplete="off" spellcheck="false" maxlength="10" placeholder="ZERUJ"></label>
+    <p class="notice bad small" id="reset-error" role="alert" hidden></p>
+    <div class="actions"><button class="btn" type="button" id="reset-cancel">Anuluj</button><button class="btn danger" type="submit" id="reset-yes" disabled>Wyzeruj</button></div>
+  </form>
 </dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/assets/admin.js"></script>

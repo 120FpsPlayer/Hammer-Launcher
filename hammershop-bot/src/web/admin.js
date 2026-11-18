@@ -11,6 +11,8 @@
  *
  *   GET    me                    → { user, level }
  *   GET    overview              → numbers for the dashboard
+ *   POST   stats/reset           (owner) { confirm: 'ZERUJ' } – „Wyzeruj statystyki”: downloads and launcher starts
+ *                                back to 0 (store.resetStats – nothing else) → { ok, before, overview }
  *   GET    news                  POST news            PUT news/<id>          DELETE news/<id>
  *   GET    alert                 PUT alert            DELETE alert
  *   GET    releases              → { current, list, files (in data/releases/, not published), maxMb }
@@ -246,7 +248,19 @@ function orderRow(o) {
     user: user ? { id: user.id, name: user.name ?? user.username } : { id: o.userId, name: null },
     items: o.items.map((i) => ({ name: i.name, quantity: i.quantity })),
     ticketUrl: o.ticketUrl ?? null, delivered: Boolean(o.delivered), plusNick: o.plus?.nick ?? null,
+    email: o.email ?? null, mails: o.status === 'paid' ? { buyer: mailRow(o.mails?.buyer), owner: mailRow(o.mails?.owner) } : null,
   };
+}
+
+/**
+ * How one of an order's e-mails went (src/features/website.js – buyerMail, purchaseMail): { state: 'sent' | 'pending'
+ * | 'failed' | 'off' | 'none', to, reason, at } | null (from before e-mails were recorded). One still "on its way"
+ * after a few minutes was cut off by a restart.
+ */
+function mailRow(m, now = Date.now()) {
+  if (!m) return null;
+  if (m.state === 'pending' && now - (m.at ?? 0) > 5 * 60_000) return { state: 'failed', to: m.to ?? null, reason: 'Bot został uruchomiony ponownie, zanim e-mail wyszedł.', at: m.at ?? null };
+  return { state: m.state, to: m.to ?? null, reason: m.reason ?? null, at: m.at ?? null };
 }
 
 /** name → when the console last said how far that upload is (one line every few seconds, not one per piece). */
@@ -364,6 +378,17 @@ async function api(req, res, url, h) {
   }
 
   const body = method === 'DELETE' ? {} : await h.jsonBody(req);
+
+  // ── „Wyzeruj statystyki” (owner): only counters – the owner types ZERUJ, so a stray click cannot do it ──
+  if (route === 'stats/reset' && method === 'POST') {
+    ownerOnly();
+    if (line(Object(body).confirm, 20).toUpperCase() !== 'ZERUJ') return h.fail(res, 400, 'Wpisz ZERUJ w polu potwierdzenia – bez tego statystyki zostają.');
+    const before = store.resetStats();
+    console.log(`[web] Statystyki wyzerowane z panelu admina przez ${user.id}: było ${before.downloads} pobrań (90 dni), ${before.releases} pobrań wersji, ${before.launches} uruchomień launchera, ${before.people} kont z pobraniem.`);
+    await log(`🧹 Wyzerowano statystyki strony (pobrania i uruchomienia launchera; było ${before.downloads} pobrań z 90 dni i ${before.releases} na liczniku wersji)`);
+    Promise.resolve(h.statsReset?.()).catch(() => null); // the Discord „📥 Pobrania” channel – renames can wait, the answer does not
+    return h.send(res, 200, { ok: true, before, overview: overview(h) });
+  }
 
   // ── News ──
   if (head === 'news') {

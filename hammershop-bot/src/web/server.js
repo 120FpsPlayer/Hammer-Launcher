@@ -58,6 +58,7 @@ const pages = require('./pages');
 const plusLib = require('../lib/plus');
 const profile = require('../lib/profile');
 const config = require('../lib/config');
+const mail = require('../lib/mail');
 
 const PUBLIC = path.join(__dirname, '..', '..', 'web', 'public');
 const { stampAssets, unstamp, ASSET_REF } = require('./stamp');
@@ -71,7 +72,7 @@ const webhookReady = () => Boolean(web().stripeWebhookSecret);
 const plusOnSale = () => plusLib.ready() && paymentsReady() && authReady() && store.plusPlans().length > 0;
 
 // ───────────── Products ─────────────
-/** Set by createWebServer: { catalog, info, onPaid, onLogin, isMember, currency, featured, level, announce, log, plus, featuredAdmin, announcements }. */
+/** Set by createWebServer: { catalog, info, onPaid, receipt, onLogin, isMember, currency, featured, level, announce, log, plus, featuredAdmin, announcements }. */
 /** The bot's own "the user did something wrong" errors (lib/utils.js UserError) – their text is written for Discord. */
 const isUserError = (err) => err?.constructor?.name === 'UserError';
 const plainMessage = (err) => String(err.message).replace(/\*\*|__|`/g, '');
@@ -79,7 +80,7 @@ const notConnected = async () => {
   throw Object.assign(new Error('Bot nie jest jeszcze połączony z Discordem – spróbuj ponownie za chwilę.'), { status: 503 });
 };
 let hooks = {
-  catalog: () => [], info: () => ({}), onPaid: async () => null, onLogin: async () => null, isMember: () => null, currency: () => 'eur', featured: () => [],
+  catalog: () => [], info: () => ({}), onPaid: async () => null, receipt: async () => null, onLogin: async () => null, isMember: () => null, currency: () => 'eur', featured: () => [],
   // The admin panel and Hammer+ sales (src/features/website.js fills these in):
   level: async () => null, // (userId) → 'owner' | 'admin' | null
   announce: async () => null, // ({ kind, title, body, url, image, tag, version }) → { url } – posted on Discord
@@ -223,8 +224,19 @@ function orderJson(order) {
     ticketUrl: paid ? order.ticketUrl ?? null : null,
     delivered: paid && Boolean(order.delivered),
     waiting: paid && Boolean(order.waitingForMember && !order.handedOver),
+    receipt: paid ? receiptJson(order) : null,
     ...(order.kind === 'plus' && { plus: plusJson(order) }),
   };
+}
+
+/**
+ * The buyer's confirmation e-mail as the thank-you screen tells it: where it went (masked – the page is the buyer's
+ * own, but a screenshot of it is not) and whether it left. dm: the code also reached their Discord DMs (Hammer+).
+ */
+function receiptJson(order) {
+  const b = order.mails?.buyer;
+  const state = b?.state === 'sent' ? 'sent' : b?.state === 'pending' ? 'sending' : b ? 'not-sent' : null;
+  return { email: state === 'sent' || state === 'sending' ? mail.mask(b.to ?? order.email) : null, state, dm: typeof order.dm === 'boolean' ? order.dm : null };
 }
 
 /**
@@ -247,11 +259,32 @@ function plusJson(order, now = Date.now()) {
   // Not on the Discord server: the invite to it, where the 💎 Hammer+ role comes on joining.
   const member = order.status === 'paid' ? hooks.isMember?.(order.userId) : null;
   const invite = member === false ? hooks.info?.()?.invite ?? null : null;
-  return { nick: p.nick ?? null, days: p.days ?? null, until: p.exp == null ? null : p.exp * 1000, expired, code, member: member ?? null, invite };
+  const plan = String(order.items?.[0]?.name ?? 'Hammer+').replace(` – ${p.nick}`, ''); // "Hammer+ na 30 dni – Steve" → the plan
+  return { nick: p.nick ?? null, days: p.days ?? null, plan, until: p.exp == null ? null : p.exp * 1000, expired, code, member: member ?? null, invite };
 }
 
-/** Stripe says paid (verify or webhook) → the order is paid once; the team is told once. */
-async function settle(order, session) {
+/** The address the buyer typed on Stripe's page (customer_details.email; customer_email when the session was made with one). */
+const sessionEmail = (session) => [session?.customer_details?.email, session?.customer_email].map((v) => String(v ?? '').trim()).find((v) => mail.isAddress(v)) ?? null;
+
+/**
+ * Where the buyer's confirmation goes. A session object without the address (a webhook sent with a trimmed payload)
+ * is read once more from Stripe – the buyer's e-mail depends on it. fresh: the session was just read from Stripe.
+ */
+async function buyerEmail(order, session, fresh) {
+  const found = sessionEmail(session);
+  if (found || fresh || order.email || !session.id || !paymentsReady()) return found ?? order.email ?? null;
+  const full = await stripe.getCheckout(session.id).catch((err) => {
+    console.warn(`[web] ${order.id}: adres e-mail kupującego ze Stripe:`, err.message);
+    return null;
+  });
+  return sessionEmail(full);
+}
+
+/**
+ * Stripe says paid (verify or webhook) → the order is paid once; the team is told once. The order keeps the buyer's
+ * e-mail address from the session (order.email) – their confirmation with the code goes there (src/features/website.js).
+ */
+async function settle(order, session, { fresh = false } = {}) {
   if (!order || !session) return order;
   if (session.payment_status === 'paid') {
     const amountOk = session.amount_total === order.amount && String(session.currency).toLowerCase() === order.currency;
@@ -259,7 +292,13 @@ async function settle(order, session) {
       console.warn(`[web] ${order.id}: kwota w Stripe ${session.amount_total} ${session.currency} ≠ zamówienie ${order.amount} ${order.currency} – nie oznaczono jako opłacone`);
       return store.updateOrder(order.id, { status: 'failed', note: 'amount mismatch' });
     }
-    const { order: paid, first } = store.markPaid(order.id, { payment_intent: session.payment_intent ?? null });
+    const email = order.status === 'paid' && order.email ? order.email : await buyerEmail(order, session, fresh);
+    const { order: paid, first } = store.markPaid(order.id, { payment_intent: session.payment_intent ?? null, email });
+    if (!first && email && !paid.email) {
+      // Paid already through the other path, which had no address: the buyer's confirmation goes out now.
+      store.updateOrder(paid.id, { email });
+      await Promise.resolve(hooks.receipt(paid)).catch(() => null);
+    }
     if (first) {
       console.log(`[web] zamówienie ${paid.id} opłacone – ${paid.kind} – ${(paid.amount / 100).toFixed(2)} ${paid.currency}`);
       await Promise.resolve(hooks.onPaid(paid, store._state().users[paid.userId])).catch((err) => console.warn(`[web] przekazanie ${paid.id} do bota:`, err.message));
@@ -360,7 +399,7 @@ async function verify(req, res, user) {
     return null;
   });
   if (!session) return fail(res, 502, 'Brak połączenia ze Stripe. Spróbuj ponownie za chwilę.');
-  const updated = await settle(order, session);
+  const updated = await settle(order, session, { fresh: true });
   return send(res, 200, { paid: updated.status === 'paid', status: updated.status, order: updated.id });
 }
 
@@ -536,6 +575,7 @@ async function handle(req, res) {
       level: (id) => hooks.level(id), announce: (a) => hooks.announce(a), log: (t) => hooks.log(t),
       plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements, roadmap: hooks.roadmap,
       publicUrl: () => web().publicUrl, authReady, paymentsReady, webhookReady, playing: () => launcher.onlineNow(), invitesPaused: () => Boolean(hooks.invitesPaused?.()), ownInviteFailing: () => Boolean(hooks.ownInviteFailing?.()),
+      statsReset: () => hooks.statsReset?.(),
     });
   }
   if (!p.startsWith('/api/shop/')) {

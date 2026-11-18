@@ -836,3 +836,106 @@ dialog input[type="text"] { min-height: 44px; border-radius: 11px; }
   .ring-track { position: static; width: auto; height: auto; margin: 0; transform: none !important; animation: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
   .ring-track .cape { position: static; transform: none; }
 }
+
+/* „Dziękujemy za zakup!” – the screen after Stripe sends the buyer back to the Hammer+ page (launcher.js thanksShow):
+   paid (the code big, a copy button, the three steps), processing, cancelled, failed. One column, scrolls inside
+   itself when a phone is too short; the confetti and the pop are CSS only and stand still with reduced motion. */
+dialog.thanks { position: relative; width: min(580px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow: hidden; border-radius: var(--r4); border: 1px solid rgba(255, 209, 102, .28); background: radial-gradient(70% 45% at 50% 0%, rgba(255, 170, 70, .2), transparent 70%), linear-gradient(170deg, #22180f, #130e0a 60%, #0f0b08); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 40px 120px -30px rgba(255, 150, 50, .35), 0 30px 90px #000c; }
+dialog.thanks[open] { display: flex; flex-direction: column; }
+dialog.thanks::backdrop { background: rgba(5, 3, 2, .78); backdrop-filter: blur(4px); }
+.thanks-in { position: relative; z-index: 1; overflow-y: auto; overscroll-behavior: contain; padding: 24px 28px 22px; text-align: center; display: grid; grid-auto-rows: max-content; gap: 12px; justify-items: center; } /* (max-content: rows never squeezed when a short phone makes it scroll) */
+.thanks-in > * { max-width: 100%; }
+.thanks-in h2 { margin: 0; font-size: clamp(22px, 3.2vw, 28px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.thanks.paid .thanks-in h2 { background: var(--fire); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.thanks-in p { margin: 0; }
+.thanks-in #thanks-lead { max-width: 440px; }
+.thanks-x { position: absolute; top: 12px; right: 12px; z-index: 2; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04); color: var(--soft); cursor: pointer; transition: background .2s, color .2s; }
+.thanks-x::before, .thanks-x::after { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; border-radius: 2px; background: currentColor; transform: translate(-50%, -50%) rotate(45deg); }
+.thanks-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.thanks-x:hover, .thanks-x:focus-visible { background: rgba(255, 255, 255, .1); color: var(--text); }
+.thanks-badge { position: relative; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; color: #1f1206; background: radial-gradient(circle at 35% 30%, #ffe6b3, #ffb547 45%, #ff7f22); box-shadow: 0 0 0 7px rgba(255, 154, 60, .14), 0 14px 40px -8px rgba(255, 130, 40, .8); }
+.thanks-badge .ico { width: 30px; height: 30px; stroke-width: 2.6; }
+.thanks.pending .thanks-badge { color: #2b1c00; background: radial-gradient(circle at 35% 30%, #fff3c4, #f2b84b 60%, #d99a24); box-shadow: 0 0 0 7px rgba(242, 184, 75, .12); }
+.thanks-badge.x { background: #2a1d16; color: var(--soft); box-shadow: 0 0 0 7px rgba(255, 255, 255, .04); border: 1px solid var(--line-2); }
+.thanks-badge.x::before, .thanks-badge.x::after { content: ""; position: absolute; left: 50%; top: 50%; width: 26px; height: 3px; border-radius: 3px; background: currentColor; transform: translate(-50%, -50%) rotate(45deg); }
+.thanks-badge.x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.thanks.failed .thanks-badge.x { color: #ffb3ab; border-color: #ff6b5e55; }
+.thanks-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; margin: 2px 0 0; border: 1px solid var(--line-2); border-radius: var(--r2); background: rgba(10, 7, 5, .55); }
+.thanks-facts > div { min-width: 0; padding: 8px 12px; }
+.thanks-facts > div + div { border-left: 1px solid var(--line-2); }
+.thanks-facts dt { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.thanks-facts dd { margin: 3px 0 0; font-size: 14.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.thanks-codebox { width: 100%; display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r3); border: 2px dashed rgba(255, 209, 102, .55); background: rgba(8, 6, 4, .75); box-shadow: inset 0 0 40px -18px rgba(255, 190, 80, .5); }
+.thanks-code { display: block; font: 700 clamp(13px, 1.6vw, 15.5px)/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--gold); text-align: left; overflow-wrap: anywhere; word-break: break-all; user-select: all; max-height: 9.5em; overflow-y: auto; }
+.thanks-copy { justify-self: center; min-width: 210px; justify-content: center; }
+.thanks-copy.copied { background: linear-gradient(180deg, #8ff0b2, #5fd08a 60%, #3fb46d); border-color: #b9f5cf; color: #06240f; }
+.thanks-status { color: var(--ok, #5fd08a); }
+.thanks-status:empty { display: none; }
+.thanks-steps { list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; margin: 0; padding: 0; }
+.thanks-steps li { counter-increment: step; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px 10px; text-align: left; border-radius: var(--r2); border: 1px solid var(--line); background: rgba(255, 255, 255, .02); font-size: 13px; line-height: 1.4; color: var(--soft); }
+.thanks-steps li::before { content: counter(step); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12.5px; font-weight: 800; color: #1f1206; background: var(--fire-btn); }
+.thanks-steps b { color: var(--text); }
+.thanks-note { max-width: 470px; color: var(--soft); line-height: 1.5; }
+.thanks-note .nowrap { white-space: nowrap; }
+.thanks-note:empty { display: none; }
+.thanks-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 2px; }
+.thanks-spin { width: 54px; height: 54px; border-radius: 50%; border: 4px solid rgba(255, 154, 60, .18); border-top-color: var(--accent); animation: thanks-spin .9s linear infinite; }
+@keyframes thanks-spin { to { transform: rotate(360deg); } }
+/* The celebration: the badge pops, a ring goes out once, confetti falls behind the content. */
+.thanks.paid .thanks-badge { animation: thanks-pop .6s cubic-bezier(.2, 1.5, .4, 1) both; }
+.thanks.paid .thanks-badge::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid rgba(255, 190, 90, .7); animation: thanks-ring 1.1s ease-out .15s both; }
+@keyframes thanks-pop { 0% { transform: scale(.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes thanks-ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+.thanks-burst { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.thanks-burst i { position: absolute; top: -16px; left: 50%; width: 8px; height: 13px; border-radius: 2px; background: var(--accent); opacity: 0; }
+.thanks.paid .thanks-burst i { animation: thanks-fall var(--t, 2.2s) cubic-bezier(.22, .61, .36, 1) var(--d, 0s) both; }
+.thanks-burst i:nth-child(3n) { background: var(--gold); width: 6px; height: 10px; }
+.thanks-burst i:nth-child(3n + 1) { background: #fff1d1; width: 7px; height: 7px; border-radius: 50%; }
+.thanks-burst i:nth-child(4n) { background: #ff6b1a; }
+.thanks-burst i:nth-child(1) { left: 6%; --d: .05s; --r: 320deg; }
+.thanks-burst i:nth-child(2) { left: 13%; --d: .25s; --r: -260deg; --t: 2.6s; }
+.thanks-burst i:nth-child(3) { left: 19%; --d: .1s; --r: 400deg; }
+.thanks-burst i:nth-child(4) { left: 26%; --d: .4s; --r: -340deg; --t: 2.4s; }
+.thanks-burst i:nth-child(5) { left: 32%; --d: 0s; --r: 280deg; }
+.thanks-burst i:nth-child(6) { left: 38%; --d: .3s; --r: -420deg; --t: 2.7s; }
+.thanks-burst i:nth-child(7) { left: 44%; --d: .15s; --r: 360deg; }
+.thanks-burst i:nth-child(8) { left: 50%; --d: .45s; --r: -300deg; --t: 2.5s; }
+.thanks-burst i:nth-child(9) { left: 56%; --d: .05s; --r: 440deg; }
+.thanks-burst i:nth-child(10) { left: 62%; --d: .35s; --r: -380deg; --t: 2.3s; }
+.thanks-burst i:nth-child(11) { left: 68%; --d: .2s; --r: 300deg; }
+.thanks-burst i:nth-child(12) { left: 74%; --d: .5s; --r: -260deg; --t: 2.8s; }
+.thanks-burst i:nth-child(13) { left: 80%; --d: .1s; --r: 380deg; }
+.thanks-burst i:nth-child(14) { left: 86%; --d: .3s; --r: -440deg; --t: 2.4s; }
+.thanks-burst i:nth-child(15) { left: 92%; --d: .0s; --r: 320deg; }
+.thanks-burst i:nth-child(16) { left: 9%; --d: .6s; --r: -300deg; --t: 2.9s; }
+.thanks-burst i:nth-child(17) { left: 47%; --d: .7s; --r: 360deg; --t: 2.6s; }
+.thanks-burst i:nth-child(18) { left: 83%; --d: .65s; --r: -380deg; --t: 2.7s; }
+@keyframes thanks-fall {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(0); }
+  8% { opacity: 1; }
+  80% { opacity: .9; }
+  100% { opacity: 0; transform: translate3d(var(--x, 18px), 560px, 0) rotate(var(--r, 300deg)); }
+}
+.thanks-burst i:nth-child(even) { --x: -22px; }
+@media (max-width: 560px) {
+  .thanks-in { padding: 22px 16px 16px; gap: 11px; }
+  .thanks-badge { width: 58px; height: 58px; }
+  .thanks-badge .ico { width: 29px; height: 29px; }
+  .thanks-facts { grid-template-columns: 1fr 1fr; }
+  .thanks-facts > div:first-child { grid-column: 1 / -1; border-bottom: 1px solid var(--line-2); }
+  .thanks-facts > div + div { border-left: 0; }
+  .thanks-facts > div:last-child { border-left: 1px solid var(--line-2); }
+  .thanks-codebox { padding: 12px; gap: 10px; }
+  .thanks-copy { width: 100%; min-width: 0; }
+  .thanks-steps { grid-template-columns: 1fr; gap: 6px; }
+  .thanks-steps li { gap: 10px; padding: 7px 10px; }
+  .thanks-actions { width: 100%; }
+  .thanks-actions { flex-wrap: nowrap; gap: 8px; }
+  .thanks-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 12px; font-size: 14px; white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thanks-burst { display: none; }
+  .thanks.paid .thanks-badge, .thanks.paid .thanks-badge::after { animation: none; }
+  .thanks.paid .thanks-badge::after { display: none; }
+  .thanks-spin { animation-duration: 2.4s; }
+}

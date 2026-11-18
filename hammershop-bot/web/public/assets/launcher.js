@@ -259,8 +259,10 @@
         box.textContent = '';
         box.appendChild(codeCard(fresh, true));
         box.hidden = false;
+        thanksPaid(fresh);
       }
-    }).catch(function () { /* the list is a convenience */ });
+      return fresh || null;
+    }).catch(function () { return null; /* the list is a convenience */ });
   }
   function codesFold() {
     var more = $('my-codes-more');
@@ -273,6 +275,174 @@
     });
   }
 
+  // ── „Dziękujemy za zakup!”: the screen Stripe sends the buyer back to – paid (the code, big, with a copy button),
+  // still being processed, cancelled or failed. One <dialog> (Esc, the ×, a click beside it close it); the moving
+  // parts are CSS only and stand still with prefers-reduced-motion.
+  var thanksBox = $('thanks');
+  var svgIcon = function (name) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    var use = document.createElementNS(ns, 'use');
+    svg.setAttribute('class', 'ico');
+    svg.setAttribute('aria-hidden', 'true');
+    use.setAttribute('href', '#i-' + name);
+    svg.appendChild(use);
+    return svg;
+  };
+  /** The round mark on top: a tick, a clock, or a cross (drawn in CSS). */
+  var thanksBadge = function (name) { return el('div', { class: 'thanks-badge' + (name ? '' : ' x'), 'aria-hidden': 'true' }, [name ? svgIcon(name) : null]); };
+  function thanksShow(kind, children) {
+    if (!thanksBox) return;
+    thanksBox.className = 'thanks ' + kind;
+    var body = $('thanks-body');
+    body.textContent = '';
+    children.forEach(function (c) { if (c) body.appendChild(c); });
+    body.scrollTop = 0;
+    if (!thanksBox.open) thanksBox.showModal();
+    var first = body.querySelector('[data-focus]');
+    if (first) first.focus();
+  }
+  function thanksClose() { if (thanksBox && thanksBox.open) thanksBox.close(); }
+  /** Closes the screen and takes the visitor to a part of the page. */
+  function thanksGo(id) {
+    thanksClose();
+    var target = $(id);
+    if (target) target.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+  }
+  var thanksActions = function (buttons) { return el('div', { class: 'thanks-actions' }, buttons); };
+  var thanksButton = function (cls, label, onClick, focus) {
+    var b = el('button', { class: 'btn ' + cls, type: 'button', text: label });
+    if (focus) b.setAttribute('data-focus', '');
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  if (thanksBox) {
+    $('thanks-close').addEventListener('click', thanksClose);
+    // A click on the dim background (the dialog's own box, outside its content) closes it too.
+    thanksBox.addEventListener('click', function (event) {
+      if (event.target !== thanksBox) return;
+      var r = thanksBox.getBoundingClientRect();
+      if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) thanksClose();
+    });
+  }
+
+  function thanksWaiting() {
+    thanksShow('waiting', [
+      el('div', { class: 'thanks-spin', 'aria-hidden': 'true' }),
+      el('h2', { id: 'thanks-h', text: 'Płatność się przetwarza…' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: 'Stripe potwierdza Twoją płatność – zwykle trwa to kilka sekund. Nie zamykaj tej strony, kod pokaże się tutaj.' }),
+    ]);
+  }
+  function thanksPending(retry) {
+    thanksShow('pending', [
+      thanksBadge('history'),
+      el('h2', { id: 'thanks-h', text: 'Płatność jeszcze się przetwarza' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: 'Stripe nie potwierdził jej od razu – czasem trwa to kilka minut. Gdy tylko przejdzie, kod pokaże się na tej stronie w „Twoje kody” i przyjdzie w wiadomości prywatnej na Discordzie.' }),
+      thanksActions([thanksButton('primary', 'Sprawdź ponownie', retry, true), thanksButton('ghost', 'Zamknij', thanksClose)]),
+    ]);
+  }
+  function thanksCancelled() {
+    thanksShow('cancelled', [
+      thanksBadge(null),
+      el('h2', { id: 'thanks-h', text: 'Płatność anulowana' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: 'Nic nie zostało pobrane. Plan możesz wybrać ponownie w każdej chwili.' }),
+      thanksActions([thanksButton('gold', 'Wybierz plan', function () { thanksGo('plans'); }, true), thanksButton('ghost', 'Zamknij', thanksClose)]),
+    ]);
+  }
+  function thanksFailed(message) {
+    thanksShow('failed', [
+      thanksBadge(null),
+      el('h2', { id: 'thanks-h', text: message ? 'Nie udało się sprawdzić płatności' : 'Płatność nie przeszła' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: message ? message + ' Jeśli zapłaciłeś, kod pojawi się w „Twoje kody” i w wiadomości prywatnej na Discordzie.' : 'Nic nie zostało pobrane. Spróbuj jeszcze raz – inną kartą albo przez Apple Pay lub Google Pay.' }),
+      el('p', { class: 'muted small', text: 'Pieniądze zeszły z konta, a kodu nie ma? Otwórz ticket „Hammer+ i płatności” na naszym Discordzie.' }),
+      thanksActions([thanksButton('gold', 'Wybierz plan', function () { thanksGo('plans'); }, true), thanksButton('ghost', 'Zamknij', thanksClose)]),
+    ]);
+  }
+  /** Paid, but the order could not be read back just now – the code is on its way to „Twoje kody” and Discord. */
+  function thanksPaidLater() {
+    thanksShow('paid', [
+      thanksBadge('check'),
+      el('h2', { id: 'thanks-h', text: 'Dziękujemy za zakup!' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: 'Płatność przeszła. Twój kod przyszedł w wiadomości prywatnej na Discordzie – odśwież stronę, a pokaże się też tutaj, w „Twoje kody”.' }),
+      thanksActions([thanksButton('primary', 'Odśwież stronę', function () { location.reload(); }, true), thanksButton('ghost', 'Zamknij', thanksClose)]),
+    ]);
+  }
+
+  /** Where else the code went: Discord DMs, the e-mail from the payment (masked) – a sentence (the address kept on one line), or []. */
+  function thanksWhere(order) {
+    var r = order.receipt || {};
+    var dm = r.dm === true;
+    var address = r.email ? el('span', { class: 'nowrap', text: r.email }) : null;
+    if (address && r.state === 'sent') return ['Kod wysłaliśmy też ' + (dm ? 'w wiadomości prywatnej na Discordzie i ' : '') + 'na e\u2011mail ', address, '.'];
+    if (address && r.state === 'sending') return [dm ? 'Kod wysłaliśmy też w wiadomości prywatnej na Discordzie, a e\u2011mail z kodem jest w drodze na ' : 'E\u2011mail z kodem jest już w drodze na ', address, '.'];
+    if (dm) return ['Kod wysłaliśmy też w wiadomości prywatnej na Discordzie.'];
+    if (r.dm === false) return ['Nie mogliśmy napisać do Ciebie na Discordzie (zamknięte wiadomości prywatne) – kod jest zawsze tutaj, w „Twoje kody”.'];
+    return [];
+  }
+
+  function thanksPaid(order) {
+    var p = order.plus || {};
+    var until = p.until === 0 ? 'na zawsze' : p.until ? 'do ' + new Date(p.until).toLocaleDateString('pl-PL') : '—';
+    var fact = function (k, v) { return el('div', {}, [el('dt', { text: k }), el('dd', { text: v })]); };
+    var status = el('p', { class: 'thanks-status small', role: 'status' });
+    var code = p.code ? el('code', { class: 'thanks-code', id: 'thanks-code', text: p.code }) : null;
+    var copy = null;
+    if (code) {
+      copy = el('button', { class: 'btn primary big thanks-copy', type: 'button', 'data-focus': '' });
+      var label = function (done) {
+        copy.textContent = '';
+        if (done) copy.appendChild(svgIcon('check'));
+        copy.appendChild(document.createTextNode(done ? 'Skopiowano!' : 'Kopiuj kod'));
+        copy.classList.toggle('copied', done);
+      };
+      var timer = null;
+      var copied = function () {
+        label(true);
+        status.textContent = 'Kod skopiowany – wklej go w launcherze.';
+        clearTimeout(timer);
+        timer = setTimeout(function () { label(false); }, 2500);
+      };
+      // No clipboard (an old browser, a page that is not https): the code gets selected – Ctrl+C does the rest.
+      var byHand = function () {
+        var range = document.createRange();
+        range.selectNodeContents(code);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        if (ok) copied();
+        else status.textContent = 'Kod jest zaznaczony – skopiuj go skrótem Ctrl+C (na telefonie: przytrzymaj i wybierz Kopiuj).';
+      };
+      copy.addEventListener('click', function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(p.code).then(copied, byHand);
+        else byHand();
+      });
+      label(false);
+    }
+    var where = thanksWhere(order);
+    var mine = thanksButton('', 'Moje kody', function () { thanksGo('plus-result'); }, !code);
+    var download = release ? el('a', { class: 'btn ghost', href: '/download', title: 'Nie masz jeszcze Hammer Launchera? Pobierz go za darmo.' }, [svgIcon('download'), 'Pobierz launcher']) : null;
+    if (download) download.addEventListener('click', function () { status.textContent = 'Pobieranie się zaczęło… Nic się nie dzieje? Kliknij jeszcze raz.'; });
+    thanksShow('paid', [
+      thanksBadge('check'),
+      el('h2', { id: 'thanks-h', text: 'Dziękujemy za zakup!' }),
+      el('p', { id: 'thanks-lead', class: 'soft', text: code ? 'Hammer+ jest Twój. Oto kod do Hammer Launchera:' : 'Płatność przeszła. ' + (order.delivery || 'Kod wystawi nasz zespół – napisz do nas na Discordzie.') }),
+      el('dl', { class: 'thanks-facts' }, [fact('Plan', p.plan || 'Hammer+'), fact('Konto Minecraft', p.nick || '—'), fact('Ważny', until)]),
+      code ? el('div', { class: 'thanks-codebox' }, [code, copy]) : null,
+      status,
+      code ? el('ol', { class: 'thanks-steps' }, [
+        el('li', {}, [el('span', {}, ['Otwórz ', el('b', { text: 'Hammer Launcher' }), ' → ', el('b', { text: 'Hammer+' })])]),
+        el('li', {}, [el('span', {}, ['Kliknij ', el('b', { text: '„Mam kod”' }), ' i wklej kod'])]),
+        el('li', {}, [el('span', {}, ['Kliknij ', el('b', { text: '„Aktywuj”' }), ' – gotowe!'])]),
+      ]) : null,
+      el('p', { class: 'thanks-note small' }, [code ? 'Kod działa tylko na koncie ' + (p.nick || '') + '. ' : ''].concat(where, [
+        p.invite ? el('a', { href: p.invite, target: '_blank', rel: 'noopener', text: ' Dołącz do naszego Discorda – dostaniesz rangę 💎 Hammer+.' }) : null,
+      ])),
+      thanksActions([mine, download]),
+    ]);
+  }
+
   /**
    * Back from Stripe: is it paid? (Stripe can take a moment – asked a few times.) → true while a payment is being
    * checked: „Twoje kody” then comes with the answer, so the fresh code is never listed twice.
@@ -280,7 +450,7 @@
   function afterPayment() {
     var sessionId = params.get('session_id');
     if (params.get('payment') === 'cancelled') {
-      toast('Płatność anulowana – nic nie zostało pobrane.');
+      thanksCancelled();
       cleanAddress(['payment']);
     }
     if (params.get('payment') !== 'return' || !sessionId) return false;
@@ -288,20 +458,29 @@
     box.textContent = '';
     box.appendChild(el('p', { class: 'notice', text: 'Sprawdzam płatność…' }));
     box.hidden = false;
+    thanksWaiting();
     var tries = 0;
-    (function check() {
+    var check = function () {
       post('/api/shop/verify', { sessionId: sessionId }).then(function (r) {
-        if (r.paid) return showCodes(r.order);
+        if (r.paid) return showCodes(r.order).then(function (fresh) { if (!fresh) thanksPaidLater(); });
         if (r.status === 'pending' && ++tries < 8) return setTimeout(check, 2000);
         box.textContent = '';
-        box.appendChild(el('p', { class: 'notice warn', text: 'Płatność nie została jeszcze potwierdzona. Jeśli zapłaciłeś, odśwież stronę za chwilę – kod pojawi się tutaj i na Discordzie.' }));
+        if (r.status === 'pending') {
+          box.appendChild(el('p', { class: 'notice warn', text: 'Płatność nie została jeszcze potwierdzona. Jeśli zapłaciłeś, odśwież stronę za chwilę – kod pojawi się tutaj i na Discordzie.' }));
+          thanksPending(function () { tries = 0; thanksWaiting(); check(); });
+        } else {
+          box.appendChild(el('p', { class: 'notice bad', text: 'Płatność nie przeszła – nic nie zostało pobrane. Możesz spróbować ponownie.' }));
+          thanksFailed(null);
+        }
         return showCodes(null);
       }).catch(function (err) {
         box.textContent = '';
         box.appendChild(el('p', { class: 'notice bad', text: err.message }));
+        thanksFailed(err.message);
         return showCodes(null);
       });
-    })();
+    };
+    check();
     cleanAddress(['payment', 'session_id']);
     return true;
   }

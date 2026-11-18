@@ -2,8 +2,9 @@
 
 /**
  * E-mail from the website – a small SMTP client with no dependencies (node:net / node:tls). The site writes to its own
- * contact address (config.json → contact.email) when somebody sends the contact form or buys something
- * (src/web/contact.js, src/features/website.js).
+ * contact address (config.json → contact.email) when somebody sends the contact form or buys something, and to the
+ * buyer – the address they typed on Stripe's page – with their confirmation (src/web/contact.js,
+ * src/features/website.js; plain text, or text + HTML).
  *
  * .env (src/env.js → env.mail):
  *   MAIL_PASS   the password – for Gmail an "app password" (Google account → 2-step verification → App passwords).
@@ -99,13 +100,20 @@ const rfcDate = (d) => `${DAYS[d.getUTCDay()]}, ${two(d.getUTCDate())} ${MONTHS[
  * The whole message as it goes on the wire (CRLF lines, before dot-stuffing): UTF-8 subject, a plain-text body in
  * base64. Whatever a visitor typed is either an address that passed isAddress (Reply-To) or goes through oneLine /
  * base64 – it cannot start a header of its own.
+ *
+ * With html the body is multipart/alternative: the plain text first, then the HTML (mail apps show the last part they
+ * can display, so Gmail shows the HTML and anything simpler the text). Both parts are base64, and the boundary has a
+ * "_" in it – a character base64 never makes – so nothing in either part can end a part or the message early.
  */
-function compose({ from, fromName, to, replyTo, subject, text, date = new Date() }) {
+const lines = (value) => String(value ?? '')
+  .replace(/\r\n?/g, '\n')
+  .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+  .replace(/\n/g, '\r\n');
+const base64Lines = (value) => (Buffer.from(value, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
+
+function compose({ from, fromName, to, replyTo, subject, text, html = null, date = new Date() }) {
   const name = oneLine(fromName, 100);
-  const body = String(text ?? '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
-    .replace(/\n/g, '\r\n');
+  const body = lines(text);
   const headers = [
     `From: ${name ? `${displayName(name, 6)} ` : ''}<${from}>`,
     `To: <${to}>`,
@@ -114,11 +122,15 @@ function compose({ from, fromName, to, replyTo, subject, text, date = new Date()
     `Date: ${rfcDate(date)}`,
     `Message-ID: <${crypto.randomBytes(12).toString('hex')}.${date.getTime()}@${from.split('@')[1]}>`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: base64',
   ].filter(Boolean);
-  const base64 = Buffer.from(body, 'utf8').toString('base64').match(/.{1,76}/g) ?? [];
-  return `${headers.join('\r\n')}\r\n\r\n${base64.join('\r\n')}\r\n`;
+  if (html == null || String(html).trim() === '') {
+    headers.push('Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64');
+    return `${headers.join('\r\n')}\r\n\r\n${base64Lines(body)}\r\n`;
+  }
+  const boundary = `=_hs_${crypto.randomBytes(12).toString('hex')}`;
+  headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+  const part = (type, content) => [`--${boundary}`, `Content-Type: ${type}; charset=utf-8`, 'Content-Transfer-Encoding: base64', '', base64Lines(content)].join('\r\n');
+  return `${headers.join('\r\n')}\r\n\r\n${part('text/plain', body)}\r\n${part('text/html', lines(html))}\r\n--${boundary}--\r\n`;
 }
 
 /** SMTP's "a line with only a dot ends the message": a line that starts with a dot gets one more. */
@@ -315,12 +327,12 @@ let workingPort = null; // { key: 'host:port' as configured, port: the one that 
 let last = { ok: null, at: null, reason: null }; // the newest attempt – the admin panel shows it
 let said = null; // the cause the console was told about last
 
-async function deliver({ subject, text, replyTo, to }) {
+async function deliver({ subject, text, html, replyTo, to }) {
   const cfg = settings();
   if (!ready()) return { ok: false, code: 'off', reason: offReason(cfg) };
   const rcpt = to == null ? cfg.to : oneLine(to);
   if (!isAddress(rcpt)) return { ok: false, code: 'address', reason: 'Nieprawidłowy adres odbiorcy.' };
-  const data = compose({ from: cfg.from, fromName: config.brand?.name, to: rcpt, replyTo: oneLine(replyTo), subject, text });
+  const data = compose({ from: cfg.from, fromName: config.brand?.name, to: rcpt, replyTo: oneLine(replyTo), subject, text, html });
   const envelope = { from: cfg.from, to: rcpt };
   const key = `${cfg.host}:${cfg.port}`;
   const first = workingPort?.key === key ? workingPort.port : cfg.port;
@@ -343,8 +355,9 @@ async function deliver({ subject, text, replyTo, to }) {
 }
 
 /**
- * send({ subject, text, replyTo?, to? }) → { ok: true } | { ok: false, code, reason }. Never throws.
- * to: default MAIL_TO; replyTo: where "Reply" goes (left out when it is not a plain address).
+ * send({ subject, text, html?, replyTo?, to? }) → { ok: true } | { ok: false, code, reason }. Never throws.
+ * to: default MAIL_TO; replyTo: where "Reply" goes (left out when it is not a plain address); html: the same message
+ * as a web page – sent next to the text, never instead of it.
  */
 async function send(message = {}) {
   let result;
@@ -363,6 +376,16 @@ async function send(message = {}) {
   return result;
 }
 
+/** "jan.kowalski@gmail.com" → "ja***@gmail.com" – enough for the owner of the address to recognise it, on a public page. */
+function mask(address) {
+  if (!isAddress(address)) return null;
+  const [local, domain] = address.split('@');
+  return `${local.slice(0, local.length > 2 ? 2 : 1)}***@${domain}`;
+}
+
+/** Why nothing can be sent right now (a Polish sentence) – null when e-mail is set up. */
+const whyOff = () => (ready() ? null : offReason(settings()));
+
 /** For the admin panel and npm run check – never the password. */
 function status() {
   const s = settings();
@@ -370,7 +393,7 @@ function status() {
 }
 
 module.exports = {
-  send, ready, status, isAddress, oneLine, compose, dotStuff,
+  send, ready, whyOff, status, isAddress, mask, oneLine, compose, dotStuff,
   /** Tests only – see `test` above; no argument puts everything back. */
   _test: (options = {}) => {
     test = options;

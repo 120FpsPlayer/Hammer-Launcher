@@ -26,8 +26,12 @@
  *                tab, Hammer Launcher server) and writes every change to the log channel.
  *   - contact    a message from the website's contact form (src/web/contact.js) becomes a card on the team's chat –
  *                nobody is pinged (contactCard).
- *   - e-mail     with e-mail set up (MAIL_PASS – src/lib/mail.js) every paid website order, and every claimed referral
- *                reward, is also sent to the contact address (purchaseMail). Mail being down never touches a purchase.
+ *   - e-mail     with e-mail set up (MAIL_PASS – src/lib/mail.js) the buyer of every paid website order gets a
+ *                confirmation at the address they typed on Stripe's page – for Hammer+ with the code (buyerMail) – and
+ *                the contact address hears about the order, with the code and the buyer's address (purchaseMail); a
+ *                claimed referral reward is e-mailed there too. Each goes out once per order, the order remembers how
+ *                it went (order.mails – the admin panel's „Zamówienia” shows it), and mail being down never touches a
+ *                purchase.
  *
  * Bot side: ticket.order.paidWith = 'website', order.web = { orderId, stripe }.
  * Website side (data/web.json): order.handedOver, ticketChannelId, ticketNumber, ticketUrl, waitingForMember, delivered,
@@ -302,7 +306,7 @@ function ticketAnswers(order) {
   const lines = order.items.map((i) => `${i.name} × ${i.quantity} — ${money((i.price * i.quantity) / unit())}`);
   return [
     { label: order.items.length > 1 ? 'Produkty' : 'Produkt', value: lines.join('\n') },
-    { label: 'Metoda płatności', value: 'Strona internetowa – karta (Stripe)' },
+    { label: 'Metoda płatności', value: 'Strona internetowa – płatność online' },
     { label: 'Cena', value: `**Opłacone: ${money(order.amount / unit())}** ✅ · zamówienie ze strony \`${order.id}\`` },
   ];
 }
@@ -317,7 +321,7 @@ function receiptDm(guild, order, ticket, channel) {
   header(c, `## ${e(guild, 'check')} Zamówienie potwierdzone – dziękujemy!\nTwoja płatność na stronie **HammerShop** przeszła pomyślnie. Oto potwierdzenie zakupu:`, guild.iconURL?.({ size: 128 }));
   c.addSeparatorComponents(divider());
   c.addTextDisplayComponents(
-    text(`${items}\n\n**Zapłacono razem: ${money(order.amount / unit())}** · karta (Stripe)\n-# Numer zamówienia \`${order.id}\` · ${ts(order.paidAt ?? Date.now(), 'f')}`),
+    text(`${items}\n\n**Zapłacono razem: ${money(order.amount / unit())}** · płatność online\n-# Numer zamówienia \`${order.id}\` · ${ts(order.paidAt ?? Date.now(), 'f')}`),
   );
   c.addSeparatorComponents(divider());
   c.addTextDisplayComponents(
@@ -382,8 +386,9 @@ async function onPaid(order) {
       await require('./referrals').onPurchase(webStore.getOrder(order.id) ?? current); // „Zaproś znajomego”: +7 days for whoever referred the buyer
     } else await handOver(current);
   } finally {
-    // Whatever happened above, the owner hears about the money. Not awaited: the buyer's receipt never waits for an e-mail.
-    purchaseMail(webStore.getOrder(order.id) ?? current);
+    // Whatever happened above: the buyer gets the confirmation, then the owner hears about the money. Not awaited – the
+    // buyer's answer on the page never waits for a mail server.
+    orderMails(order.id);
   }
 }
 
@@ -402,19 +407,127 @@ function accountText(userId) {
 const panelLink = (tab) => (env.web.publicUrl ? ['', `Panel admina: ${env.web.publicUrl}/admin#${tab}`] : []);
 
 /**
+ * The code of a paid Hammer+ order, signed again from what the order keeps (like the website's „Twoje kody”, the
+ * same code as in the DM) – null before it was issued or without the key.
+ */
+function plusCode(order) {
+  const p = order?.plus ?? {};
+  if (order?.status !== 'paid' || !p.grantedAt || !plusLib.ready()) return null;
+  try {
+    return plusLib.issue({ mc: p.mc, days: p.grantDays ?? p.days, now: p.grantedAt, id: p.codeId ?? null });
+  } catch {
+    return null;
+  }
+}
+/** "Hammer+ na 30 dni – Steve" (the order's line) → "Hammer+ na 30 dni". */
+const planName = (order) => String(order.items?.[0]?.name ?? 'Hammer+').replace(` – ${order.plus?.nick}`, '');
+const untilText = (exp) => (exp === 0 ? 'na zawsze' : exp ? `do ${plDateTime(exp * 1000)}` : null);
+
+// ── Once per order: what went out is written on the order (order.mails.buyer / .owner) ──
+const PENDING_MS = 5 * 60_000;
+const sendingMail = new Map(); // `${orderId}:${who}` → the send in flight – asked again meanwhile, the same promise
+function noteMail(orderId, who, note) {
+  const order = webStore.getOrder(orderId);
+  if (order) webStore.updateOrder(orderId, { mails: { ...(order.mails ?? {}), [who]: { ...note, at: Date.now() } } });
+}
+/**
+ * Sends `message` once for this order and records how it went: 'pending' → 'sent' | 'failed' (with the reason). One
+ * that was sent is never sent again (→ null); one that failed, or was cut off by a restart, may be tried again when
+ * asked. → the send's promise ({ ok } | { ok: false, reason }), or null when nothing is sent.
+ */
+function sendOnce(order, who, message) {
+  const key = `${order.id}:${who}`;
+  if (sendingMail.has(key)) return sendingMail.get(key);
+  if (webStore.getOrder(order.id)?.mails?.[who]?.state === 'sent') return null;
+  noteMail(order.id, who, { state: 'pending', to: message.to ?? null });
+  const sending = mail.send(message).then((result) => {
+    noteMail(order.id, who, result.ok ? { state: 'sent', to: message.to ?? null } : { state: 'failed', to: message.to ?? null, reason: result.reason ?? 'nieznany błąd' });
+    return result;
+  }).finally(() => sendingMail.delete(key));
+  sendingMail.set(key, sending);
+  return sending;
+}
+/** Not sent, and why (e-mail switched off, no address) – recorded so the panel can say it. → null */
+function skipMail(order, who, state, reason) {
+  if (webStore.getOrder(order.id)?.mails?.[who]?.state !== 'sent') noteMail(order.id, who, { state, reason });
+  return null;
+}
+
+/** The buyer's confirmation first (the one the buyer waits for), then the owner's – one after the other. Never rejects. */
+async function orderMails(orderId) {
+  try {
+    await buyerMail(webStore.getOrder(orderId));
+  } catch (err) {
+    console.warn(`[website] e-mail do kupującego ${orderId}:`, err.message);
+  }
+  try {
+    return await purchaseMail(webStore.getOrder(orderId));
+  } catch (err) {
+    console.warn(`[website] e-mail o zamówieniu ${orderId}:`, err.message);
+    return null;
+  }
+}
+
+/** Where buyers get help: the Hammer+ ticket type (or the first one), the Discord invite, the contact address. */
+function helpFor(kind) {
+  const types = config.ticketTypes ?? [];
+  const type = (kind === 'plus' && types.find((t) => t.id === 'plus')) || types.find((t) => t.id === 'order') || types[0];
+  return { ticket: type?.label ?? 'Pomoc', discord: inviteOf(), email: mail.isAddress(config.contact?.email) ? config.contact.email : null };
+}
+
+/**
+ * A paid website order → the confirmation for the buyer, at the address they typed on Stripe's page (order.email):
+ * for Hammer+ the code, the plan, the account, until when, how to activate it; for the shop what was bought and where
+ * it is delivered. HTML and plain text (src/lib/receiptMail.js). Once per order, never throws, nothing waits for it.
+ * → the send's promise, or null when nothing is sent (e-mail off, no address – recorded on the order).
+ */
+function buyerMail(order) {
+  try {
+    if (order?.status !== 'paid') return null;
+    if (!mail.ready()) return skipMail(order, 'buyer', 'off', mail.whyOff());
+    if (!mail.isAddress(order.email)) return skipMail(order, 'buyer', 'none', 'Stripe nie podał adresu e-mail kupującego (albo adres jest nietypowy) – kupujący ma wszystko na stronie i na Discordzie.');
+    const receipts = require('../lib/receiptMail');
+    const common = { brand: config.brand.name, orderId: order.id, amount: amountText(order), paidAt: order.paidAt, help: helpFor(order.kind) };
+    const content = order.kind === 'plus'
+      ? receipts.plusReceipt({ ...common, plan: planName(order), nick: order.plus?.nick ?? '', until: untilText(order.plus?.exp), code: plusCode(order), problem: order.plus?.grantedAt ? null : order.delivery ?? null, pageUrl: plusPage() ? require('./launcherinfo').page('hammer-plus') : null })
+      : receipts.shopReceipt({ ...common, items: order.items ?? [], delivery: order.delivery ?? null, ticketUrl: order.ticketUrl ?? null });
+    return sendOnce(order, 'buyer', { ...content, to: order.email, replyTo: config.contact?.email });
+  } catch (err) {
+    console.warn(`[website] e-mail do kupującego ${order?.id}:`, err.message);
+    return null;
+  }
+}
+
+/** The owner's lines about the buyer's e-mail: the address from Stripe and whether the confirmation went out. */
+function buyerLines(order) {
+  const b = webStore.getOrder(order.id)?.mails?.buyer ?? order.mails?.buyer;
+  const address = mail.isAddress(order.email) ? order.email : null;
+  const state = !b ? null
+    : b.state === 'sent' ? `wysłane na ${b.to ?? address}`
+    : b.state === 'pending' ? `w drodze na ${b.to ?? address}`
+    : b.state === 'none' ? 'nie wysłane – Stripe nie podał adresu e-mail'
+    : `NIE wysłane – ${b.reason ?? 'nieznany błąd'}`;
+  return [`E-mail kupującego: ${address ? `${address} (podany przy płatności w Stripe)` : 'brak – Stripe go nie podał'}`, state ? `Potwierdzenie do kupującego: ${state}` : null];
+}
+
+/**
  * A paid website order → an e-mail to the contact address: the order's number, what was bought, for how much, who
- * bought it and when. Only when e-mail is set up. Never throws and nothing waits for it – a purchase is a purchase
- * whether or not the mail server answers. → the send's promise, or null when nothing is sent.
+ * bought it and when, the buyer's e-mail address – and for Hammer+ the code itself (the owner asked for it: he can
+ * pass it on when a buyer writes that it never came). Only when e-mail is set up. Once per order, never throws and
+ * nothing waits for it – a purchase is a purchase whether or not the mail server answers. → the send's promise, or
+ * null when nothing is sent.
  */
 function purchaseMail(order) {
   try {
-    if (!mail.ready() || order?.status !== 'paid') return null;
-    const who = [`Kwota: ${amountText(order)} (karta, Stripe)`, `Kupujący: ${accountText(order.userId)}`, `Kiedy: ${plDateTime(order.paidAt ?? Date.now())}`];
+    if (order?.status !== 'paid') return null;
+    if (!mail.ready()) return skipMail(order, 'owner', 'off', mail.whyOff());
+    const who = [`Kwota: ${amountText(order)} (płatność online na stronie)`, `Kupujący: ${accountText(order.userId)}`, ...buyerLines(order), `Kiedy: ${plDateTime(order.paidAt ?? Date.now())}`];
     if (order.kind === 'plus') {
       const p = order.plus ?? {};
       const time = p.days ? `${p.days} dni` : 'na zawsze';
-      const until = !p.grantedAt ? null : p.exp ? `do ${plDateTime(p.exp * 1000)}` : 'na zawsze'; // (with the time the account still had)
-      return mail.send({
+      const until = !p.grantedAt ? null : untilText(p.exp); // (with the time the account still had)
+      const code = plusCode(order);
+      return sendOnce(order, 'owner', {
         subject: `[Zakup] Hammer+ ${time} – ${p.nick} – ${amountText(order)}`,
         text: [
           `Nowy zakup na stronie ${config.brand.name}: Hammer+.`,
@@ -426,12 +539,13 @@ function purchaseMail(order) {
           until ? `Hammer+ na tym koncie: ${until}` : null,
           ...who,
           p.grantedAt ? 'Kod: wystawiony – kupujący ma go na stronie i w wiadomości prywatnej na Discordzie.' : `Kod: NIE ZOSTAŁ WYSTAWIONY – wystaw go ręcznie na Discordzie: /hammerplus nadaj nick:${p.nick} dni:${p.days}`,
+          ...(code ? ['', 'Kod Hammer+ (gdyby kupujący napisał, że go nie ma):', code] : []),
           ...panelLink('zamowienia'),
         ].filter((l) => l !== null).join('\n'),
       });
     }
     const items = (order.items ?? []).map((i) => `${i.quantity}× ${i.name}`);
-    return mail.send({
+    return sendOnce(order, 'owner', {
       subject: `[Zakup] ${items.length === 1 ? items[0] : `${items.length} produkty`} – ${amountText(order)}`,
       text: [
         `Nowy zakup na stronie ${config.brand.name}.`,
@@ -441,7 +555,7 @@ function purchaseMail(order) {
         ...who,
         order.ticketUrl ? `Ticket: #${order.ticketNumber} – ${order.ticketUrl}` : order.waitingForMember ? 'Ticket: otworzy się, gdy kupujący dołączy na serwer Discord.' : 'Ticket: nie otworzył się – dostarcz zamówienie ręcznie.',
         ...panelLink('zamowienia'),
-      ].join('\n'),
+      ].filter((l) => l !== null).join('\n'),
     });
   } catch (err) {
     console.warn(`[website] e-mail o zamówieniu ${order?.id}:`, err.message);
@@ -519,6 +633,7 @@ async function deliverPlus(order) {
     const sent = await Promise.resolve()
       .then(() => user.send(plusDm(guild, order, code, record, roleState)))
       .then(() => true, () => false); // closed DMs, or not on the server: the website still shows the code
+    setDelivery(order, { dm: sent }); // the thank-you screen says where else the code went
     if (guild) {
       await sendLog(guild, {
         embeds: [
@@ -661,6 +776,9 @@ const panelReferrals = {
   },
 };
 
+/** „Wyzeruj statystyki” in the admin panel: the Discord „📥 Pobrania” channel shows the 0 right away, not at the next round. */
+const statsReset = () => (client ? require('./stats').updateStatChannels(client, { keys: ['statDownloads'] }) : null);
+
 // ───────────── The website's contact form → the team ─────────────
 /**
  * A message from the Kontakt page (src/web/contact.js) → a card on the team's chat (#💼 czat-zespołu), or in the
@@ -770,7 +888,7 @@ async function onOrderPlaced({ guild, channel, ticket }) {
   const pings = instant ? { users: [], roles: [] } : autopay.pingsFor(guild, ticket);
   const who = [...pings.users.map((id) => `<@${id}>`), ...pings.roles.map((id) => `<@&${id}>`)].join(' ');
   const ask = instant ? ' 📦 Produkt zostanie dostarczony automatycznie.' : who ? ` ${who} – prosimy o dostawę.` : '';
-  await channel.send(notice(COLORS.success, `🌐 **Opłacone na stronie – ${money(order.total)}** (karta, Stripe) za zamówienie \`#${pad(ticket.number)}\` · \`${order.web?.orderId ?? '—'}\`.${ask}`, { mentions: pings })).catch(() => null);
+  await channel.send(notice(COLORS.success, `🌐 **Opłacone na stronie – ${money(order.total)}** (płatność online) za zamówienie \`#${pad(ticket.number)}\` · \`${order.web?.orderId ?? '—'}\`.${ask}`, { mentions: pings })).catch(() => null);
   await sendLog(guild, {
     embeds: [
       logEmbed(COLORS.success, '🌐 Opłacone na stronie', guild.client.user).addFields(
@@ -815,7 +933,7 @@ function start(c) {
     }
   });
   webAuth.setClientId(c.application?.id ?? c.user?.id);
-  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard });
+  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, receipt: buyerMail, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard, statsReset });
   server.on('error', (err) => {
     console.warn(`🌐 Strona: nie można użyć portu ${env.web.port} (${err.code ?? err.message}) – bot działa dalej bez niej.`);
     server = null;
@@ -845,5 +963,5 @@ hooks.on('inviteDelete', (invite) => {
 module.exports = {
   catalog, featuredServers, plain, tabOf, artOf, guildOf, ticketOrder, handOver, onPaid, onLogin, isMember, start, stop: () => server?.close(), _setClient: (c) => (client = c),
   deliverPlus, plusDm, panelLevel, announce, panelLog, panelPlus, panelFeatured, panelReferrals, launcherChannel, checkInvite, inviteOf, invitesPaused, ownInviteFailing,
-  panelAnnouncements, contactCard, purchaseMail, panelRoadmap,
+  panelAnnouncements, contactCard, purchaseMail, buyerMail, orderMails, plusCode, statsReset, panelRoadmap,
 };

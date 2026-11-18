@@ -403,7 +403,9 @@ Strona ma formularz **Kontakt** (imię, e-mail, temat, wiadomość – bez logow
 2. **zawsze** pojawia się jako karta na czacie zespołu na Discordzie (**#💼 czat-zespołu**; bez tego kanału – w logach serwera) – bez pingowania kogokolwiek, z przyciskiem do panelu,
 3. a gdy włączysz e-mail – przychodzi też na **adres kontaktowy** (`config.launcher.json` → `"contact"` → `"email"`, dla Hammer Launchera `hammerlauncherclient@gmail.com`). Klikasz w poczcie **Odpowiedz** i piszesz prosto do tej osoby.
 
-Na ten sam adres przychodzi też e-mail o **każdym zakupie na stronie** (numer zamówienia, co kupiono, nick Minecraft, kwota, konto Discord kupującego, godzina – nigdy sam kod Hammer+) i o odebranej nagrodzie z „Zaproś znajomego”.
+Na ten sam adres przychodzi też e-mail o **każdym zakupie na stronie** (numer zamówienia, co kupiono, nick Minecraft, kwota, konto Discord i e-mail kupującego, godzina, a przy Hammer+ **sam kod** – możesz go przekazać, gdyby kupujący napisał, że go nie ma) i o odebranej nagrodzie z „Zaproś znajomego”.
+
+**Kupujący też dostaje e-mail** – na adres, który wpisał na stronie płatności Stripe: ładne potwierdzenie (wersja HTML i zwykły tekst) z kodem Hammer+, planem, kontem Minecraft, datą ważności, trzema krokami aktywacji, numerem zamówienia i informacją, gdzie szukać pomocy (zakup w sklepie: co kupił i gdzie dostanie zamówienie). Każdy z tych e-maili wychodzi **raz na zamówienie**, a panel admina → **Zamówienia** pokazuje przy każdym opłaconym zamówieniu, czy poszedł: „e-mail do kupującego: wysłany na …” albo „nie wysłano – …” z powodem (np. brak `MAIL_PASS`, złe hasło, Stripe nie podał adresu).
 
 **Jak włączyć e-mail (darmowy Gmail, 5 minut):**
 1. Zaloguj się na konto Gmail z adresu kontaktowego i na stronie `myaccount.google.com/security` włącz **Weryfikację dwuetapową**.
@@ -801,6 +803,21 @@ zmień nazwę pliku na `db.json` i wrzuć go do `data/`, gdy bot jest wyłączon
 
 ---
 
+## 🧹 Jak wyzerować dane
+
+**Nie kasuj całego folderu `data/`, żeby wyzerować statystyki.** W nim jest wszystko, z czego bot i strona działają:
+
+- `data/db.json` (bot): tickety, zapis zbudowanego serwera (ID kanałów i ról z `/zbuduj`), giveawaye, wpisy `/wiedza`, ustawienia, produkty i zamówienia z Discorda, wystawione kody Hammer+,
+- `data/web.json` (strona): konta i sesje, zamówienia ze strony i kody Hammer+ kupujących, polecenia i nagrody z „Zaproś znajomego”, aktualności, wersje launchera, cennik Hammer+, wiadomości z formularza – i **statystyki** (pobrania, uruchomienia launchera),
+- `data/releases/` – wgrane instalatory launchera, `data/products/` i `data/deliveries/` – obrazki i pliki produktów,
+- kopie zapasowe: bot sam wrzuca kopię `data/db.json` na kanał 💾 kopie-zapasowe (gdy są włączone; `/kopia` – od razu). `web.json` i instalatory takiej kopii nie mają.
+
+Po skasowaniu całego folderu bot zapomina zbudowany serwer (panele i kanały przestają działać, trzeba od nowa `/zbuduj`), kupujący tracą „Twoje kody” na stronie, a launcher przestaje sam pobierać przedłużony Hammer+, znikają nagrody z poleceń, aktualności, cennik i wgrane instalatory (strona nie ma czego pobrać), a wszyscy muszą zalogować się od nowa.
+
+**Same statystyki (bezpiecznie):** panel admina → **Pulpit** → **Wyzeruj statystyki** (widzi go tylko właściciel), wpisz `ZERUJ` i potwierdź. Pobrania (dziennie, przy wersjach i przy kontach) i uruchomienia launchera spadają do 0 – w panelu i na kanale „📥 Pobrania” na Discordzie. Zamówienia, kody Hammer+, konta, nagrody z poleceń, aktualności, wersje i ustawienia zostają. Zerowanie trafia do logów serwera i konsoli bota.
+
+**Całkiem od zera (tylko jeśli naprawdę tego chcesz):** zatrzymaj bota, skopiuj `data/` gdzieś na bok (na wszelki wypadek), usuń `data/`, uruchom bota i wpisz `/zbuduj`. Stracisz wszystko z listy wyżej – kody Hammer+ już wydane działają dalej do końca ważności (są podpisane kluczem z `.env`), ale nie będzie ich na stronie, a ich przedłużenia trzeba wystawić ręcznie (`/hammerplus nadaj`). Pliku `.env` nie usuwaj.
+
 ## 🗂️ Pliki
 
 ```
@@ -823,7 +840,7 @@ src/
 ├── commands/                komendy (polskie nazwy dla Discorda: lib/commandsPl.js)
 ├── handlers/interactions.js przyciski, menu i formularze
 ├── lib/                     konfiguracja, baza danych, motyw, uprawnienia, funkcje pomocnicze, kody Hammer+ (plus.js),
-│                            wysyłanie e-maili (mail.js)
+│                            wysyłanie e-maili (mail.js), e-mail z potwierdzeniem zakupu (receiptMail.js)
 └── web/                     strona sklepu i API dla Hammer Launchera (launcher.js: /api/launcher/*, /join), panel admina
                              (admin.js: /api/admin/*), instalatory i aktualizacje launchera (releases.js: /download, /updates/),
                              Zaproś znajomego (referrals.js: /r/<kod>, /api/shop/referrals), formularz kontaktowy
@@ -846,7 +863,7 @@ test/                        testy z symulowanym serwerem Discord (npm test)
 ```bash
 npm test
 ```
-635 testów działa na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
+642 testy działają na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
 znaków na kartę, miejsca na emotki, uprawnienia, reguły AutoMod, tryb społeczności): pełna budowa, wyczyść i zbuduj,
 każde uprawnienie, ścieżka sklep → ticket → zamówienie → opinia, warianty, licznik sztuk, promocje błyskawiczne, odznaki, Zapłać,
 DM-y o statusie zamówienia, Moje zamówienia, przypomnienia dla zespołu, karty płatności, linki do płatności Stripe i PayPal,

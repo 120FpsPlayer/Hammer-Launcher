@@ -56,7 +56,8 @@ function startFakes() {
   return new Promise((resolve) =>
     server.listen(0, '127.0.0.1', () => {
       const base = `http://127.0.0.1:${server.address().port}`;
-      resolve({ server, base, state, pay: (id) => Object.assign(state.sessions.get(id), { status: 'complete', payment_status: 'paid' }) });
+      // pay(id, extra): extra – more of the session as Stripe has it once paid, e.g. { customer_details: { email } }
+      resolve({ server, base, state, pay: (id, extra = {}) => Object.assign(state.sessions.get(id), { status: 'complete', payment_status: 'paid' }, extra) });
     }),
   );
 }
