@@ -257,7 +257,7 @@ test('/wiedza test: which entries the assistant would use, best first, labelled 
   assert.match(weak, /🟡 \*\*słabo\*\* · 50% · \*\*#2\*\* „Gra crashuje po dodaniu modów” · brakuje: Gra, modów/);
 
   const near = await result('jak zmienić nick w minecrafcie?');
-  assert.match(near, /Żaden wpis nie pasuje\*\* – asystent odpowie bez bazy wiedzy[\s\S]*Blisko, ale nie weźmie:\*\*\n🔴 \*\*nie pasuje\*\* · 50% · \*\*#3\*\* „Jak zmienić wersję Minecrafta\?” · brakuje: wersję/);
+  assert.match(near, /Żaden wpis nie pasuje wprost\.\*\*[\s\S]*Blisko, ale nie na górze:\*\*\n🔴 \*\*nie pasuje\*\* · 50% · \*\*#3\*\* „Jak zmienić wersję Minecrafta\?” · brakuje: wersję/);
 
   assert.match(await result('jak zmienic skina?'), /🟢 \*\*pasuje\*\* · 100% · 📄 z pliku „Jak zmienić skina\?”/, 'the file is searched too');
   assert.match(await result('ile kosztuje nitro'), /Żaden wpis nie pasuje/);
@@ -413,15 +413,15 @@ test('the request: a clear match tells the model to answer from it (still in its
   const calls = groq(say('Kliknij w menu instancji **Napraw instancję**.'), say('Kod wpiszesz w **Hammer+ → Mam kod**.'));
   await open('support', [['Temat', 'Gra się zamyka'], ['Wersja launchera i Minecrafta', '2.11.2'], ['Opisz dokładnie, co się dzieje', 'Po kliknięciu Graj gra się zamyka po paru sekundach']], author);
   const context = calls[0].body.messages.at(-1).content;
-  assert.match(context, /Odpowiedzi zespołu z bazy wiedzy[\s\S]*1\. Pytanie: Gra zamyka się po kliknięciu Graj\nOdpowiedź zespołu: Najpierw menu instancji/);
-  assert.match(context, /Odpowiedź 1 wyraźnie pasuje do pytania w tickecie – odpowiedz na jej podstawie: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej\. Nie dodawaj kroków, których w niej nie ma/);
-  assert.doesNotMatch(context, /Jeśli żadna nie pasuje/);
+  assert.match(context, /Wiedza zespołu[\s\S]*1\. Pytanie: Gra zamyka się po kliknięciu Graj\nOdpowiedź zespołu: Najpierw menu instancji/);
+  assert.match(context, /Wpis 1 wyraźnie pasuje do pytania – odpowiedz na jego podstawie, własnymi słowami, krótko i naturalnie, dopasowane do rozmowy \(nie wklejaj go słowo w słowo, nie zaprzeczaj mu, nie dodawaj kroków, których w nim nie ma\)/);
+  assert.doesNotMatch(context, /Jeśli żaden nie pasuje/);
   assert.equal(knowledge.get(guild.id, 1).uses, 1, 'the answer went out – the entry counts as used');
   assert.equal(knowledge.get(guild.id, 2).uses, 0);
 
   // Weak: the model is shown the answers and decides.
   const weak = knowledge.promptBlock([{ question: 'Gra crashuje po dodaniu modów', answer: 'Wyłącz nowe mody.', score: 0.5, strong: false }]);
-  assert.match(weak, /Jeśli któraś pasuje do tego, o co pyta autor, oprzyj na niej odpowiedź[\s\S]*Jeśli żadna nie pasuje, pomiń je\.$/);
+  assert.match(weak, /Wpisy na górze są podobne do pytania – jeśli któryś pasuje[\s\S]*Jeśli żaden nie pasuje, pomiń je\.$/);
   assert.doesNotMatch(weak, /wyraźnie pasuje/);
 
   // The free plans' cap holds however long the answers are; a clear match gets most of the room.
@@ -438,4 +438,63 @@ test('the request: a clear match tells the model to answer from it (still in its
   assert.equal(tie.length, 2);
   assert.equal(tie[0].strong, false);
   assert.doesNotMatch(knowledge.promptBlock(tie), /wyraźnie pasuje/);
+});
+
+// ───────────── The owner's case: „jakie płatności akceptujecie?” → „czy mogę zapłacić revolutem?” ─────────────
+
+test('the owner\'s case: „czy mogę zapłacić revolutem?” finds „Jakie płatności akceptujecie?” through its answer, and the model is told the team is right', async () => {
+  const guild = await fresh();
+  add('jakie płatności akceptujecie?', 'przyjmujemy revolut, karta, przelewy24 itd');
+  add('Jak pobrać launcher?', 'Tylko z hammerclient.com.');
+  // Matching: the answer counts too – Revolut is only in this entry's answer – and płacić / płatność are one word.
+  for (const q of ['czy moge zaplacic revolutem?', 'Czy mogę zapłacić Revolutem', 'a revolut dziala?', 'przyjmujecie płatność kartą?', 'czy da sie oplacic przelewy24?']) {
+    const found = knowledge.find(q, { guildId: guild.id });
+    assert.equal(found[0]?.answer, 'przyjmujemy revolut, karta, przelewy24 itd', q);
+  }
+  assert.equal(knowledge.find('jak zmienic skina?', { guildId: guild.id }).length, 0, 'nothing to do with payments – no match');
+  // „jak mogę zapłacić?” shares one word with it – not enough to put it on top, but the whole (small) knowledge goes
+  // with every request anyway, so the model has the answer.
+  const everything = knowledge.all(guild.id).map((e) => ({ question: e.questions[0], answer: e.answer, source: e.source, id: e.id, key: knowledge.keyOf(e) }));
+  assert.match(knowledge.promptBlock(knowledge.find('jak moge zaplacic?', { guildId: guild.id }), 2000, everything), /przyjmujemy revolut, karta, przelewy24/);
+
+  // In a ticket: the form asks about payments, the next message about Revolut.
+  const author = fakes.ctx.guild.addMember(uid(), [role('member')]);
+  const calls = groq(say('Przyjmujemy Revolut, kartę i Przelewy24.'), say('Tak, Revolutem też zapłacisz.'), say('Tak, Przelewy24 też działa.'));
+  await open('plus', [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'jakie płatności akceptujecie?']], author);
+  const channel = fakes.ctx.guild.channels.cache.get(db.tickets((x) => x.ownerId === author.id)[0].channelId);
+  await write(channel, author, 'czy moge zaplacic revolutem?');
+  const context = calls[1].body.messages.at(-1).content;
+  assert.match(context, /Wiedza zespołu – to wpisał zespół i to jest prawda\. Jest ważniejsza niż Twoja instrukcja/);
+  assert.match(context, /Nigdy nie mów, że czegoś nie ma albo się nie da, jeśli wiedza zespołu mówi, że jest\./);
+  assert.match(context, /1\. Pytanie: jakie płatności akceptujecie\?\nOdpowiedź zespołu: przyjmujemy revolut, karta, przelewy24 itd/);
+  // The instruction itself no longer says what can be paid with – only the team's knowledge does.
+  const system = calls[1].body.messages[0].content;
+  assert.doesNotMatch(system, /karta, Apple Pay, Google Pay/);
+  assert.match(system, /„Wiedza zespołu” jest ważniejsza niż ta instrukcja/);
+  assert.match(system, /pytanie, jak albo czym zapłacić, to nie problem|Nie mów, że czegoś nie ma, jeśli ona mówi, że jest/);
+
+  // A follow-up with none of its words („a przez p24?”) still gets the entry: the ticket remembers it, and a small
+  // knowledge base goes whole anyway.
+  await write(channel, author, 'a p24 tez?');
+  assert.match(calls[2].body.messages.at(-1).content, /Odpowiedź zespołu: przyjmujemy revolut, karta, przelewy24 itd/);
+  assert.deepEqual(db.getTicket(channel.id).ai.knowledge.slice(0, 1), [`c:${entries()[0].id}`]);
+});
+
+test('the whole knowledge goes with every request while it fits – the matches first, whole entries only, the free plan\'s cap holds', () => {
+  const pick = (n, extra = {}) => ({ question: `Pytanie numer ${n}?`, answer: `Odpowiedź numer ${n}.`, source: 'command', id: n, key: `c:${n}`, score: 0, strong: false, ...extra });
+  const rest = Array.from({ length: 5 }, (_, i) => pick(i + 1));
+  const block = knowledge.promptBlock([pick(3, { score: 1, strong: true })], 2000, rest);
+  assert.match(block, /^Wiedza zespołu/);
+  assert.match(block, /\n1\. Pytanie: Pytanie numer 3\?/, 'the match first');
+  assert.equal((block.match(/^\d+\. Pytanie: /gm) ?? []).length, 5, 'every entry once (the match is not repeated)');
+  assert.match(block, /Wpis 1 wyraźnie pasuje do pytania/);
+  // Without a match: the knowledge still goes, with what to do with it.
+  assert.match(knowledge.promptBlock([], 2000, rest), /Jeśli któryś wpis dotyczy pytania \(także gdy autor pyta o jedną z rzeczy w odpowiedzi\), odpowiedz na jego podstawie/);
+  assert.equal(knowledge.promptBlock([], 2000, []), '');
+  // A big base: as many whole entries as fit, never over the cap.
+  const big = Array.from({ length: 80 }, (_, i) => pick(i + 1, { answer: `${'Długa odpowiedź zespołu. '.repeat(4)}${i}` }));
+  const capped = knowledge.promptBlock([], 2000, big);
+  assert.ok(capped.length <= 2000, `${capped.length} characters`);
+  assert.ok((capped.match(/^\d+\. Pytanie: /gm) ?? []).length >= 10);
+  assert.doesNotMatch(capped, /…\n/, 'no entry cut in half');
 });

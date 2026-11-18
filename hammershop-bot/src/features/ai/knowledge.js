@@ -103,6 +103,8 @@ const STOP = new Set(
 const SYNONYMS = [
   [['pobra', 'pobier', 'pobior', 'sciag', 'download'], 'pobrac'],
   [['instal', 'zainstal'], 'instalacja'],
+  // płatność / płatności / płatny / płacić / zapłacić / zapłata / opłacić / opłata / płacę (not „platforma”)
+  [['platn', 'plac', 'zaplac', 'zaplat', 'oplac', 'oplat'], 'platnosc'],
 ];
 const EXACT_SYNONYMS = new Map([
   ['mc', 'minecraft'],
@@ -449,19 +451,39 @@ function spelled(question) {
 function rank(query, { guildId = null } = {}) {
   const asked = words(query);
   if (!asked.length) return [];
+  const list = all(guildId);
+  // How many entries' answers have a word – a word only one answer has (Revolut, Przelewy24, a server address) says a
+  // lot about what that entry is about; one most answers have says nothing.
+  const answerWords = list.map((e) => words(e.answer));
+  const questionWords = list.flatMap((e) => e.questions.flatMap((q) => words(q)));
+  const inAnswers = (w) => answerWords.filter((ws) => ws.some((a) => same(w, a))).length;
+  // A name only one answer has and no question asks about (Revolut, Przelewy24, a server's address) – a word like that
+  // alone tells what the ticket is about. Short or everyday words (nowa, gra) never count alone.
+  const distinctive = (w) => w.length >= 5 && inAnswers(w) === 1 && !questionWords.some((q) => same(w, q));
   const found = [];
-  for (const entry of all(guildId)) {
+  list.forEach((entry, i) => {
     let best = null;
     for (const question of entry.questions) {
       const ownWords = words(question);
       if (!ownWords.length) continue;
       const r = compare(ownWords, asked);
-      if (r.hits && (!best || better(r, best) > 0)) best = { ...r, question };
+      if (!best || better(r, best) > 0) best = { ...r, question };
     }
-    if (!best) continue;
+    if (!best) return;
+    // The answer counts too: „czy mogę zapłacić revolutem?” has no word of „Jakie płatności akceptujecie?”, but its
+    // answer names Revolut. Words of the ticket (not weak ones, 4+ letters) that the answer has and the question doesn't.
+    const ownWords = words(best.question);
+    const fromAnswer = asked.filter((w) => w.length >= 4 && !weak(w) && answerWords[i].some((a) => same(w, a)) && !ownWords.some((q) => same(w, q)));
+    // The question's own meaningful words the ticket has (not „launcher”, „zmienić” and the like).
+    const questionHits = ownWords.filter((w) => !weak(w) && asked.some((a) => same(w, a) || typo(w, a))).length;
+    if (!best.ok && fromAnswer.length && (questionHits >= 1 || fromAnswer.some(distinctive))) {
+      // A word of the question plus one of the answer – or a name only this answer has: it is about this.
+      best = { ...best, ok: true, strong: false, via: 'answer', score: Math.max(best.score, 0.5), hits: best.hits + fromAnswer.length };
+    }
+    if (!best.hits && !fromAnswer.length) return;
     const spelling = spelled(best.question);
-    found.push({ ...best, missing: best.missing.map((w) => spelling.get(w) ?? w), entry });
-  }
+    found.push({ ...best, answerWords: fromAnswer, missing: best.missing.map((w) => spelling.get(w) ?? w), entry });
+  });
   return found.sort((a, b) => better(b, a)); // stable: on a tie the command's entry stays before the file's
 }
 
@@ -474,7 +496,7 @@ function find(query, { limit = 3, guildId = null } = {}) {
   const matches = rank(query, { guildId })
     .filter((r) => r.ok)
     .slice(0, limit)
-    .map((r) => ({ question: r.question, answer: r.entry.answer, score: r.score, strong: r.strong, source: r.entry.source, id: r.entry.id }));
+    .map((r) => ({ question: r.question, answer: r.entry.answer, score: r.score, strong: r.strong, source: r.entry.source, id: r.entry.id, key: keyOf(r.entry) }));
   if (matches[0]?.strong && matches[1]?.strong && matches[1].score >= matches[0].score) matches[0].strong = false;
   return matches;
 }
@@ -484,24 +506,61 @@ function find(query, { limit = 3, guildId = null } = {}) {
  * characters (the free plans count every token). Empty when nothing matched. When the first one clearly fits, the model
  * is told to answer from it (and that one gets most of the room); otherwise it decides whether any fits.
  */
-function promptBlock(matches, max = 1200) {
-  if (!matches?.length) return '';
-  const strong = Boolean(matches[0].strong);
-  const head = 'Odpowiedzi zespołu z bazy wiedzy, podobne do pytania w tickecie:';
-  const tail = strong
-    ? `Odpowiedź 1 wyraźnie pasuje do pytania w tickecie – odpowiedz na jej podstawie: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej. Nie dodawaj kroków, których w niej nie ma, chyba że autor pyta o coś więcej.${matches.length > 1 ? ' Pozostałe wykorzystaj tylko, jeśli też pasują.' : ''}`
-    : 'Jeśli któraś pasuje do tego, o co pyta autor, oprzyj na niej odpowiedź: powiedz to samo własnymi słowami, naturalnie i krótko, dopasowane do tej rozmowy – nie wklejaj jej słowo w słowo i nie zaprzeczaj jej. Jeśli żadna nie pasuje, pomiń je.';
-  const room = Math.max(200, max - head.length - tail.length - 4);
-  const texts = matches.map((m, i) => `${i + 1}. Pytanie: ${m.question}\nOdpowiedź zespołu: ${m.answer}`);
-  const sizes = texts.map(() => Math.floor(room / texts.length));
-  if (strong && texts.length > 1) {
-    // The answer to give gets what it needs; the others share the rest (at least a short look each).
-    sizes[0] = Math.min(texts[0].length, Math.max(sizes[0], room - 160 * (texts.length - 1)));
-    const rest = Math.floor((room - sizes[0]) / (texts.length - 1));
-    for (let i = 1; i < sizes.length; i += 1) sizes[i] = rest;
+/** Which entry it is, also later in the ticket: c:<id> for /wiedza entries, f:<first question> for the file's. */
+const keyOf = (e) => (e.source === 'command' ? `c:${e.id}` : `f:${fold(e.questions?.[0] ?? '')}`);
+
+/** The entries with these keys (remembered in a ticket) → in the shape find() gives, in the order of the keys. */
+function byKeys(keys, guildId = null) {
+  const list = all(guildId);
+  return (keys ?? [])
+    .map((k) => list.find((e) => keyOf(e) === k))
+    .filter(Boolean)
+    .map((e) => ({ question: e.questions[0], answer: e.answer, score: 0, strong: false, source: e.source, id: e.id, key: keyOf(e) }));
+}
+
+/**
+ * The team's knowledge for the request, at most `max` characters (the free plans count every token):
+ *   1. the entries that match this question (matches) – when the first one clearly fits, the model is told to answer
+ *      from it;
+ *   2. then, while there is room, every other entry (rest) – a follow-up question often has none of the words of the
+ *      entry that answers it („a revolutem?” after „jakie płatności przyjmujecie?”), and a small knowledge base fits
+ *      whole anyway.
+ * The model is told that this knowledge comes before everything else it knows – also before the facts in its own
+ * instructions – and never to say something isn't possible when the team's knowledge says it is. '' when there is none.
+ */
+function promptBlock(matches, max = 1200, rest = []) {
+  const picked = matches ?? [];
+  const seen = new Set(picked.map((m) => m.key ?? `${m.source}:${m.question}`));
+  const others = (rest ?? []).filter((m) => !seen.has(m.key ?? `${m.source}:${m.question}`));
+  if (!picked.length && !others.length) return '';
+  const strong = Boolean(picked[0]?.strong);
+  const head =
+    'Wiedza zespołu – to wpisał zespół i to jest prawda. Jest ważniejsza niż Twoja instrukcja i to, co wiesz sam: ' +
+    'jeśli mówi coś innego, wierz jej. Nigdy nie mów, że czegoś nie ma albo się nie da, jeśli wiedza zespołu mówi, że jest.';
+  const how = strong
+    ? 'Wpis 1 wyraźnie pasuje do pytania – odpowiedz na jego podstawie, własnymi słowami, krótko i naturalnie, dopasowane do rozmowy (nie wklejaj go słowo w słowo, nie zaprzeczaj mu, nie dodawaj kroków, których w nim nie ma).'
+    : picked.length
+      ? 'Wpisy na górze są podobne do pytania – jeśli któryś pasuje (także gdy autor pyta o jedną z rzeczy w odpowiedzi), odpowiedz na jego podstawie, własnymi słowami. Jeśli żaden nie pasuje, pomiń je.'
+      : 'Jeśli któryś wpis dotyczy pytania (także gdy autor pyta o jedną z rzeczy w odpowiedzi), odpowiedz na jego podstawie, własnymi słowami.';
+  const line = (m, n) => `${n}. Pytanie: ${m.question}\nOdpowiedź zespołu: ${m.answer}`;
+  let room = Math.max(200, max - head.length - how.length - 4);
+  const items = [];
+  // The matches first: the best one gets what it needs, every other at least a short look.
+  picked.forEach((m, i) => {
+    const left = picked.length - i - 1;
+    const size = i === 0 ? Math.max(Math.floor(room / picked.length), room - 160 * left) : Math.floor(room / (left + 1));
+    const text = cut(line(m, items.length + 1), Math.max(80, size));
+    items.push(text);
+    room -= text.length + 1;
+  });
+  // Then the rest of the knowledge, whole entries only, while it fits.
+  for (const m of others) {
+    const text = line(m, items.length + 1);
+    if (text.length + 1 > room) continue;
+    items.push(text);
+    room -= text.length + 1;
   }
-  const items = texts.map((t, i) => cut(t, sizes[i]));
-  return `${head}\n${items.join('\n')}\n${tail}`;
+  return `${head}\n${items.join('\n')}\n${how}`;
 }
 
 /**
@@ -558,6 +617,8 @@ module.exports = {
   all,
   rank,
   find,
+  keyOf,
+  byKeys,
   promptBlock,
   stats,
   ensure,

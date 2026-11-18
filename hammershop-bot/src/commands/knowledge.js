@@ -173,7 +173,8 @@ const LABELS = {
 function testLine(r, label) {
   const ref = r.entry.source === 'command' ? `**#${r.entry.id}**` : '📄 z pliku';
   const missing = !r.strong && r.missing.length ? ` · brakuje: ${truncate(r.missing.join(', '), 80)}` : '';
-  return `${label} · ${Math.round(r.score * 100)}% · ${ref} „${truncate(r.question, 100)}”${missing}\n> ${truncate(r.entry.answer.replace(/\s*\n\s*/g, ' '), 120)}`;
+  const via = r.via === 'answer' && r.answerWords?.length ? ` · po słowie z odpowiedzi: ${truncate(r.answerWords.join(', '), 60)}` : '';
+  return `${label} · ${Math.round(r.score * 100)}% · ${ref} „${truncate(r.question, 100)}”${via}${missing}\n> ${truncate(r.entry.answer.replace(/\s*\n\s*/g, ' '), 120)}`;
 }
 
 /** Which entries the assistant would use for this question, best first, and the closest ones it wouldn't. */
@@ -192,16 +193,26 @@ function testEmbed(guild, question) {
     lines.push(...chosen.map((r, i) => testLine(r, i === 0 && used[0].strong ? LABELS.strong : LABELS.weak)));
     if (used[0].strong) lines.push(`-# Odpowie na podstawie pierwszej – własnymi słowami.`);
   } else {
-    lines.push(`**Żaden wpis nie pasuje** – asystent odpowie bez bazy wiedzy. Dopisz to pytanie jako kolejną wersję we wpisie, który powinien pasować (\`${slash('knowledge edit')}\`), albo dodaj nowy wpis (\`${slash('knowledge add')}\`).`);
+    lines.push(`**Żaden wpis nie pasuje wprost.** Dopisz to pytanie jako kolejną wersję we wpisie, który powinien pasować (\`${slash('knowledge edit')}\`), albo dodaj nowy wpis (\`${slash('knowledge add')}\`).`);
   }
   if (rest.length) {
-    lines.push('', '**Blisko, ale nie weźmie:**');
+    lines.push('', '**Blisko, ale nie na górze:**');
     lines.push(...rest.map((r) => testLine(r, r.ok ? LABELS.extra : LABELS.no)));
+  }
+  // Besides the matches, the whole knowledge goes with every request while it fits (src/features/ai/knowledge.js).
+  const total = knowledge.all(guild.id).length;
+  if (total) {
+    const everything = knowledge.all(guild.id).map((e) => ({ question: e.questions[0], answer: e.answer, source: e.source, id: e.id, key: knowledge.keyOf(e) }));
+    const block = knowledge.promptBlock(used, require('../features/ai/client').budget().knowledgeChars, everything);
+    const sent = (block.match(/^\d+\. Pytanie: /gm) ?? []).length;
+    lines.push('', sent >= total
+      ? `-# Asystent dostaje też całą resztę bazy (${total} ${total === 1 ? 'wpis' : 'wpisów'}) – gdy pytanie dotyczy czegoś z niej innymi słowami, i tak odpowie zgodnie z nią.`
+      : `-# Asystent dostaje też ${sent} z ${total} wpisów (tyle się mieści) – reszta tylko wtedy, gdy pasuje do pytania.`);
   }
   return embed(chosen.length ? COLORS.success : COLORS.muted)
     .setTitle('🔎 Test bazy wiedzy')
     .setDescription(truncate(lines.join('\n'), 4096))
-    .setFooter({ text: '🟢 pasuje – odpowie na jej podstawie · 🟡 słabo – dostanie ją, ale sam oceni, czy pasuje · 🔴 nie pasuje – nie dostanie jej · % – ile słów pytania jest w tickecie (słowa typu „launcher”, „zmienić” liczą się za pół)' });
+    .setFooter({ text: '🟢 pasuje – odpowie na jej podstawie · 🟡 słabo – dostanie ją na górze i sam oceni, czy pasuje · 🔴 nie pasuje – nie jest na górze · % – ile słów pytania jest w tickecie (słowa typu „launcher”, „zmienić” liczą się za pół)' });
 }
 
 // ───────────── Buttons and forms ─────────────

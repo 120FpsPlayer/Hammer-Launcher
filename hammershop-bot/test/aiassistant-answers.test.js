@@ -355,7 +355,7 @@ test('knowledge file: Polish-aware matching – diacritics or not, word forms, s
   assert.equal(knowledge.find('jak pobrac launcher')[0].score, 1);
 });
 
-test('knowledge file: the matches go into the request with what to do with them – the opening uses the form, later answers the new message', async () => {
+test('knowledge file: the matching entry goes on top with what to do with it, the rest of the knowledge follows – the opening uses the form, later answers the new message', async () => {
   await fakes.server(CHAIN);
   knowledgeFile('- Gra zamyka się po kliknięciu Graj\n\t- Najpierw menu instancji → Napraw instancję, potem wyłącz nowe mody.\n- Jak aktywować kod Hammer+?\n\t- Hammer+ → Mam kod → wklej → Aktywuj.\n');
   const author = fakes.ctx.guild.addMember(uid(), [role('member')]);
@@ -363,16 +363,15 @@ test('knowledge file: the matches go into the request with what to do with them 
   await open('support', [['Temat', 'Gra się zamyka'], ['Wersja launchera i Minecrafta', '2.11.2'], ['Opisz dokładnie, co się dzieje', 'Po kliknięciu Graj gra się zamyka po paru sekundach']], author);
   const context = calls[0].body.messages.at(-1);
   assert.equal(context.role, 'system');
-  assert.match(context.content, /Odpowiedzi zespołu z bazy wiedzy[\s\S]*Pytanie: Gra zamyka się po kliknięciu Graj\nOdpowiedź zespołu: Najpierw menu instancji → Napraw instancję/);
+  assert.match(context.content, /Wiedza zespołu – to wpisał zespół i to jest prawda[\s\S]*\n1\. Pytanie: Gra zamyka się po kliknięciu Graj\nOdpowiedź zespołu: Najpierw menu instancji → Napraw instancję/);
   // The form asks exactly this stored question – the model is told to answer from it, not only shown it.
-  assert.match(context.content, /Odpowiedź 1 wyraźnie pasuje do pytania w tickecie – odpowiedz na jej podstawie: powiedz to samo własnymi słowami[\s\S]*nie wklejaj jej słowo w słowo i nie zaprzeczaj jej\./);
-  assert.doesNotMatch(context.content, /aktywować kod/, 'only what matches');
+  assert.match(context.content, /Wpis 1 wyraźnie pasuje do pytania – odpowiedz na jego podstawie, własnymi słowami[\s\S]*nie zaprzeczaj mu/);
+  assert.match(context.content, /\n2\. Pytanie: Jak aktywować kod Hammer\+\?/, 'the rest of the (small) knowledge follows');
   const channel = fakes.ctx.guild.channels.cache.get(db.tickets((x) => x.ownerId === author.id)[0].channelId);
   await write(channel, author, 'a jak aktywowac kod hammer+?');
-  assert.match(calls[1].body.messages.at(-1).content, /Pytanie: Jak aktywować kod Hammer\+\?/);
-  assert.doesNotMatch(calls[1].body.messages.at(-1).content, /Gra zamyka się/, 'later answers look at the new message');
+  assert.match(calls[1].body.messages.at(-1).content, /\n1\. Pytanie: Jak aktywować kod Hammer\+\?/, 'later answers put what matches the new message on top');
   await write(channel, author, 'dzięki!');
-  assert.doesNotMatch(calls[2].body.messages.at(-1).content, /bazy wiedzy/, 'nothing matched – nothing added');
+  assert.match(calls[2].body.messages.at(-1).content, /Wiedza zespołu[\s\S]*Jeśli któryś wpis dotyczy pytania/, 'nothing matched – the knowledge is still there, the model decides');
   // The free plans count every token: the block is capped however long the answers are.
   knowledgeFile(`- Gra zamyka się po kliknięciu Graj\n\t- ${'Bardzo długa odpowiedź. '.repeat(200)}\n`);
   const block = knowledge.promptBlock(knowledge.find('gra zamyka się po kliknięciu graj'), 1200);

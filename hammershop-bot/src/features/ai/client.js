@@ -177,7 +177,7 @@ function label(p = provider()) {
  */
 const budget = () =>
   compact()
-    ? { history: 6, messageChars: 400, formChars: 1600, knowledgeChars: 1200, maxTokens: 1500 }
-    : { history: 30, messageChars: 1500, formChars: 3000, knowledgeChars: 4000, maxTokens: 8000 };
+    ? { history: 6, messageChars: 400, formChars: 1600, knowledgeChars: 2000, maxTokens: 1500 }
+    : { history: 30, messageChars: 1500, formChars: 3000, knowledgeChars: 6000, maxTokens: 8000 };
 
 module.exports = { DEFAULT_MODELS, DEFAULT_CHAINS, KEY_VARS, GROQ_URL, NOT_CHAT, provider, model, models, compact, client, configured, problem, label, budget, setClient, Anthropic };

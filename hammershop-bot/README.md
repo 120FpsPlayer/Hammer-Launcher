@@ -509,8 +509,15 @@ Asystent szuka pytań podobnych do tego w tickecie – bez względu na polskie z
 odmianę słów, jedną literówkę w dłuższym słowie („launher”) i kilka synonimów („ściągnąć” = „pobrać”). Słowa, które
 są prawie w każdym tickecie („launcher”, „gra”, „działa”, „zmienić”…), same nie wystarczą, żeby wpis pasował – dzięki
 temu pytanie o zmianę nicku nie dostanie odpowiedzi o zmianie wersji. Gdy wpis wyraźnie pasuje, asystent odpowiada na
-jego podstawie (własnymi słowami, nigdy wbrew niemu). Do darmowego modelu idą najwyżej 3 najlepiej pasujące wpisy
-(ok. 1200 znaków). `/asystent status` pokazuje, ile wpisów jest z komendy, a ile z pliku.
+jego podstawie (własnymi słowami, nigdy wbrew niemu). Liczy się też **treść odpowiedzi**: wpis „Jakie płatności
+akceptujecie? → przyjmujemy Revolut, kartę, Przelewy24” pasuje do pytania „czy mogę zapłacić revolutem?”.
+
+Oprócz pasujących wpisów (te idą na górę) asystent dostaje przy każdej odpowiedzi **całą resztę bazy**, dopóki się mieści
+(ok. 2000 znaków na darmowym planie), i pamięta wpisy, które pasowały wcześniej w tym samym tickecie – dzięki temu
+odpowiada dobrze także na dopytania innymi słowami („a przez p24?”). Ma polecenie, że **wiedza zespołu jest ważniejsza
+niż wszystko, co wie sam**, i że nigdy nie mówi „nie da się”, jeśli wiedza zespołu mówi, że się da. Metod płatności nie
+zna z siebie – bierze je tylko z bazy wiedzy, więc wpisz je przez `/wiedza dodaj`. `/asystent status` pokazuje, ile
+wpisów jest z komendy, a ile z pliku.
 
 **Plik `wiedza-asystenta.md` (nieobowiązkowy).** Wpisy z pliku w folderze bota (obok `config.json`) też działają –
 asystent przeszukuje oba źródła, a `/wiedza lista` pokazuje je z dopiskiem „z pliku” (zmieniasz je w pliku). Bot tworzy
@@ -838,7 +845,7 @@ test/                        testy z symulowanym serwerem Discord (npm test)
 ```bash
 npm test
 ```
-633 testy działają na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
+635 testów działa na symulowanym serwerze Discord, który pilnuje prawdziwych limitów Discorda (nazwy, 40 komponentów / 4000
 znaków na kartę, miejsca na emotki, uprawnienia, reguły AutoMod, tryb społeczności): pełna budowa, wyczyść i zbuduj,
 każde uprawnienie, ścieżka sklep → ticket → zamówienie → opinia, warianty, licznik sztuk, promocje błyskawiczne, odznaki, Zapłać,
 DM-y o statusie zamówienia, Moje zamówienia, przypomnienia dla zespołu, karty płatności, linki do płatności Stripe i PayPal,

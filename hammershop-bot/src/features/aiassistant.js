@@ -316,8 +316,12 @@ function buildConversation(guild, ticket, type, history, budget = ai.budget()) {
   }
   if (messages[messages.length - 1].role !== 'user') return null;
   const query = [opening ? formText(ticket) : '', ...fresh.map((t) => t.text)].filter(Boolean).join('\n');
-  const matches = knowledge.find(query, { guildId: guild.id }); // /wiedza entries and the optional file
-  messages.push(contextMessage(ticket, type, !(s.msgIds ?? []).length, knowledge.promptBlock(matches, budget.knowledgeChars)));
+  // The team's knowledge (/wiedza entries and the optional file): what matches this question first, then what matched
+  // earlier in this ticket (a follow-up – „a revolutem?” – often has none of its words), then the rest while it fits.
+  const matches = knowledge.find(query, { guildId: guild.id });
+  const earlier = knowledge.byKeys(s.knowledge, guild.id);
+  const all = knowledge.all(guild.id).map((e) => ({ question: e.questions[0], answer: e.answer, score: 0, strong: false, source: e.source, id: e.id, key: knowledge.keyOf(e) }));
+  messages.push(contextMessage(ticket, type, !(s.msgIds ?? []).length, knowledge.promptBlock(matches, budget.knowledgeChars, [...earlier, ...all])));
   return { messages, newestOwnerId, matches };
 }
 
@@ -524,6 +528,9 @@ async function answer(channel) {
     answered(); // only now – a reply that never got out leaves the messages unanswered
     noteReply(ticket.ownerId);
     knowledge.noteUsed(guild.id, convo.matches); // /wiedza lista shows which entries are used at all
+    // The ticket remembers what matched, for the follow-up questions (buildConversation sends those again).
+    const keys = [...new Set([...convo.matches.map((m) => m.key).filter(Boolean), ...(db.getTicket(channel.id)?.ai?.knowledge ?? [])])].slice(0, 5);
+    if (keys.length) patchAi(channel.id, { knowledge: keys });
   }
 }
 

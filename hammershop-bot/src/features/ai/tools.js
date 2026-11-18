@@ -54,7 +54,7 @@ const TOOLS = [
   {
     name: 'wezwij_zespol',
     description:
-      'Woła zespół do ticketu (ping) i wyłącza asystenta w tym tickecie. Użyj, gdy ktoś prosi o człowieka, sprawa dotyczy pieniędzy, płatności, zwrotu albo bezpieczeństwa konta, ' +
+      'Woła zespół do ticketu (ping) i wyłącza asystenta w tym tickecie. Użyj, gdy ktoś prosi o człowieka, jest problem z konkretną płatnością (pieniądze pobrane, kodu brak), zwrot albo bezpieczeństwo konta (pytanie, czym można zapłacić, to nie powód – odpowiedz z wiedzy zespołu), ' +
       'zgłoszenie/odwołanie/podanie jest kompletne albo nie umiesz pomóc.',
     strict: true,
     input_schema: object({ powod: { type: 'string', description: 'Jedno–dwa zdania dla zespołu: czego dotyczy sprawa (bez ocen)' } }, ['powod']),
