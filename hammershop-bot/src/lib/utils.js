@@ -186,13 +186,15 @@ function parseAmount(raw) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** 20 → "20€", 19.5 → "19.50€" (shop currency and position from config.json). */
+/** 20 → "20€", 19.5 → "19.50€", with " zł": "19,50 zł" (shop currency and position from config.json). */
 function money(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   const v = Number(n);
   const text = Number.isInteger(v) ? String(v) : v.toFixed(2);
   const currency = config.shop.currency ?? '€';
-  return config.shop.currencyPosition === 'before' ? `${currency}${text}` : `${text}${currency}`;
+  // Złoty is written the Polish way: "14,99 zł".
+  const shown = /zł/i.test(currency) ? text.replace('.', ',') : text;
+  return config.shop.currencyPosition === 'before' ? `${currency}${shown}` : `${shown}${currency}`;
 }
 
 /**

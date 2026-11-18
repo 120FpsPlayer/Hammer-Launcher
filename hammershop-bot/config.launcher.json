@@ -22,7 +22,12 @@
   },
   "shop": {
     "deliveryTime": "",
-    "paymentMethods": []
+    "paymentMethods": [],
+    "currency": " zł",
+    "currencyPosition": "after"
+  },
+  "stripe": {
+    "currency": "pln"
   },
   "panel": {
     "title": "Centrum pomocy",
