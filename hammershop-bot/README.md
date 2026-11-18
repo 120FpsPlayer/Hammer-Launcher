@@ -430,7 +430,8 @@ Do wyboru jest też płatny **Claude** albo inny darmowy dostawca zgodny z OpenA
   Cześć! Jestem asystentem AI Hammera.
 
   (odpowiedź)
-  -# 🔨 Asystent AI · napisz „człowiek”, a zawołam zespół
+  -# 🔨 Asystent AI
+  [Zawołaj zespół] [Wyłącz asystenta]
   ```
   (🔨 to emotka z logo serwera, gdy `/zbuduj` ją wgrał). Kolejne wiadomości to sama odpowiedź i podpis `-# 🔨 Asystent AI`.
   Gdy w formularzu nie ma pytania (np. sam nick) albo zapytanie się nie uda (skończył się darmowy limit, błąd dostawcy),

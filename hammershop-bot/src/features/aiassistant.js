@@ -439,7 +439,7 @@ async function sendReply(channel, text, { counted = true } = {}) {
       const last = i === parts.length - 1;
       sent.push(
         await channel.send({
-          content: `${first && i === 0 ? `${format.INTRO}\n\n` : ''}${part}${last ? `\n${format.signature(channel.guild, first)}` : ''}`,
+          content: `${first && i === 0 ? `${format.INTRO}\n\n` : ''}${part}${last ? `\n${format.signature(channel.guild)}` : ''}`,
           allowedMentions: { parse: [] },
           components: first && last ? [row(btn('ai:human', 'Zawołaj zespół', '🙋'), btn('ai:off', 'Wyłącz asystenta', '🔕'))] : [],
         }),

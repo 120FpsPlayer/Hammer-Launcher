@@ -146,7 +146,7 @@ test('a new ticket: the assistant reads the form and writes first – Opus 5.5, 
   const [greeting] = aiMessages(channel);
   const lines = greeting.content.split('\n');
   assert.deepEqual(lines.slice(0, 3), ['Cześć! Jestem asystentem AI Hammera.', '', 'Czarny ekran to zwykle mody – wyślij proszę log.']);
-  assert.match(lines.at(-1), /^-# <:\w+_logo:\d+> Asystent AI · napisz „człowiek”, a zawołam zespół$/);
+  assert.match(lines.at(-1), /^-# <:\w+_logo:\d+> Asystent AI$/, 'just the signature – the buttons say the rest');
   assert.deepEqual(greeting.body.allowedMentions, { parse: [] });
   assert.deepEqual(customIds(greeting.body), ['ai:human', 'ai:off']);
 

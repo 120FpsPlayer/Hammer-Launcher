@@ -20,8 +20,11 @@ const HINT = 'napisz „człowiek”, a zawołam zespół';
 const BODY_MAX = 1800; // + the introduction and the signature (a custom emoji is up to ~55 characters) stays under Discord's 2000
 const MAX_PARTS = 3;
 
-/** "-# <:hs_logo:123> Asystent AI" – the server's logo emoji (🔨 until /zbuduj uploads it). first: with the hint. */
-const signature = (guild, first = false) => `-# ${e(guild, 'logo')} Asystent AI${first ? ` · ${HINT}` : ''}`;
+/**
+ * "-# <:hs_logo:123> Asystent AI" – the server's logo emoji (🔨 until /zbuduj uploads it). The same on every message:
+ * the first one also has the „Zawołaj zespół” and „Wyłącz asystenta” buttons, which say it better than a line of text.
+ */
+const signature = (guild) => `-# ${e(guild, 'logo')} Asystent AI`;
 
 /** A signature line – this bot's, an older footer („-# 🤖 Asystent AI – może się pomylić…”) or one a model imitates. */
 const SIGNATURE = /^-#\s*(?:<a?:\w+:\d+>|\S{1,8})?\s*Asystent AI\b/i;

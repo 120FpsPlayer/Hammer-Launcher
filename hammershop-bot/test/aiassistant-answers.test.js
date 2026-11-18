@@ -245,12 +245,12 @@ test('format: the server\'s logo emoji in the signature – 🔨 when the custom
   guild.emojis.cache.delete(id);
   try {
     assert.equal(format.signature(guild), '-# 🔨 Asystent AI');
-    assert.equal(format.signature(guild, true), '-# 🔨 Asystent AI · napisz „człowiek”, a zawołam zespół');
+    assert.equal(format.signature(guild), '-# 🔨 Asystent AI');
     const author = guild.addMember(uid(), [role('member')]);
     groq(say('Cześć! 👋 Jestem asystentem AI zespołu Hammer Launchera.\nKod wpisz w **Hammer+ → „Mam kod”** → wklej → **Aktywuj**.\n\nPozdrawiam,\nAsystent AI'), say('Hej! Tu asystent AI Hammera. Kod działa tylko na koncie, dla którego go wystawiono.\n— Asystent AI'));
     const { channel } = await open('plus', [['Twój nick w Minecraft', 'Notch'], ['W czym możemy pomóc?', 'Jak aktywować kod Hammer+?']], author);
     const [first] = botMessages(channel).filter((m) => m.content?.startsWith(format.INTRO));
-    assert.equal(first.content, `${format.INTRO}\n\nKod wpisz w **Hammer+ → „Mam kod”** → wklej → **Aktywuj**.\n-# 🔨 Asystent AI · napisz „człowiek”, a zawołam zespół`);
+    assert.equal(first.content, `${format.INTRO}\n\nKod wpisz w **Hammer+ → „Mam kod”** → wklej → **Aktywuj**.\n-# 🔨 Asystent AI`);
     await write(channel, author, 'a jak mam inne konto?');
     assert.equal(botMessages(channel).at(-1).content, 'Kod działa tylko na koncie, dla którego go wystawiono.\n-# 🔨 Asystent AI');
   } finally {
