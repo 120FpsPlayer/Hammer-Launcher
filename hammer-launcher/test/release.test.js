@@ -13,7 +13,9 @@ const ROOT = path.join(__dirname, '..');
 const REPO = path.join(ROOT, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'launcher.config.json'), 'utf8'));
-const workflow = fs.readFileSync(path.join(REPO, '.github', 'workflows', 'hammer-launcher.yml'), 'utf8');
+// Git on the Windows runner checks text files out with CRLF line ends – the checks below read lines.
+const read = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+const workflow = read(path.join(REPO, '.github', 'workflows', 'hammer-launcher.yml'));
 const expand = (pattern, ext) => pattern.replace('${version}', pkg.version).replace('${arch}', 'x64').replace('${ext}', ext);
 
 test('nothing is ever published to GitHub: every build script says --publish never, the only publish target is the website', () => {
@@ -54,7 +56,7 @@ test('the installer installs for the current user only – a Program Files insta
   const nsis = pkg.build.nsis;
   assert.equal(nsis.oneClick, false);
   assert.notEqual(nsis.perMachine, true);
-  const include = fs.readFileSync(path.join(ROOT, nsis.include), 'utf8');
+  const include = read(path.join(ROOT, nsis.include));
   assert.match(include, /!macro customInstallMode\s+StrCpy \$isForceCurrentInstall "1"\s+!macroend/, 'no „for all users” page');
   assert.doesNotMatch(include, /isForceMachineInstall "1"/);
   // Uninstalling (not during an update) removes the „start with Windows” entry the launcher wrote under its own name.
