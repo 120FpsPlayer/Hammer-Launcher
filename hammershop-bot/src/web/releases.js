@@ -294,6 +294,9 @@ function receive(req, name, part = null) {
 async function publish({ version, file, blockmap = null, notes = '', minVersion = null, signature = null, by = null, makeCurrent = true }) {
   if (!isVersion(version)) throw problem(400, 'Wersja ma postać 2.6.0 (trzy liczby, opcjonalnie dopisek, np. 2.6.0-beta.1).');
   if (!isFileName(file) || !file.endsWith('.exe') || !fs.existsSync(fileOf(file))) throw problem(400, 'Nie ma takiego instalatora (.exe) na serwerze – najpierw go wgraj.');
+  // The build's artifact holds the portable exe next to the installer. It installs nothing: the installed launchers would
+  // run it as their update, stay on the old version and find the same "update" again at every start.
+  if (/portable/i.test(file)) throw problem(400, 'To jest wersja przenośna (portable) – ona się nie instaluje i nie zaktualizuje launcherów graczy. Wybierz instalator: Hammer-Launcher-Setup-….exe.');
   if (blockmap !== null && (!isFileName(blockmap) || !blockmap.endsWith('.blockmap') || !fs.existsSync(fileOf(blockmap)))) throw problem(400, 'Nie ma takiego pliku .blockmap na serwerze.');
   if (minVersion !== null && !isVersion(minVersion)) throw problem(400, 'Najstarsza wspierana wersja ma postać 2.5.0 – albo zostaw to pole puste.');
   if (minVersion !== null && compareVersions(minVersion, version) > 0) throw problem(400, 'Najstarsza wspierana wersja nie może być nowsza niż publikowana.');
@@ -354,6 +357,27 @@ function publicInfo(publicUrl = '') {
   if (!r) return null;
   return { version: r.version, notes: r.notes || '', date: new Date(r.at).toISOString(), minVersion: r.minVersion ?? null, size: r.size, url: `${publicUrl}/updates/${encodeURIComponent(r.file)}` };
 }
+
+/**
+ * The download button's address for a release: /updates/_v/<the start of its sha512>/<file>. It names these very bytes,
+ * so it is sent as „immutable” and Cloudflare keeps the installer at its edge – on premiere day 200 people pressing
+ * „Pobierz” fetch it from Cloudflare, not 200 × the whole file from this server. A build uploaded again under the same
+ * name gets a new address. /updates/<file> (latest.yml, the launcher's own updater) stays „always ask the server”.
+ */
+const stampOf = (release) => Buffer.from(String(release?.sha512 ?? ''), 'base64').toString('hex').slice(0, 16);
+const PINNED = /^_v\/([0-9a-f]{16})\/(.+)$/;
+function downloadPath(release) {
+  const stamp = stampOf(release);
+  return `/updates/${stamp.length === 16 ? `_v/${stamp}/` : ''}${encodeURIComponent(release.file)}`;
+}
+
+/** If-Range / If-None-Match name this version of the file: its ETag, or (If-Range) its exact Last-Modified date. */
+const sameVersion = (header, etag, modified) => {
+  const value = String(header ?? '').trim();
+  if (!value) return false;
+  if (value.startsWith('"') || value.startsWith('W/')) return Boolean(etag) && value.split(',').some((v) => v.trim().replace(/^W\//, '') === etag);
+  return value === modified;
+};
 
 /** "bytes=0-99" → { start, end } within size; null = the whole file; false = cannot be satisfied. */
 function parseRange(header, size) {
@@ -439,18 +463,35 @@ function serve(req, res, name, { send, fail, headers }) {
     const yml = latestYml();
     return yml ? send(res, 200, yml, { 'content-type': TYPES['.yml'], 'cache-control': 'no-cache' }) : fail(res, 404, 'Nie opublikowano jeszcze żadnej wersji.');
   }
-  const known = store.releases().some((r) => r.file === name || r.blockmap === name);
-  if (!known || !isFileName(name) || !fs.existsSync(fileOf(name))) return fail(res, 404, 'Nie znaleziono');
-  const { size } = fs.statSync(fileOf(name));
-  const many = parseRanges(req.headers.range, size);
-  const range = many ? null : parseRange(req.headers.range, size);
+  // /updates/_v/<stamp>/<file> (downloadPath): only while the release's file still has exactly those bytes.
+  const pinned = PINNED.exec(name);
+  if (pinned) name = pinned[2];
+  const release = store.releases().find((r) => r.file === name);
+  const known = release || store.releases().some((r) => r.blockmap === name);
+  if (!known || !isFileName(name) || !fs.existsSync(fileOf(name)) || (pinned && (!release || stampOf(release) !== pinned[1]))) return fail(res, 404, 'Nie znaleziono');
+  const { size, mtime } = fs.statSync(fileOf(name));
+  // Validators: a browser resumes a broken download only when the file has an ETag or a Last-Modified date (Chrome
+  // starts from zero otherwise) – and If-Range makes sure the rest it gets is the rest of the very same file.
+  const etag = release && stampOf(release).length === 16 ? `"${stampOf(release)}"` : null;
+  const modified = mtime.toUTCString();
+  if (sameVersion(req.headers['if-none-match'], etag, null)) {
+    res.writeHead(304, { ...headers, etag, 'last-modified': modified, 'cache-control': pinned ? 'public, max-age=31536000, immutable' : 'no-cache' });
+    return res.end();
+  }
+  const ifRange = req.headers['if-range'];
+  const rangeHeader = ifRange && !sameVersion(ifRange, etag, modified) ? undefined : req.headers.range; // another version → the whole file
+  const many = parseRanges(rangeHeader, size);
+  const range = many ? null : parseRange(rangeHeader, size);
   const base = {
     ...headers,
     'content-type': TYPES[path.extname(name)] ?? 'application/octet-stream',
     'accept-ranges': 'bytes',
-    // Always checked with this server: a build uploaded again under the same name must never come from a cache
-    // with its old bytes (the updater compares the file with the checksum in latest.yml).
-    'cache-control': 'no-cache',
+    // /updates/<file> is always checked with this server: a build uploaded again under the same name must never come
+    // from a cache with its old bytes (the updater compares the file with the checksum in latest.yml). The pinned
+    // address names the bytes themselves, so any cache may keep it.
+    'cache-control': pinned ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'last-modified': modified,
+    ...(etag && { etag }),
     ...(name.endsWith('.exe') && { 'content-disposition': `attachment; filename="${name}"` }),
   };
   if (many) return sendRanges(req, res, name, many, size, base);
@@ -467,4 +508,4 @@ function serve(req, res, name, { send, fail, headers }) {
   return stream.pipe(res);
 }
 
-module.exports = { DIR, compareVersions, isVersion, isFileName, filesOnDisk, hashFile, receive, resumeAt, diskFree, publish, remove, latestYml, publicInfo, parseRange, parseRanges, serve, fileOf };
+module.exports = { DIR, compareVersions, isVersion, isFileName, filesOnDisk, hashFile, receive, resumeAt, diskFree, publish, remove, latestYml, publicInfo, downloadPath, parseRange, parseRanges, serve, fileOf };

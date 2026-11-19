@@ -14,7 +14,7 @@ module.exports = {
     .setDescription('Run giveaways (moderators)')
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-    .addSubcommand((s) =>
+    .addSubcommand((s) => {
       s
         .setName('start')
         .setDescription('Start a giveaway')
@@ -23,15 +23,17 @@ module.exports = {
         .addIntegerOption((o) => o.setName('winners').setDescription('Number of winners (default 1)').setMinValue(1).setMaxValue(20))
         .addStringOption((o) => o.setName('description').setDescription('Extra info shown on the giveaway').setMaxLength(600))
         .addChannelOption((o) => o.setName('channel').setDescription('Channel (default: #giveaways)').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
-        .addRoleOption((o) => o.setName('required_role').setDescription('Only members with this role can enter'))
-        .addBooleanOption((o) => o.setName('buyers_only').setDescription('Only customers (at least one completed order) can enter'))
+        .addRoleOption((o) => o.setName('required_role').setDescription('Only members with this role can enter'));
+      // Customers = completed shop orders: the Hammer Launcher server sells nothing on Discord, so nobody could enter.
+      if (!require('../lib/profile').launcher) s.addBooleanOption((o) => o.setName('buyers_only').setDescription('Only customers (at least one completed order) can enter'));
+      return s
         .addIntegerOption((o) =>
           o.setName('min_invites').setDescription('Only members who invited at least this many members (still on the server)').setMinValue(1).setMaxValue(100),
         )
         .addBooleanOption((o) => o.setName('ping').setDescription('Ping the Giveaways role? (default: yes)'))
         // The AI assistant hands out a Hammer+ prize by itself when it knows how long it is (src/features/ai/prizes.js).
-        .addIntegerOption((o) => o.setName('plus_days').setDescription('The prize is Hammer+? For how many days (0 = forever)').setMinValue(0).setMaxValue(3650)),
-    )
+        .addIntegerOption((o) => o.setName('plus_days').setDescription('The prize is Hammer+? For how many days (0 = forever)').setMinValue(0).setMaxValue(3650));
+    })
     .addSubcommand((s) =>
       s
         .setName('end')

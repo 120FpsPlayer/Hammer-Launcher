@@ -252,8 +252,8 @@ Zainstalowany launcher (instalator Windows) **aktualizuje się sam – z serwera
 - **Wersja przenośna** (portable) i uruchomienie deweloperskie nie podmieniają się same – mówią, że jest nowa wersja, i dają przycisk do strony z instalatorem.
 
 ### Jak wydać nową wersję (właściciel)
-1. Podnieś `version` w `package.json`, wypchnij zmianę i pobierz z GitHub Actions artefakt **Hammer-Launcher-Windows** (jest w nim instalator `Hammer-Launcher-Setup-x.y.z.exe`, jego plik `.blockmap` i `latest.yml`). Przetestuj instalator u siebie.
-2. Na stronie: `<strona>/admin` → **Wersje launchera** → wgraj instalator (i `.blockmap`, żeby gracze pobierali same zmiany) → wpisz wersję i „Co nowego” → **Opublikuj wersję**.
+1. Podnieś `version` w `package.json`, wypchnij zmianę i pobierz z GitHub Actions artefakt **Hammer-Launcher-Windows** (jest w nim instalator `Hammer-Launcher-Setup-x.y.z.exe`, jego plik `.blockmap` i `latest.yml`). Przetestuj instalator u siebie. Wersja przenośna jest w osobnym artefakcie (*Hammer-Launcher-portable-nie-wgrywac-na-strone*) – nie wgrywaj jej na stronę: nie umie się zainstalować ani zaktualizować.
+2. Na stronie: `<strona>/admin` → **Wersje launchera** → wgraj instalator (i `.blockmap`, żeby gracze pobierali same zmiany) → wpisz wersję i „Co nowego” → **Opublikuj wersję**. Wpisz dokładnie tę wersję, która jest w nazwie pliku (`Hammer-Launcher-Setup-2.12.0.exe` → `2.12.0`). Gdyby się nie zgadzała, zainstalowane launchery zainstalują plik raz, zobaczą, że wersja się nie zmieniła, i nie będą próbować w kółko – pokażą graczowi, żeby pobrał launcher ze strony; wtedy opublikuj poprawną wersję.
 3. Od tej chwili strona daje ten plik do pobrania, a zainstalowane launchery same się zaktualizują. Plik `latest.yml` strona tworzy sama – tego z artefaktu nie trzeba wgrywać.
 
 ### Podpisane wydania (zalecane)
@@ -333,6 +333,8 @@ Instalator buduje się też automatycznie w GitHub Actions (workflow **Hammer La
 W `dist/` są też `latest.yml` i pliki `.blockmap` – potrzebne do [aktualizacji launchera](#aktualizacje-launchera) (wgrywasz instalator i `.blockmap` w panelu admina strony; nic nie jest publikowane automatycznie).
 
 **Zabezpieczenia spakowanej aplikacji.** Kod launchera jest spakowany w `app.asar`, a Electron ma włączone „bezpieczniki” (`build.electronFuses` w `package.json`): sprawdzanie integralności `app.asar`, ładowanie kodu tylko z niego, wyłączone uruchamianie launchera jako zwykłego Node.js (`ELECTRON_RUN_AS_NODE`), `NODE_OPTIONS` i `--inspect`, szyfrowane ciasteczka. Zwykła podmiana plików w folderze launchera przestaje działać. To utrudnia grzebanie w programie, ale nie robi z niego sejfu: w launcherze nie ma żadnych sekretów (tylko klucze publiczne), a wszystko, co ważne – płatności, kody Hammer+, aktualizacje – jest sprawdzane na serwerze albo podpisem. GitHub Actions po zbudowaniu instalatora odczytuje bezpieczniki i uruchamia spakowaną aplikację, żeby potwierdzić, że po zabezpieczeniu normalnie startuje.
+
+Instalator instaluje launcher zawsze **tylko dla bieżącego użytkownika** (domyślnie `%LOCALAPPDATA%\Programs\hammer-launcher`, folder można zmienić) i nie pyta „dla kogo zainstalować”: instalacja w Program Files dla wszystkich użytkowników wymagałaby uprawnień administratora przy każdej aktualizacji, a na koncie bez nich (np. konto dziecka) aktualizacje by nie działały. Odinstalowanie usuwa program, skróty, wpis autostartu i obsługę linków `hammer://`; folder z grą, światami i ustawieniami (`%APPDATA%\.hammer-launcher`) zostaje.
 
 Pliki nie są podpisane certyfikatem, więc Windows SmartScreen pokaże ostrzeżenie *„System Windows ochronił ten komputer”*: kliknij **Więcej informacji → Uruchom mimo to**. Przy publicznej dystrybucji warto kupić certyfikat do podpisywania kodu.
 

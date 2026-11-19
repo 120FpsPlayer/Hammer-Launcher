@@ -58,9 +58,10 @@ const ow = (target, allow = [], deny = []) => ({ target, allow: unique(allow), d
  * Role groups by key. '@everyone' and '@booster' are special targets resolved at build time.
  */
 const GROUPS = {
-  admins: ['founder', 'coowner', 'manager', 'admin'],
-  mods: ['founder', 'coowner', 'manager', 'admin', 'moderator'],
-  staff: ['founder', 'coowner', 'manager', 'admin', 'moderator', 'support', 'trialSupport', 'seller'],
+  // developer: only the Hammer Launcher server has it – one of its admins (src/lib/permissions.js ADMIN_KEYS).
+  admins: ['founder', 'coowner', 'manager', 'developer', 'admin'],
+  mods: ['founder', 'coowner', 'manager', 'developer', 'admin', 'moderator'],
+  staff: ['founder', 'coowner', 'manager', 'developer', 'admin', 'moderator', 'support', 'trialSupport', 'seller'],
   bots: ['bots'],
 };
 

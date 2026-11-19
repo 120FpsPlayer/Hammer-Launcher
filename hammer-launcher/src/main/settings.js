@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   closeToTray: true, // Windows: the window's close button leaves the launcher in the tray (it updates itself there)
   seenVersion: '', // the launcher version whose „Co nowego” the player has seen ('' = not known yet)
   updateNotes: null, // { version, notes }: „Co nowego” of the update that was downloaded – shown after it is installed
+  updateTried: null, // { version, from }: the update the launcher last started installing, and the version it ran then (selfupdate.js)
   closedAlert: '', // the id of the shop's message the player closed – it stays closed until the shop sends another one
   newsSeenAt: 0, // the time (`at`) of the newest news item the home screen has shown – newer ones get the „nowe” dot
   // Hammer+ (the values below only work while Hammer+ is active – see PLUS_ONLY)
@@ -119,6 +120,11 @@ function sanitize(patch, base = DEFAULT_SETTINGS) {
   if ('updateNotes' in patch) {
     const n = patch.updateNotes;
     out.updateNotes = n && typeof n === 'object' && typeof n.version === 'string' && /^\d{1,9}\.\d{1,9}\.\d{1,9}(-[0-9A-Za-z.-]{1,40})?$/.test(n.version) ? { version: n.version, notes: typeof n.notes === 'string' ? n.notes.slice(0, 4000) : null } : null;
+  }
+  if ('updateTried' in patch) {
+    const t = patch.updateTried;
+    const v = (x) => typeof x === 'string' && /^\d{1,9}\.\d{1,9}\.\d{1,9}(-[0-9A-Za-z.-]{1,40})?$/.test(x);
+    out.updateTried = t && typeof t === 'object' && v(t.version) && v(t.from) ? { version: t.version, from: t.from } : null;
   }
   if (typeof patch.closedAlert === 'string' && /^[A-Za-z0-9_.:-]{0,64}$/.test(patch.closedAlert)) out.closedAlert = patch.closedAlert;
   if ('newsSeenAt' in patch) out.newsSeenAt = clampInt(patch.newsSeenAt, 0, 1e14, base.newsSeenAt);

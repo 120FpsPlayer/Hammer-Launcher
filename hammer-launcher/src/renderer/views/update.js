@@ -126,7 +126,7 @@
       must.foot,
       // The download page is the way out when the launcher cannot update itself – or when its own update fails.
       active ? (s.status === 'error' ? pageBtn(s, 'btn.ghost') : null) : null,
-      active ? update : (pageBtn(s, 'btn.primary', 'Pobierz nową wersję') ?? h('span.hint', 'Pobierz nową wersję ze strony HammerShop.')),
+      active ? update : (pageBtn(s, 'btn.primary', 'Pobierz nową wersję') ?? h('span.hint', 'Pobierz nową wersję ze strony Hammer Launchera.')),
     );
   }
 

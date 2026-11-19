@@ -6,7 +6,8 @@ main.wrap { padding: 28px 0 10px; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--soft); font: inherit; font-weight: 600; font-size: 14px; padding: 10px 14px; cursor: pointer; margin-bottom: -1px; }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
-.tab { display: grid; gap: 16px; }
+/* minmax(0, …): a long file name or a wide table scrolls inside its card instead of widening the page (a phone would zoom out) */
+.tab { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .grid-2.wide-left { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
@@ -34,7 +35,7 @@ main.wrap { padding: 28px 0 10px; }
 td .btn + .btn { margin-left: 6px; }
 td .pill { margin-left: 6px; }
 @media (max-width: 900px) {
-  .grid-2, .grid-2.wide-left { grid-template-columns: 1fr; }
+  .grid-2, .grid-2.wide-left { grid-template-columns: minmax(0, 1fr); }
   .plan-row { grid-template-columns: 1fr 1fr; }
 }
 

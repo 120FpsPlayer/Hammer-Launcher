@@ -288,7 +288,9 @@
     const buy = shopUrl ? h('button.btn.gold', { type: 'button', onclick: () => HS.open(shopUrl) }, icon('store'), on ? 'Przedłuż w sklepie' : 'Kup w sklepie') : null;
     // „Kup Hammer+”: straight to Hammer+ on the launcher's page of the website – only when the website is an https address.
     const website = String(state.info?.config?.website ?? '').replace(/\/+$/, '');
-    const buyPlus = /^https:\/\/[^\s/]+/.test(website) ? h('button.btn.gold', { type: 'button', onclick: () => HS.open(`${website}/launcher#plus`) }, icon('crown'), 'Kup Hammer+') : null;
+    // „Przedłuż Hammer+” goes there too: Hammer+ is sold on the website – the shop (shopUrl) sells plugins and scripts.
+    const plusPage = /^https:\/\/[^\s/]+/.test(website) ? `${website}/launcher#plus` : null;
+    const buyPlus = plusPage ? h('button.btn.gold', { type: 'button', onclick: () => HS.open(plusPage) }, icon('crown'), on ? 'Przedłuż Hammer+' : 'Kup Hammer+') : null;
 
     /* the code */
     const input = h('input.input.code', { placeholder: 'HP1.…', spellcheck: false, autocomplete: 'off', 'aria-label': 'Kod Hammer+', disabled: !st.configured });
@@ -382,7 +384,7 @@
             h(`p${!on && st.reason !== 'none' ? '.warn' : ''}`, lead),
             on ? h('div.chips', HS.chip(`Aktywny ${until(st)}`, 'gold', 'check'), HS.raw(HS.chip(st.account.name, null, 'user'))) : null,
           ),
-          h('div.plus-acts', on ? buy : (buyPlus ?? buy), on ? null : h('button.btn', { type: 'button', onclick: () => input.focus() }, icon('key'), 'Mam kod')),
+          h('div.plus-acts', buyPlus ?? buy, on ? null : h('button.btn', { type: 'button', onclick: () => input.focus() }, icon('key'), 'Mam kod')),
         ),
         h(
           `div.plus-cols${on ? '.on' : ''}`,

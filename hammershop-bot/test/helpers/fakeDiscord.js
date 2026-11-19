@@ -822,7 +822,26 @@ class FakeGuild {
           throw apiError(50035, 'message rules need MESSAGE_SEND');
         }
         if ([3, 4, 5, 6].includes(data.triggerType) && [...this.cache.values()].some((r) => r.triggerType === data.triggerType)) throw apiError(50035, 'Invalid Form Body\ntrigger_type[AUTO_MODERATION_MAX_RULES_OF_TYPE_EXCEEDED]: Maximum number of rules of this type reached');
-        const rule = { id: nextId(), name: data.name, triggerType: data.triggerType, data, delete: async () => this.cache.delete(rule.id) };
+        // actions: read back the way discord.js shows them (metadata.channelId …, null when unset); edit: like Discord.
+        const asRead = (actions) => actions.map((x) => ({ type: x.type, metadata: { channelId: x.metadata?.channel ?? null, durationSeconds: x.metadata?.durationSeconds ?? null, customMessage: x.metadata?.customMessage ?? null } }));
+        const rule = {
+          id: nextId(), name: data.name, triggerType: data.triggerType, data, actions: asRead(data.actions),
+          delete: async () => this.cache.delete(rule.id),
+          async edit(patch) {
+            if (patch.name !== undefined && (!patch.name || patch.name.length > 100)) throw apiError(50035, 'rule name');
+            for (const a of patch.actions ?? []) {
+              for (const [k, v] of Object.entries(a.metadata ?? {})) if (v === null) throw apiError(50035, `actions.metadata.${k}: null`);
+              if (a.metadata?.customMessage && a.metadata.customMessage.length > 150) throw apiError(50035, 'custom message too long');
+              if (a.type === 2 && !guild.channels.cache.has(a.metadata?.channel)) throw apiError(50035, 'unknown alert channel');
+            }
+            if (patch.name !== undefined) rule.name = patch.name;
+            if (patch.actions) {
+              rule.data = { ...rule.data, actions: patch.actions };
+              rule.actions = asRead(patch.actions);
+            }
+            return rule;
+          },
+        };
         this.cache.set(rule.id, rule);
         return rule;
       },

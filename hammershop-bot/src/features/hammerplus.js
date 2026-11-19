@@ -38,6 +38,8 @@ function setupHelp() {
   const broken = plus.status() === 'invalid';
   return (
     `${broken ? '`HAMMER_PLUS_PRIVATE_KEY` w pliku `.env` jest nieprawidłowy – to musi być klucz Ed25519 (base64 z PKCS#8 DER).' : 'Hammer+ nie jest jeszcze skonfigurowany – w pliku `.env` brakuje klucza, którym bot podpisuje kody.'}\n` +
+    // The launcher's installers carry the public key of the key that already exists – a new one would not work in them.
+    (require('../lib/profile').launcher ? '**Masz już klucz** (jego klucz publiczny jest wbudowany w launcher)? Wklej do `.env` właśnie jego: `HAMMER_PLUS_PRIVATE_KEY=…` i uruchom bota ponownie – nowy klucz nie zadziała w zainstalowanych launcherach. Nowy tylko przy pierwszej konfiguracji:\n' : '') +
     '1. Uruchom w folderze bota `npm run plus-key` – wypisze gotową linię z nowym kluczem.\n' +
     '2. Wklej ją do `.env`: `HAMMER_PLUS_PRIVATE_KEY=…` (nikomu jej nie pokazuj) i uruchom bota ponownie.\n' +
     `3. \`${slash('hammerplus key')}\` pokaże wtedy klucz publiczny, który wpisujesz w Hammer Launcherze.`
@@ -176,8 +178,20 @@ function line(record, now = Date.now()) {
   return `${gone ? '⌛' : '🟢'} \`${truncate(record.nick, 20)}\` · ${gone ? `wygasł ${ts(record.exp * 1000, 'R')}` : validity(record.exp)} · ${from} · ${ts(record.at, 'R')}`;
 }
 
+/** The start-up line about the signing key – null when all is well (or on the shop server, which sells no Hammer+). */
+function keyWarning(launcher = require('../lib/profile').launcher) {
+  if (env.plusPrivateKey && !plus.ready()) return '🔨 Hammer+: HAMMER_PLUS_PRIVATE_KEY w .env jest nieprawidłowy (potrzebny klucz Ed25519: base64 z PKCS#8 DER) – wygeneruj nowy: npm run plus-key';
+  // The Hammer Launcher server sells Hammer+: without the key nothing issues a code and the website doesn't sell it.
+  if (!env.plusPrivateKey && launcher) {
+    return '🔨 Hammer+: brak HAMMER_PLUS_PRIVATE_KEY w .env – Hammer+ nie jest w sprzedaży na stronie, a bot nie wystawi żadnego kodu (/hammerplus nadaj, nagrody z giveawayów). ' +
+      'Wklej klucz, którego klucz publiczny jest wbudowany w launcher – nowy klucz z npm run plus-key nie zadziała w zainstalowanych launcherach.';
+  }
+  return null;
+}
+
 hooks.on('ready', () => {
-  if (env.plusPrivateKey && !plus.ready()) console.warn('🔨 Hammer+: HAMMER_PLUS_PRIVATE_KEY w .env jest nieprawidłowy (potrzebny klucz Ed25519: base64 z PKCS#8 DER) – wygeneruj nowy: npm run plus-key');
+  const warning = keyWarning();
+  if (warning) console.warn(warning);
 });
 
-module.exports = { lookup, grant, grantKnown, runningUntil, freshCode, activeAccounts, inspect, codes, find, recent, line, validity, expired, setupHelp, requireKey, setFetch, MAX_DAYS };
+module.exports = { lookup, grant, grantKnown, runningUntil, freshCode, activeAccounts, inspect, codes, find, recent, line, validity, expired, setupHelp, requireKey, setFetch, keyWarning, MAX_DAYS };

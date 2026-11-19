@@ -8,8 +8,9 @@ const ui = require('../tickets/ui');
 const { env } = require('../env');
 const { PRIORITIES, embed, reply, replyError, isStaff, slug, ts, duration } = require('../lib/utils');
 
-module.exports = {
-  data: new SlashCommandBuilder()
+const launcher = require('../lib/profile').launcher;
+
+const data = new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Manage the ticket in the current channel')
     .setContexts(InteractionContextType.Guild)
@@ -60,17 +61,24 @@ module.exports = {
             .setName('category')
             .setDescription('New category')
             .setRequired(true)
-            .addChoices(...config.ticketTypes.map((ty) => ({ name: `${ty.emoji ?? ''} ${ty.label}`.trim(), value: ty.id }))),
+            // The shop's purchases (shopOnly) don't exist on the Hammer Launcher server.
+            .addChoices(...config.ticketTypes.filter((ty) => !(ty.shopOnly && launcher)).map((ty) => ({ name: `${ty.emoji ?? ''} ${ty.label}`.trim(), value: ty.id }))),
         ),
     )
-    .addSubcommand((s) => s.setName('request-close').setDescription('Ask the author to confirm the issue is resolved'))
-    .addSubcommand((s) =>
-      s
-        .setName('complete')
-        .setDescription('Mark this purchase as delivered (records the sale, gives the Customer role)')
-        .addNumberOption((o) => o.setName('amount').setDescription('Amount the customer paid (default: the order total, if known)').setMinValue(0).setMaxValue(1_000_000)),
-    )
-    .addSubcommand((s) => s.setName('info').setDescription('Ticket information')),
+    .addSubcommand((s) => s.setName('request-close').setDescription('Ask the author to confirm the issue is resolved'));
+// Marking a purchase as delivered – only the shop server sells on Discord.
+if (!launcher) {
+  data.addSubcommand((s) =>
+    s
+      .setName('complete')
+      .setDescription('Mark this purchase as delivered (records the sale, gives the Customer role)')
+      .addNumberOption((o) => o.setName('amount').setDescription('Amount the customer paid (default: the order total, if known)').setMinValue(0).setMaxValue(1_000_000)),
+  );
+}
+data.addSubcommand((s) => s.setName('info').setDescription('Ticket information'));
+
+module.exports = {
+  data,
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();

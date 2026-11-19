@@ -409,7 +409,12 @@
       return () => listeners.get(evt)?.delete(fn);
     },
     emit(evt, data) {
-      for (const fn of listeners.get(evt) ?? []) {
+      // Only the listeners there when the event was sent, and only while they still are: a listener that draws its
+      // tab again (the start screen on 'accounts') adds the new tab's listeners to this very set – walking the live
+      // set would call them too, and they draw the tab again… the window froze for good after a sign-in.
+      const set = listeners.get(evt);
+      for (const fn of set ? [...set] : []) {
+        if (!set.has(fn)) continue; // taken off by an earlier listener (its tab was closed)
         try {
           fn(data);
         } catch (err) {

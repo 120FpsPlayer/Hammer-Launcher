@@ -305,8 +305,11 @@ Dopóki logowanie przez Discorda i Stripe nie są skonfigurowane, strona pokazuj
 przypisane do konta Minecraft**: gracz wkleja kod w launcherze, a launcher sprawdza podpis bez internetu, kluczem publicznym.
 
 **Klucz (ustawiasz raz):**
-1. W folderze bota uruchom `npm run plus-key` – wypisze gotową linię `HAMMER_PLUS_PRIVATE_KEY=…`. Wklej ją do `.env` i uruchom
-   bota ponownie. To klucz prywatny: nikomu go nie podawaj – kto go ma, może wystawiać kody.
+1. **Masz już klucz** (Hammer Launcher ma wbudowany jego klucz publiczny – `launcher.config.json` → `plusPublicKey`)? Wklej do
+   `.env` właśnie jego: `HAMMER_PLUS_PRIVATE_KEY=…` i uruchom bota ponownie. **Nie generuj nowego** – kodów z nowego klucza
+   zainstalowane launchery nie przyjmą. Tylko przy pierwszej konfiguracji: `npm run plus-key` wypisze gotową linię z nowym kluczem.
+   To klucz prywatny: nikomu go nie podawaj – kto go ma, może wystawiać kody. Bez niego Hammer+ nie jest w sprzedaży na stronie,
+   a bot przy starcie pisze o tym w konsoli.
 2. `/hammerplus klucz` pokaże **klucz publiczny** – wpisz go w Hammer Launcherze. Zmiana klucza unieważnia wszystkie wystawione kody.
 
 **Wystawianie kodu:** `/hammerplus nadaj nick:Notch dni:30` (`dni:0` = na zawsze). Bot sprawdza nick w Mojang i odpowiada –

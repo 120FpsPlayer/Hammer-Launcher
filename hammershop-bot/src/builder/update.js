@@ -15,18 +15,18 @@ const db = require('../lib/db');
 const { ROLES, CATEGORIES, OLD_COLORS } = require('./layout');
 const { profile } = require('./permissions');
 const style = require('./style');
-const { createRole, roleOptions, overwriteResolver, channelOptions, channelOverwrites, channelWanted, ensureRoleOrder, publish, describeError } = require('./executor');
+const { createRole, roleOptions, overwriteResolver, channelOptions, channelOverwrites, channelWanted, ensureRoleOrder, publish, describeError, brandAutomod } = require('./executor');
 const { ensureBrandRole } = require('../features/brandrole');
 
 /**
- * @returns {Promise<{ roles: string[], restyled: string[], categories: string[], channels: string[], moved: string[], messages: number, errors: string[] }>}
+ * @returns {Promise<{ roles: string[], restyled: string[], categories: string[], channels: string[], moved: string[], automod: string[], messages: number, errors: string[] }>}
  *   the names of everything that was created (restyled – old roles that got the new name / colour; moved – channels
- *   that went to the category layout.js has them in now)
+ *   that went to the category layout.js has them in now; automod – the bot's AutoMod rules renamed to this server's name)
  */
 async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` } = {}) {
   const build = db.build(guild.id);
   if (!build) throw new Error('Ten serwer nie został jeszcze zbudowany.');
-  const res = { roles: [], restyled: [], categories: [], channels: [], moved: [], messages: 0, errors: [] };
+  const res = { roles: [], restyled: [], categories: [], channels: [], moved: [], automod: [], messages: 0, errors: [] };
   const roles = { ...build.roles };
   const categories = { ...build.categories };
   const channels = { ...build.channels };
@@ -56,23 +56,34 @@ async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` 
   if (newRoles.size) {
     save();
     await attempt('Kolejność ról', () => ensureRoleOrder(guild, ROLES.map((r) => roles[r.key]).filter(Boolean)));
-    // Existing channels give the new roles the same access a fresh build would.
+  }
+  // Roles that got more access in a later version get it on the existing channels like a new role, once per server:
+  // the 💻 Developer (Hammer Launcher) is one of the admins – team channels, logs, #kopie-zapasowe – since developerAccess.
+  const widened = new Set(newRoles);
+  if (roles.developer && guild.roles.cache.has(roles.developer) && !db.build(guild.id).developerAccess) widened.add('developer');
+  if (widened.size) {
+    // Existing channels give these roles the same access a fresh build would.
     for (const cat of CATEGORIES) {
       const targets = [[categories[cat.key], profile(cat.profile)], ...cat.channels.map((ch) => [channels[ch.key], channelOverwrites(cat, ch)])];
       for (const [id, list] of targets) {
         const channel = guild.channels.cache.get(id);
         if (!channel) continue;
-        for (const o of list.filter((x) => newRoles.has(x.target))) {
+        for (const o of list.filter((x) => widened.has(x.target))) {
           const perms = Object.fromEntries([...o.allow.map((p) => [p, true]), ...o.deny.map((p) => [p, false])]);
           await attempt(`Uprawnienia na ${channel.name}`, () => channel.permissionOverwrites.edit(roles[o.target], perms, { type: OverwriteType.Role, reason }));
         }
       }
     }
+    if (widened.has('developer')) db.setBuild(guild.id, { ...db.build(guild.id), developerAccess: true });
   }
   // Roles from an older version: the new default names and colours (names and colours you chose stay).
   res.restyled = await restyleRoles(guild, roles, { roleIcons, reason, onError: (what, err) => res.errors.push(`${what}: ${describeError(err)}`) });
   // The bot's own role: at the very top, on the bot only.
   if (roles.brand) await attempt(`Rola „${ROLES[0].name}” dla bota`, () => ensureBrandRole(guild, { reason }));
+  // AutoMod rules made under the shop's name (the Hammer Launcher server was built as „HammerShop” at first).
+  const automod = await brandAutomod(guild, { reason });
+  res.automod = automod.renamed;
+  res.errors.push(...automod.errors);
 
   // Categories and channels
   const resolve = overwriteResolver(guild, roles);

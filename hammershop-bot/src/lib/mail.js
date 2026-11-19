@@ -19,7 +19,9 @@
  * send() never throws and never rejects – a purchase or a contact message must not fail because mail is down. It
  * resolves { ok: true } or { ok: false, code, reason }: reason is a Polish sentence with the real cause (the admin
  * panel's „Wyślij testowy e-mail” shows it as is), written to the console once per cause. The password is sent only
- * over TLS and is never logged.
+ * over TLS and is never logged. A failure that is only for now – an SMTP "4xx, try again later" (Gmail says so when
+ * many messages go out at once), a dropped or silent connection – is tried twice more, after RETRY_MS: the buyer's
+ * confirmation with the code is not lost to a busy minute.
  */
 
 const net = require('node:net');
@@ -34,6 +36,7 @@ const DEFAULT_PORT = 465;
 const CONNECT_MS = 10_000; // to the server's greeting
 const REPLY_MS = 20_000; // each answer after that
 const SUBJECT_MAX = 200;
+const RETRY_MS = [15_000, 45_000]; // the waits before the 2nd and the 3rd try – all within the 5 minutes an order's e-mail may stay "on its way"
 /** A deliberately plain address: nothing in it can end a header, an SMTP command or a mailto: link. */
 const ADDRESS = /^[A-Za-z0-9._+-]{1,64}@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/;
 const isAddress = (value) => typeof value === 'string' && value.length <= 254 && ADDRESS.test(value);
@@ -42,8 +45,10 @@ const isAddress = (value) => typeof value === 'string' && value.length <= 254 &&
 const oneLine = (value, max = 500) => String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, max);
 
 // Tests only (never set from .env): { plain: true } talks to a local fake without TLS; { modes: { port: 'tls' |
-// 'starttls' }, other: { port: port }, ca } puts real TLS on the fake's ports; connectMs / replyMs shorten the waits.
+// 'starttls' }, other: { port: port }, ca } puts real TLS on the fake's ports; connectMs / replyMs shorten the waits;
+// retryMs: the waits before trying again (under _test there are no second tries unless it is given).
 let test = {};
+let testing = false;
 const modeOf = (port) => (test.plain ? 'plain' : test.modes?.[port] ?? (port === 465 ? 'tls' : 'starttls'));
 const otherPort = (port) => test.other?.[port] ?? { 465: 587, 587: 465 }[port] ?? null;
 
@@ -332,6 +337,14 @@ function reasonOf(err, cfg, ports) {
   }
 }
 
+/** Worth another try a little later: the server said "4xx – not now", or the connection broke or stayed silent. */
+function temporary(err) {
+  if (err?.reply?.code >= 400 && err.reply.code < 500) return true;
+  if (/^4\d\d /.test(String(err?.detail ?? ''))) return true; // a greeting like "421 Too many connections"
+  if (err?.kind === 'dns') return err.code === 'EAI_AGAIN';
+  return ['connect', 'timeout', 'broken'].includes(err?.kind);
+}
+
 function offReason(cfg) {
   if (!isAddress(cfg.from) || !isAddress(cfg.to)) return 'E-mail nie jest włączony: brakuje adresu – wpisz go w config.json („contact” → „email”) albo w pliku .env jako MAIL_USER i MAIL_TO.';
   return 'E-mail nie jest włączony: w pliku .env brakuje linii MAIL_PASS (hasło do aplikacji z konta Google).';
@@ -356,7 +369,7 @@ async function deliver({ subject, text, html, inline, replyTo, to }) {
     await talk(cfg, first, envelope, data);
     return { ok: true };
   } catch (err) {
-    if (!err.unreachable || second == null) return { ok: false, code: err.kind, reason: reasonOf(err, cfg, [first]) };
+    if (!err.unreachable || second == null) return { ok: false, code: err.kind, reason: reasonOf(err, cfg, [first]), temporary: temporary(err) };
     try {
       await talk(cfg, second, envelope, data);
       if (workingPort?.port !== second || workingPort.key !== key) console.log(`✉️ Poczta: port ${first} serwera ${cfg.host} nie odpowiada – wysyłam przez port ${second}.`);
@@ -364,24 +377,31 @@ async function deliver({ subject, text, html, inline, replyTo, to }) {
       return { ok: true };
     } catch (err2) {
       // Both closed: one story. The second port answered and said no: that is the real cause.
-      return { ok: false, code: err2.kind, reason: reasonOf(err2.unreachable ? err : err2, cfg, err2.unreachable ? [first, second] : [second]) };
+      return { ok: false, code: err2.kind, reason: reasonOf(err2.unreachable ? err : err2, cfg, err2.unreachable ? [first, second] : [second]), temporary: temporary(err2) };
     }
   }
 }
 
 /**
- * send({ subject, text, html?, inline?, replyTo?, to? }) → { ok: true } | { ok: false, code, reason }. Never throws.
- * inline: pictures the HTML shows with <img src="cid:…"> (compose()).
+ * send({ subject, text, html?, inline?, replyTo?, to?, retry? }) → { ok: true } | { ok: false, code, reason }. Never
+ * throws. inline: pictures the HTML shows with <img src="cid:…"> (compose()).
  * to: default MAIL_TO; replyTo: where "Reply" goes (left out when it is not a plain address); html: the same message
- * as a web page – sent next to the text, never instead of it.
+ * as a web page – sent next to the text, never instead of it; retry: false – one try only, the answer right away
+ * (the admin panel's test e-mail – the owner waits for it).
  */
 async function send(message = {}) {
   let result;
-  try {
-    result = await deliver(message);
-  } catch (err) {
-    result = { ok: false, code: 'error', reason: `Nie udało się wysłać e-maila: ${oneLine(err?.message, 200)}` };
+  const waits = message.retry === false ? [] : test.retryMs ?? (testing ? [] : RETRY_MS);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      result = await deliver(message);
+    } catch (err) {
+      result = { ok: false, code: 'error', reason: `Nie udało się wysłać e-maila: ${oneLine(err?.message, 200)}` };
+    }
+    if (result.ok || !result.temporary || attempt >= waits.length) break;
+    await new Promise((resolve) => setTimeout(resolve, waits[attempt]));
   }
+  delete result.temporary;
   if (result.code !== 'off') {
     last = { ok: result.ok, at: Date.now(), reason: result.ok ? null : result.reason };
     // Once per cause: a mailbox that is down for a day must not fill the console with the same line.
@@ -413,6 +433,7 @@ module.exports = {
   /** Tests only – see `test` above; no argument puts everything back. */
   _test: (options = {}) => {
     test = options;
+    testing = true;
     workingPort = null;
     last = { ok: null, at: null, reason: null };
     said = null;

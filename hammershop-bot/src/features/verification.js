@@ -85,6 +85,9 @@ function checkRole(interaction) {
 }
 
 async function grant(interaction, role) {
+  // Discord gets its answer first: in a burst of joins the role changes wait in one queue, and an answer after 3 seconds
+  // fails („Ta interakcja nie powiodła się”). The role is given even when Discord no longer takes the answer.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
   await interaction.member.roles.add(role, 'Weryfikacja');
   const g = interaction.guild;
   const c = container(COLORS.success);
@@ -102,7 +105,8 @@ async function grant(interaction, role) {
     .map(([id, label, icon]) => linkBtn(channelUrl(g.id, id), label, ce(g, icon)));
   if (links.length) c.addActionRowComponents(row(...links));
   try {
-    await interaction.reply({ ...v2(c), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+    if (interaction.deferred) await interaction.editReply({ ...v2(c), flags: MessageFlags.IsComponentsV2 });
+    else await interaction.reply({ ...v2(c), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
   } finally {
     // The role is given at this point – log it and run the 'verified' features (invite credit, welcome code)
     // even when Discord refused a late reply. Logging comes after the reply: Discord needs an answer within 3 seconds.

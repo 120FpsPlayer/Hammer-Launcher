@@ -109,6 +109,7 @@ test('without Hammer+: Hammer and Żar are for everybody – shown to others thr
   // The game draws it.
   await play();
   assert.equal(launcherFile().cape, 'ember');
+  assert.equal(launcherFile().plusUrl, 'https://hammerclient.com/launcher#plus', 'the mod\'s Hammer+ button opens Hammer+ on the website');
 });
 
 test('the switch: off – no cape in the game and none for others; on – the same one again (and the Mojang cape to bring back)', async () => {

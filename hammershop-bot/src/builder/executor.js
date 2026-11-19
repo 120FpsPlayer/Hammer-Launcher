@@ -125,45 +125,47 @@ const SCAM_KEYWORDS = [
 ];
 const INVITE_REGEX = '(?i)(discord\\.(gg|io|me|li)|discord(app)?\\.com/invite|dsc\\.gg)/[a-z0-9-]+';
 
+/** The bot's AutoMod rules – named after the server's brand, which members also see when AutoMod blocks a message. */
 function automodRules(alertChannelId, exemptRoleIds) {
-  const block = { type: AutoModerationActionType.BlockMessage, metadata: { customMessage: 'Zablokowane przez AutoMod HammerShop. Przeczytaj regulamin.' } };
+  const brand = config.brand.name;
+  const block = { type: AutoModerationActionType.BlockMessage, metadata: { customMessage: `Zablokowane przez AutoMod ${brand}. Przeczytaj regulamin.`.slice(0, 150) } };
   const alert = alertChannelId ? [{ type: AutoModerationActionType.SendAlertMessage, metadata: { channel: alertChannelId } }] : [];
   const msg = (extra = []) => [block, ...alert, ...extra];
   const exemptRoles = exemptRoleIds.slice(0, 20);
   const base = { eventType: AutoModerationRuleEventType.MessageSend, enabled: true, exemptRoles };
   return [
-    { ...base, name: 'HammerShop · Filtr spamu', triggerType: AutoModerationRuleTriggerType.Spam, actions: msg() },
+    { ...base, name: `${brand} · Filtr spamu`, triggerType: AutoModerationRuleTriggerType.Spam, actions: msg() },
     {
       ...base,
-      name: 'HammerShop · Spam wzmianek i raidy',
+      name: `${brand} · Spam wzmianek i raidy`,
       triggerType: AutoModerationRuleTriggerType.MentionSpam,
       triggerMetadata: { mentionTotalLimit: 5, mentionRaidProtectionEnabled: true },
       actions: msg([{ type: AutoModerationActionType.Timeout, metadata: { durationSeconds: 600 } }]),
     },
     {
       ...base,
-      name: 'HammerShop · Wulgaryzmy, obelgi i treści seksualne',
+      name: `${brand} · Wulgaryzmy, obelgi i treści seksualne`,
       triggerType: AutoModerationRuleTriggerType.KeywordPreset,
       triggerMetadata: { presets: [AutoModerationRuleKeywordPresetType.Profanity, AutoModerationRuleKeywordPresetType.Slurs, AutoModerationRuleKeywordPresetType.SexualContent] },
       actions: msg(),
     },
     {
       ...base,
-      name: 'HammerShop · Oszukańcze linki',
+      name: `${brand} · Oszukańcze linki`,
       triggerType: AutoModerationRuleTriggerType.Keyword,
       triggerMetadata: { keywordFilter: SCAM_KEYWORDS },
       actions: msg([{ type: AutoModerationActionType.Timeout, metadata: { durationSeconds: 3600 } }]),
     },
     {
       ...base,
-      name: 'HammerShop · Zaproszenia na Discorda',
+      name: `${brand} · Zaproszenia na Discorda`,
       triggerType: AutoModerationRuleTriggerType.Keyword,
       triggerMetadata: { regexPatterns: [INVITE_REGEX] },
       actions: msg(),
       exemptRoles,
     },
     {
-      name: 'HammerShop · Oszukańcze nicki i profile',
+      name: `${brand} · Oszukańcze nicki i profile`,
       eventType: AutoModerationRuleEventType.MemberUpdate,
       triggerType: AutoModerationRuleTriggerType.MemberProfile,
       triggerMetadata: { keywordFilter: SCAM_KEYWORDS },
@@ -172,6 +174,43 @@ function automodRules(alertChannelId, exemptRoleIds) {
       enabled: true,
     },
   ];
+}
+
+/** Names the bot's AutoMod rules were made with before each profile had its own (the Hammer Launcher server too). */
+const OLD_AUTOMOD_BRANDS = ['HammerShop'];
+
+/**
+ * /build only:update: the bot's AutoMod rules made under an older name ("HammerShop · Filtr spamu", and the
+ * "Zablokowane przez AutoMod HammerShop" members read when a message is blocked) get this server's name. Rules are
+ * recognised by an old name + one of the bot's own rule names; anything else is left alone.
+ * @returns {Promise<{ renamed: string[], errors: string[] }>}
+ */
+async function brandAutomod(guild, { reason } = {}) {
+  const res = { renamed: [], errors: [] };
+  const wanted = automodRules(null, []);
+  const message = wanted[0].actions[0].metadata.customMessage;
+  const rules = await guild.autoModerationRules.fetch().catch(() => null);
+  for (const rule of rules?.values() ?? []) {
+    const old = OLD_AUTOMOD_BRANDS.find((b) => b !== config.brand.name && String(rule.name).startsWith(`${b} · `));
+    const want = old && wanted.find((w) => w.name.slice(w.name.indexOf(' · ')) === rule.name.slice(old.length));
+    if (!want) continue;
+    // Every action again (Discord replaces the list): the alert channel, the timeout – and the new message.
+    const actions = (rule.actions ?? []).map((a) => ({
+      type: a.type,
+      metadata: {
+        channel: a.metadata?.channelId ?? undefined,
+        durationSeconds: a.metadata?.durationSeconds ?? undefined,
+        customMessage: a.metadata?.customMessage ? (OLD_AUTOMOD_BRANDS.some((b) => a.metadata.customMessage.includes(`AutoMod ${b}`)) ? message : a.metadata.customMessage) : undefined,
+      },
+    }));
+    try {
+      await rule.edit({ name: want.name, actions, reason });
+      res.renamed.push(want.name);
+    } catch (err) {
+      res.errors.push(`Reguła AutoMod „${rule.name}”: ${describeError(err)}`);
+    }
+  }
+  return res;
 }
 
 const SINGLE_TRIGGERS = new Set([
@@ -704,4 +743,4 @@ async function ensureRoleOrder(guild, ids) {
   return true;
 }
 
-module.exports = { buildServer, publish, sendItem, describeError, discordLocale, BuildAborted, mergeOverwrites, channelOverwrites, everyoneCanRead, automodRules, plannedSteps, logoPath, createRole, roleOptions, overwriteResolver, channelOptions, channelWanted, ensureRoleOrder };
+module.exports = { buildServer, publish, sendItem, describeError, discordLocale, BuildAborted, mergeOverwrites, channelOverwrites, everyoneCanRead, automodRules, brandAutomod, plannedSteps, logoPath, createRole, roleOptions, overwriteResolver, channelOptions, channelWanted, ensureRoleOrder };

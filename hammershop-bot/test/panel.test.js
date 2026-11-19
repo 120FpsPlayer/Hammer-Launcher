@@ -230,7 +230,7 @@ test('launcher releases: only the owner publishes; latest.yml, the download and 
   assert.equal(webStore.currentRelease().downloads, 0);
   // … signed in → the file, counted (also for that account).
   const dl = await call('GET', '/download', { who: 'buyer' });
-  assert.deepEqual([dl.status, dl.headers.get('location')], [302, '/updates/Hammer-Launcher-Setup-2.6.0.exe']);
+  assert.deepEqual([dl.status, dl.headers.get('location')], [302, releases.downloadPath(webStore.currentRelease())]); // the installer's pinned address
   assert.equal(webStore.currentRelease().downloads, 1);
   assert.equal(webStore.referralOf(BUYER.id).downloads, 1);
   const whole = await call('GET', '/updates/Hammer-Launcher-Setup-2.6.0.exe');

@@ -394,7 +394,7 @@ public class ModMenuScreen extends UiScreen {
         boolean plus = Hammer.plus();
         row(ui, plus ? plusUntil(cfg) : Hammer.t("plus.inactive"), x, y, w, rowH - 4);
         if (plus) PlusBadge.draw(d, x + w - 12 - PlusBadge.width(d, 14), y + (rowH - 4 - 14) / 2f, 14, 1f);
-        else if (!cfg.shopUrl.isEmpty() && ui.button("plus.shop", Hammer.t("plus.get"), "crown", x + w - 12 - 118, y + 3, 118, rowH - 10, Ui.Style.SECONDARY)) p.openUrl(cfg.shopUrl);
+        else if (!cfg.plusShopUrl().isEmpty() && ui.button("plus.shop", Hammer.t("plus.get"), "crown", x + w - 12 - 118, y + 3, 118, rowH - 10, Ui.Style.SECONDARY)) p.openUrl(cfg.plusShopUrl());
         y += rowH;
         if (p.supports(Platform.Feature.CAPES)) {
             String worn = pl.hammershop.client.core.Capes.own(cfg); // Hammer and Żar for everybody, the rest with Hammer+

@@ -5,7 +5,7 @@
   "name": "Hammer Client",
   "description": "Własne menu, panel modułów, HUD, przybliżenie i dodatki od HammerShop – wbudowane w Hammer Launcher.",
   "authors": ["HammerShop"],
-  "contact": { "homepage": "https://hammershop.pl" },
+  "contact": { "homepage": "https://hammerclient.com" },
   "license": "MIT",
   "icon": "assets/hammerclient/icon.png",
   "environment": "client",

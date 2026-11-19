@@ -85,7 +85,8 @@ function supports(instance, client = NONE) {
 }
 
 /**
- * What the launcher tells the mod in config/hammerclient-launcher.json: the links for its Discord / shop buttons
+ * What the launcher tells the mod in config/hammerclient-launcher.json: the links for its Discord / shop buttons,
+ * plusUrl – where Hammer+ is bought (the website; its „Zobacz w sklepie” button, the shop sells other things) –
  * and where Hammer+ stands for the account that is about to play –
  *   plus: { active, until (unix seconds, 0 = never or not active) },
  *   cape: the Hammer cape the player wears ("" = none) – the services decide what is allowed: the free capes for
@@ -105,8 +106,15 @@ function launcherFile({ links = {}, plus = null, cape = '', api = '', cosmetics 
     plus: { active, until },
     cape: typeof cape === 'string' && /^[a-z0-9_-]{1,32}$/.test(cape) ? cape : '',
     api: typeof api === 'string' && /^https?:\/\//.test(api) ? api : '',
+    ...(https(links.plusUrl) && { plusUrl: https(links.plusUrl) }), // only with a website – the file stays as it was otherwise
     ...lookOf(cosmetics),
   };
+}
+
+/** Where Hammer+ is bought: its part of the website (the same address as „Kup Hammer+” in the launcher) – '' without an https site. */
+function plusPage(config = {}) {
+  const site = String(config.website ?? '').trim().replace(/\/+$/, '');
+  return /^https:\/\/[^\s/]+$/.test(site) ? `${site}/launcher#plus` : '';
 }
 
 /** { cosmetics: { wings, halo, hat } } when anything is worn – plain ids only – otherwise nothing. */
@@ -157,4 +165,4 @@ async function syncHammerClient({ instance, client = NONE, content, links = {}, 
   return { active: true };
 }
 
-module.exports = { loadHammerClient, syncHammerClient, launcherFile, supports, compareVersions, FILE, INDEX, LEGACY_VERSIONS };
+module.exports = { loadHammerClient, syncHammerClient, launcherFile, plusPage, supports, compareVersions, FILE, INDEX, LEGACY_VERSIONS };

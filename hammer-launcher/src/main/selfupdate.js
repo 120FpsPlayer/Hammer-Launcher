@@ -187,6 +187,7 @@ const TEXT = {
   notReady: 'Aktualizacja nie jest jeszcze pobrana.',
   unsigned: (v) => `Aktualizacja ${v} nie ma podpisu HammerShop, więc launcher jej nie zainstaluje. Jeśli to się powtarza, daj nam znać na Discordzie.`,
   invalid: (v) => `Aktualizacja ${v} ma nieprawidłowy podpis, więc launcher jej nie zainstaluje. Jeśli to się powtarza, daj nam znać na Discordzie.`,
+  stuck: (v) => `Aktualizacja ${v} nie zainstalowała się, więc launcher nie będzie jej już instalował sam. Pobierz najnowszą wersję ze strony i zainstaluj ją ręcznie.`,
 };
 
 /** „Co nowego” from latest.yml (releaseNotes: a text, or a list of { version, note }) as plain text – null without any. */
@@ -207,6 +208,9 @@ function notesOf(info) {
  * @param {() => boolean} [o.autoUpdate]    the setting „Aktualizuj automatycznie”
  * @param {(state: object) => void} [o.onChange]   the state changed (see status())
  * @param {(line: string) => void} [o.log]
+ * @param {() => ({version: string, from: string}|null)} [o.tried]   the update the launcher last started installing
+ *                                    and the version it was running then (settings.json → updateTried)
+ * @param {(attempt: {version: string, from: string}|null) => void} [o.remember]   keeps that (null forgets it)
  */
 function createSelfUpdate({
   updater = null,
@@ -218,6 +222,8 @@ function createSelfUpdate({
   autoUpdate = () => true,
   onChange = () => {},
   log = () => {},
+  tried = () => null,
+  remember = () => {},
   now = () => Date.now(),
   timers = {
     set: (fn, ms) => {
@@ -256,6 +262,36 @@ function createSelfUpdate({
   let timer = null;
   let started = false;
   let last = null;
+
+  // An update that was installed, and still this version runs: the installer did not do its job – most often a
+  // release whose file is not the version it says (the owner typed 2.12.0 next to the 2.11.3 installer). Installed
+  // again by itself it would restart the launcher in a loop, every minute, on every player's computer – so that
+  // version is not fetched by itself any more (the player can still update from the required-update window).
+  const stuck = (() => {
+    let attempt = null;
+    try {
+      attempt = tried();
+    } catch {
+      return null;
+    }
+    if (!attempt) return null;
+    if (attempt.from === version && isNewer(attempt.version, version)) return attempt.version;
+    try {
+      remember(null); // installed (or something else since): nothing to hold back
+    } catch {
+      // nothing to forget
+    }
+    return null;
+  })();
+  if (stuck) log(`update ${stuck} was installed, but version ${version} is still running - not installing it again by itself`);
+  const attempting = (attempt = { version: latest, from: version }) => {
+    try {
+      remember(attempt);
+    } catch {
+      // without the note a broken release may be installed again – never a reason not to install
+    }
+  };
+  const notStarted = () => attempting(null); // the installer did not even start: nothing to hold back next time
 
   const active = () => status !== 'off' && status !== 'unsupported';
   const playing = () => {
@@ -362,6 +398,11 @@ function createSelfUpdate({
     percent = null;
     status = 'available';
     log(`found version ${found}${enforce ? ' (signature valid)' : ''}`);
+    if (found === stuck && !wanted) {
+      status = 'error';
+      error = TEXT.stuck(found);
+      return changed();
+    }
     if (auto() || wanted) return startDownload();
     return changed();
   }
@@ -418,6 +459,7 @@ function createSelfUpdate({
       // Not while checking or downloading: the installer could not be started.
       if (!installing) return snapshot();
       installing = false;
+      notStarted();
       error = TEXT.install;
       return changed();
     }
@@ -512,10 +554,12 @@ function createSelfUpdate({
     if (playing()) throw new Error(TEXT.game);
     installing = true;
     log(`installing ${latest} (restart)`);
+    attempting();
     try {
       updater.quitAndInstall(true, true);
     } catch (err) {
       installing = false;
+      notStarted();
       log(`the installer could not be started: ${String(err?.message ?? err).slice(0, 200)}`);
       throw new Error(TEXT.install, { cause: err });
     }
@@ -544,10 +588,14 @@ function createSelfUpdate({
   function installOnQuit(exitCode = 0) {
     if (!active() || status !== 'ready' || installing || exitCode !== 0 || playing()) return false;
     installing = true;
+    attempting();
     try {
       log(`installing ${latest} as the launcher closes`);
-      return updater.install(true, false) !== false;
+      if (updater.install(true, false) !== false) return true;
+      notStarted();
+      return false;
     } catch (err) {
+      notStarted();
       log(`the installer could not be started: ${String(err?.message ?? err).slice(0, 200)}`);
       return false;
     }
@@ -562,11 +610,13 @@ function createSelfUpdate({
     if (!active() || status !== 'ready' || installing || playing() || !auto()) return false;
     installing = true;
     log(`installing ${latest} in the background (no window, no game)`);
+    attempting();
     try {
       updater.quitAndInstall(true, true);
       return true;
     } catch (err) {
       installing = false;
+      notStarted();
       log(`the installer could not be started: ${String(err?.message ?? err).slice(0, 200)}`);
       return false;
     }

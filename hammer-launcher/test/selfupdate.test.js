@@ -800,3 +800,65 @@ test('services: „Co nowego” once after an update – the notes kept from the
   const shop = async (url) => (String(url).includes('/api/launcher/news') ? new Response(JSON.stringify({ news: [], alert: null, release: { version: '2.7.0', notes: '– Z serwera', date: '13.11.2026', minVersion: null, size: 1, url: 'https://hammershop.pl/download' } }), { status: 200, headers: { 'content-type': 'application/json' } }) : Promise.reject(new TypeError('offline')));
   assert.deepEqual(await createServices({ root: old, config: { website: 'https://hammershop.pl' }, accounts: {}, fetchFn: shop, appVersion: '2.7.0' }).selfUpdate.whatsNew(), { version: '2.7.0', from: null, notes: '– Z serwera' });
 });
+
+test('a release whose installer is not the version it says (2.6.1 next to the 2.6.0 file) is not installed again and again', async () => {
+  // The owner typed 2.6.1 in the panel, but uploaded the 2.6.0 installer: it installs, the launcher starts again as 2.6.0
+  // and finds „2.6.1” once more. Installed again by itself, that would restart the launcher every minute, for good.
+  const root = tmpDir();
+  const offline = async () => Promise.reject(new TypeError('offline'));
+  const start = (updater) => createServices({ root, config: { website: 'https://hammershop.pl' }, accounts: {}, fetchFn: offline, appVersion: '2.6.0', updater, updateSupport: SUPPORTED });
+  const info = latest('2.6.1');
+
+  const first = fakeUpdater();
+  const s1 = start(first);
+  first.answer = { info };
+  await s1.selfUpdate.check();
+  first.finish(info);
+  await tick();
+  assert.equal(await s1.selfUpdate.installQuietly(), true, 'the first time it installs, quietly');
+  assert.deepEqual(s1.settings.get().updateTried, { version: '2.6.1', from: '2.6.0' });
+
+  // The launcher is back – still 2.6.0. The same release is found: not downloaded, not installed, and said why.
+  const second = fakeUpdater();
+  const s2 = start(second);
+  second.answer = { info };
+  const st = await s2.selfUpdate.check();
+  assert.equal(second.downloads, 0, 'not fetched by itself again');
+  assert.equal(st.status, 'error');
+  assert.equal(st.error, 'Aktualizacja 2.6.1 nie zainstalowała się, więc launcher nie będzie jej już instalował sam. Pobierz najnowszą wersję ze strony i zainstaluj ją ręcznie.');
+  assert.equal(await s2.selfUpdate.installQuietly(), false);
+  assert.deepEqual(second.quits, []);
+  // A newer release (the owner fixed it as 2.6.2) is installed as usual.
+  second.answer = { info: latest('2.6.2') };
+  assert.equal((await s2.selfUpdate.check()).status, 'downloading');
+
+  // An update that did install is forgotten: the next one is not held back.
+  const s3 = createServices({ root, config: { website: 'https://hammershop.pl' }, accounts: {}, fetchFn: offline, appVersion: '2.6.1', updater: fakeUpdater(), updateSupport: SUPPORTED });
+  assert.equal(s3.settings.get().updateTried, null);
+});
+
+test('the reinstall guard: only a version that is still running holds the update back; an installer that never started holds nothing', async () => {
+  let note = { version: '2.6.1', from: '2.6.0' };
+  const io = { tried: () => note, remember: (n) => (note = n) };
+  const held = setup({ ...io });
+  held.updater.answer = { info: latest('2.6.1') };
+  assert.equal((await held.self.check()).status, 'error');
+  assert.ok(held.logs.some((l) => /still running - not installing it again by itself/.test(l)));
+  // „Zaktualizuj teraz” of the required-update window is the player asking: it is fetched then.
+  held.self.update();
+  await tick();
+  assert.equal(held.updater.downloads, 1);
+
+  // quitAndInstall throws: the installer did not start, so nothing is remembered against the next try.
+  note = null;
+  const broken = setup({ ...io });
+  broken.updater.quitAndInstall = () => {
+    throw new Error('spawn EACCES');
+  };
+  broken.updater.answer = { info: latest('2.6.1') };
+  await broken.self.check();
+  broken.updater.finish(latest('2.6.1'));
+  await tick();
+  assert.throws(() => broken.self.install(), /Nie udało się uruchomić instalatora/);
+  assert.equal(note, null);
+});

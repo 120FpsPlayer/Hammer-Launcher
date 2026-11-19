@@ -110,7 +110,7 @@ function closeReasonModal() {
       new LabelBuilder()
         .setLabel('Powód zamknięcia')
         .setTextInputComponent(
-          new TextInputBuilder().setCustomId('reason').setPlaceholder('Np. zamówienie dostarczone, sprawa załatwiona…').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
+          new TextInputBuilder().setCustomId('reason').setPlaceholder(require('../lib/profile').launcher ? 'Np. problem rozwiązany, sprawa załatwiona…' : 'Np. zamówienie dostarczone, sprawa załatwiona…').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
         ),
     );
 }

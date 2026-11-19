@@ -97,13 +97,16 @@ async function postNotice(guild, payload) {
   return channelId ? sendToChannel(guild, channelId, payload) : null;
 }
 
+/** What members can't do through the bot during a lockdown – the Hammer Launcher server has no orders or vouches. */
+const pausedThings = () => (require('../lib/profile').launcher ? { list: 'nowe tickety', again: 'tickety' } : { list: 'nowe tickety, zamówienia i opinie', again: 'tickety, zamówienia i opinie' });
+
 function lockedCard(guild, lockdown) {
   const c = container(COLORS.warning);
   header(
     c,
     `## ${e(guild, 'lock_locked')} Serwer jest zablokowany\n` +
       `Właśnie zajmujemy się pewnym problemem${lockdown.reason ? `: **${truncate(lockdown.reason, 200)}**` : ''}. ` +
-      'Czat, reakcje, wątki i kanały głosowe są na chwilę wstrzymane dla członków – podobnie jak nowe tickety, zamówienia i opinie.\n' +
+      `Czat, reakcje, wątki i kanały głosowe są na chwilę wstrzymane dla członków – podobnie jak ${pausedThings().list}.\n` +
       `> ${e(guild, 'ticket')} Twoje otwarte tickety nadal działają – zespół wciąż może Ci w nich pomóc.`,
     guild.iconURL?.({ size: 128 }),
   );
@@ -116,7 +119,7 @@ function unlockedCard(guild, lockdown, now = Date.now()) {
   header(
     c,
     `## ${e(guild, 'lock_unlocked')} Serwer jest odblokowany\n` +
-      'Wszystko wróciło do normy – czat, reakcje, kanały głosowe, tickety, zamówienia i opinie znów działają. Dziękujemy za cierpliwość 🧡',
+      `Wszystko wróciło do normy – czat, reakcje, kanały głosowe, ${pausedThings().again} znów działają. Dziękujemy za cierpliwość 🧡`,
     guild.iconURL?.({ size: 128 }),
   );
   c.addTextDisplayComponents(text(`-# Odblokowano ${ts(now, 'R')} · blokada trwała ${duration(now - lockdown.at)}`));
@@ -344,7 +347,7 @@ function lockReply(guild, result, reason) {
   if (gaps.length > 10) lines.push(`⚠️ … i jeszcze ${count(gaps.length - 10, 'taka rola', 'takie role', 'takich ról')}.`);
   if (roles.length) lines.push(`✅ Zablokowano też: ${roleList(roles)} – ${one(roles, 'ta rola też pozwalała', 'te role też pozwalały')} pisać.`);
   if (result.channels) lines.push(`✅ Wstrzymano też na **${result.channels}** ${plural(result.channels, 'kanale', 'kanałach', 'kanałach')}, które na to pozwalały członkom.`);
-  lines.push('✅ Nowe tickety, zamówienia i opinie są wstrzymane dla członków – otwarte tickety nadal działają.');
+  lines.push(`✅ ${pausedThings().list.replace(/^n/, 'N')} są wstrzymane dla członków – otwarte tickety nadal działają.`);
   lines.push(
     {
       paused: '✅ Zaproszenia są wstrzymane – nikt nowy nie może dołączyć.',

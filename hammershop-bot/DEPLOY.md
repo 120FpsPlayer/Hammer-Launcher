@@ -44,8 +44,8 @@ Najważniejsze linie:
 
 | Linia | Skąd ją wziąć |
 |---|---|
-| `BOT_PROFILE=launcher` | **dla serwera Hammer Launcher** – nazwa, logo H, kanały launchera, strona główna = strona launchera. Dla sklepu HammerShop zostaw puste |
-| `DISCORD_TOKEN=` | Developer Portal → Twoja aplikacja → **Bot → Reset Token** (dla serwera launchera najlepiej osobna aplikacja „Hammer Launcher” z logo H) |
+| `BOT_PROFILE=launcher` | **dla serwera Hammer Launcher** – nazwa, logo (młotek), kanały launchera, strona główna = strona launchera. Dla sklepu HammerShop zostaw puste |
+| `DISCORD_TOKEN=` | Developer Portal → Twoja aplikacja → **Bot → Reset Token** (dla serwera launchera najlepiej osobna aplikacja „Hammer Launcher” z jego logo) |
 | `GUILD_ID=` | ID Twojego serwera Discord |
 | `OWNER_IDS=` | Twoje ID na Discordzie (pełny dostęp do panelu admina) – tylko zaufane osoby |
 | `WEB_PORT=8080` | port, na którym działa strona (Caddy przekazuje na niego ruch) |
@@ -54,6 +54,7 @@ Najważniejsze linie:
 | `STRIPE_SECRET_KEY=` | Stripe → **Developers → API keys → Secret key** (`sk_test_…` do prób, potem `sk_live_…`) |
 | `STRIPE_WEBHOOK_SECRET=` | Stripe → **Developers → Webhooks → Add endpoint** `https://twojadomena.pl/api/shop/stripe/webhook`, zdarzenia `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired` → **Signing secret** (`whsec_…`) |
 | `HAMMER_PLUS_PRIVATE_KEY=` | linia z pliku z kluczem, który już masz – albo nowy: `npm run plus-key` |
+| `GROQ_API_KEY=` | *opcjonalnie, serwer Hammer Launcher* – darmowy klucz z [console.groq.com](https://console.groq.com) (API Keys → Create API Key): asystent AI w ticketach. Bez niego tickety działają jak zwykle, a nagrody z giveawayów odbiera się przyciskami – zob. README → „Asystent AI w ticketach” |
 | `MAIL_PASS=` | *opcjonalnie* – 16-literowe „hasło do aplikacji” z konta Gmail, na które mają przychodzić wiadomości ze strony i powiadomienia o zakupach – zob. [E-mail ze strony](#e-mail-ze-strony-gmail-za-darmo) |
 
 ```bash

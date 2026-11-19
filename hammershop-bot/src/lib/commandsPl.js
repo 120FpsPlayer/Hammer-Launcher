@@ -292,6 +292,14 @@ const MAP = {
   }),
 };
 
+// The Hammer Launcher server (BOT_PROFILE=launcher) sells nothing on Discord: its command texts name the launcher, not a shop.
+if (require('./profile').launcher) {
+  MAP.help.description = 'Wszystkie komendy bota Hammer Launcher, których możesz użyć';
+  MAP.build.description = 'Zbuduj cały serwer – role, kanały, banery, emotki, tickety i więcej';
+  MAP.build.options.only.choices.panels = '🔄 Panele – odśwież banery i karty (po zmianie config.launcher.json)';
+  MAP.panel.description = 'Wyślij panel (tickety, ranking, weryfikacja, role) na kanał';
+}
+
 // ───────────── English → Polish (for Discord) ─────────────
 
 function localizeOption(json, node) {

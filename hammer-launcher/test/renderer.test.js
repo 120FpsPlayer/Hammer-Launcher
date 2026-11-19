@@ -545,6 +545,63 @@ ui('a modpack being installed: „Instalowanie…” on its card and in the Graj
   });
 });
 
+/* A brand-new player: no instance, nobody signed in. The launcher makes the first instance, the player signs in on
+   the start screen and plays – the window must stay alive through the sign-in (it used to freeze for good: the start
+   screen draws itself again on 'accounts', and the event bus then called the new screen's listener, and so on). */
+function newPlayer() {
+  window.__noAccount = true;
+  const first = { id: 'hammer', name: 'Hammer', mcVersion: '26.3', loader: 'fabric', icon: 'hammer', optimized: true, hammerClient: true, playTimeMs: 0, lastPlayed: null, createdAt: Date.now() };
+  let made = false;
+  window.__started = [];
+  window.hs.instances.list = async () => (made ? [{ ...first }] : []);
+  window.hs.instances.ensureDefault = async () => ((made = true), { ...first });
+  const login = window.hs.accounts.login;
+  window.hs.accounts.login = async () => ((window.__noAccount = false), login());
+  window.hs.game.launch = async (id) => (window.__started.push(id), new Promise(() => {}));
+}
+
+ui('a new player: the first instance is made, „Zaloguj się” on the start screen signs in and the window keeps working – GRAJ starts the game', async () => {
+  await withLauncher({ patch: newPlayer }, async ({ page, until }) => {
+    await until(() => document.querySelector('.play-btn')?.textContent.trim() === 'GRAJ');
+    assert.match(await page.locator('#toasts').innerText(), /Gotowa instancja „Hammer” \(Minecraft 26\.3\)\. Kliknij GRAJ!/);
+    await page.locator('.login-cta button', { hasText: 'Zaloguj się' }).click();
+    await until(() => document.querySelector('.account-chip .name b')?.textContent === 'HammerGracz');
+    assert.match(await page.locator('#toasts').innerText(), /Zalogowano jako HammerGracz\. Miłej gry!/);
+    assert.equal(await page.locator('.login-cta').count(), 0, 'the start screen is drawn again for the signed-in player');
+    await page.locator('.play-btn').click();
+    await until(() => window.__started.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.__started), ['hammer']);
+  });
+});
+
+ui('a new player who clicks GRAJ before signing in gets the Microsoft sign-in – and the window keeps working after it', async () => {
+  await withLauncher({ patch: newPlayer }, async ({ page, until }) => {
+    await until(() => document.querySelector('.play-btn')?.textContent.trim() === 'GRAJ');
+    await page.locator('.play-btn').click();
+    await until(() => document.querySelector('.account-chip .name b')?.textContent === 'HammerGracz');
+    assert.match(await page.locator('#toasts').innerText(), /Najpierw zaloguj się kontem Microsoft\./);
+    assert.deepEqual(await page.evaluate(() => window.__started), [], 'the game waits for the next GRAJ');
+    await page.locator('.play-btn').click();
+    await until(() => window.__started.length === 1);
+  });
+});
+
+ui('Hammer+: „Kup Hammer+” and, with Hammer+ on, „Przedłuż Hammer+” open Hammer+ on the website – not the plugin shop', async () => {
+  const patch = () => {
+    window.__opened = [];
+    window.hs.app.openExternal = async (url) => (window.__opened.push(url), true);
+  };
+  await withLauncher({ patch }, async ({ page, until }) => {
+    await page.evaluate(() => HS.go('plus'));
+    await page.locator('.plus-acts button', { hasText: 'Kup Hammer+' }).click();
+    await page.evaluate(() => window.__plus(true));
+    await until(() => document.querySelector('.plus-acts button')?.textContent.includes('Przedłuż Hammer+'));
+    await page.locator('.plus-acts button', { hasText: 'Przedłuż Hammer+' }).click();
+    await until(() => window.__opened.length === 2);
+    assert.deepEqual(await page.evaluate(() => window.__opened), ['https://hammerclient.com/launcher#plus', 'https://hammerclient.com/launcher#plus']);
+  });
+});
+
 /* One Chromium for the whole file; every test has a window (and a fake launcher) of its own. */
 test.describe('the interface in Chromium', { concurrency: 4 }, () => {
   test.before(async () => {

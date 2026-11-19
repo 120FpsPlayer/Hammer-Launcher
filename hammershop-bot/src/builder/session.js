@@ -259,6 +259,7 @@ async function runUpdate(interaction) {
       gone.length ? `**Usunięte (nie są już częścią serwera):**\n${gone.slice(0, 20).join('\n')}${gone.length > 20 ? `\n…i jeszcze ${gone.length - 20}` : ''}` : null,
       moved.length ? `**Przeniesione do właściwej kategorii:** ${moved.slice(0, 20).map((n) => `# ${n}`).join(', ')}` : null,
       restyled.length ? `**Role z nową nazwą / kolorem:** ${restyled.slice(0, 20).join(', ')}${restyled.length > 20 ? ` …i jeszcze ${restyled.length - 20}` : ''}` : null,
+      added.automod?.length ? `**AutoMod – reguły z nazwą serwera:** ${added.automod.length}` : null,
       emojis.replaced || emojis.uploaded ? `**Emotki:** ${[emojis.replaced ? `zamienione na nowy wygląd: ${emojis.replaced}` : null, emojis.uploaded ? `wgrane: ${emojis.uploaded}` : null].filter(Boolean).join(' · ')}` : null,
       `**Nazwy:** zmienione: ${names.renamed}${names.later.length ? ` · ⏳ czekające na limit Discorda: ${names.later.length} – użyj \`${slash('build')} tylko:names\` za 10 minut` : ''}`,
       `**Panele:** zaktualizowane: ${panels.edited}${panels.sent ? ` · wysłane ponownie: ${panels.sent}` : ''}`,

@@ -85,14 +85,36 @@ async function refresh(guild) {
   return invites;
 }
 
+/**
+ * Uses a lookup saw that no join has taken yet (guildId → Map(code → { invite, left, at })). In a burst of joins
+ * Discord counts several uses before the first join's lookup runs: that lookup sees them all, and the joins after it
+ * find nothing new – they take these instead (only when it is clear whose invite it was, and only for a minute).
+ */
+const spare = new Map();
+const SPARE_MS = 60_000;
+
 /** The invite someone just joined with: the one whose uses went up, or a single-use invite that just vanished. */
-function usedInvite(before, after, now) {
+function usedInvite(before, after, now, guildId = null) {
   const grown = [...after.values()].filter((inv) => inv.uses > (before.get(inv.code)?.uses ?? 0));
-  if (grown.length) return { invite: grown.length === 1 ? grown[0] : null, sure: grown.length === 1 };
+  const spares = guildId ? (spare.get(guildId) ?? spare.set(guildId, new Map()).get(guildId)) : new Map();
+  for (const [code, s] of spares) if (s.left <= 0 || now - s.at >= SPARE_MS) spares.delete(code);
+  if (grown.length) {
+    // Every new use is one join; this join takes one of them when it is clear which – the rest wait for the next joins.
+    for (const inv of grown) spares.set(inv.code, { invite: inv, left: (spares.get(inv.code)?.left ?? 0) + inv.uses - (before.get(inv.code)?.uses ?? 0), at: now });
+    if (grown.length !== 1) return { invite: null, sure: false };
+    spares.get(grown[0].code).left -= 1;
+    return { invite: grown[0], sure: true };
+  }
   const vanished = [...before.values()].filter(
     (inv) => !after.has(inv.code) && inv.maxUses > 0 && inv.uses + 1 >= inv.maxUses && (!inv.deletedAt || now - inv.deletedAt < DELETED_GRACE),
   );
-  return { invite: vanished.length === 1 ? vanished[0] : null, sure: vanished.length <= 1 };
+  if (vanished.length) return { invite: vanished.length === 1 ? vanished[0] : null, sure: vanished.length === 1 };
+  if (spares.size === 1) {
+    const [s] = spares.values();
+    s.left -= 1;
+    return { invite: s.invite, sure: true };
+  }
+  return { invite: null, sure: spares.size === 0 };
 }
 
 // ───────────── Members ─────────────
@@ -105,7 +127,7 @@ async function attribute(member, now = Date.now()) {
   let inviterId = null;
   let code = null;
   if (before && after) {
-    const { invite, sure } = usedInvite(before, after, now);
+    const { invite, sure } = usedInvite(before, after, now, guild.id);
     if (invite) ({ inviterId, code } = invite);
     else if (sure && guild.vanityURLCode) code = guild.vanityURLCode; // nothing changed → the vanity URL
   }

@@ -57,6 +57,8 @@ public final class Config {
     // From the launcher – read on start, never saved here.
     public transient String discordUrl = "";
     public transient String shopUrl = "";
+    /** Where Hammer+ is bought (the launcher's website); "" from an older launcher – then the shop is used. */
+    public transient String plusUrl = "";
     public transient String brand = "HammerShop";
     /** Hammer+ (the launcher checked the player's code): active, until when (unix seconds, 0 = no end), chosen cape. */
     public transient boolean plusActive;
@@ -111,6 +113,7 @@ public final class Config {
             JsonObject o = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), JsonObject.class);
             discordUrl = httpsOrEmpty(o.get("discordUrl"));
             shopUrl = httpsOrEmpty(o.get("shopUrl"));
+            plusUrl = httpsOrEmpty(o.get("plusUrl"));
             JsonElement b = o.get("brand");
             if (b != null && b.isJsonPrimitive() && !b.getAsString().isBlank()) brand = b.getAsString().trim();
             JsonElement plus = o.get("plus");
@@ -130,6 +133,11 @@ public final class Config {
         } catch (Exception e) {
             Log.warn("Nieprawidłowy plik od launchera", e);
         }
+    }
+
+    /** The page the Hammer+ button opens: Hammer+ on the website – the shop only when the launcher did not say. */
+    public String plusShopUrl() {
+        return plusUrl.isEmpty() ? shopUrl : plusUrl;
     }
 
     private static String id(JsonElement e) {

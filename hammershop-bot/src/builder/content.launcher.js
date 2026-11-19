@@ -163,8 +163,11 @@ function plus(x) {
   c.addTextDisplayComponents(
     text(
       `### ${x.E('sparkles')} Co dostajesz\n` +
-        `> ${x.E('brush')} Własne kolory i tła launchera\n> ${x.E('camera')} Własne tło menu w grze\n> ${x.E('crown')} Peleryny Hammer+ i znaczek Hammer+ (młotek z plusem) przy nicku w Tab – widzą je gracze z Hammer Client\n` +
-        `> ${x.E('folder')} Automatyczne kopie światów\n> ${x.E('cloud')} Chmura: ustawienia launchera na każdym komputerze\n> ${x.E('person')} Biblioteka na 200 skórek i zestawy skórek`,
+        // The same perks as the website's Hammer+ page (web/pages/hammer-plus.html).
+        `> ${x.E('brush')} Motywy launchera z ruchomym tłem (np. Nether i End), własne kolory i tła\n> ${x.E('camera')} Własne tło menu w grze\n` +
+        `> ${x.E('crown')} Ruchome peleryny (np. płomień, iskry, fale) i dodatki na postać: skrzydła, aureola i czapki – widzą je gracze z Hammer Client\n` +
+        `> ${x.E('star')} Znaczek Hammer+ (młotek z plusem) przed nickiem na liście graczy (Tab)\n> ${x.E('diamond')} Ranga **💎 Hammer+** na naszym Discordzie – bot daje ją sam po zakupie\n` +
+        `> ${x.E('folder')} Kopie światów: launcher robi je sam, a wczorajszą wersję przywracasz jednym kliknięciem\n> ${x.E('cloud')} Chmura: ustawienia launchera na każdym komputerze\n> ${x.E('person')} Biblioteka na 200 skórek i zestawy skórek`,
     ),
   );
   c.addSeparatorComponents(divider());

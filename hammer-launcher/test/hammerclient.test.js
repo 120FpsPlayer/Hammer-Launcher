@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { loadHammerClient, syncHammerClient, launcherFile, supports, compareVersions } = require('../src/main/hammerclient');
+const { loadHammerClient, syncHammerClient, launcherFile, plusPage, supports, compareVersions } = require('../src/main/hammerclient');
 const { createInstances } = require('../src/main/instances');
 const { createPaths } = require('../src/main/paths');
 const { createServices } = require('../src/main/services');
@@ -274,7 +274,7 @@ test('services: every start writes Hammer+ of the playing account into the mod\'
   const read = () => JSON.parse(fs.readFileSync(path.join(i.dir, 'config', 'hammerclient-launcher.json'), 'utf8'));
 
   assert.deepEqual(await s.hammerClient.sync(i.id), { active: true });
-  assert.deepEqual(read(), { discordUrl: 'https://discord.gg/hammer', shopUrl: 'https://hammershop.pl/sklep', brand: 'HammerShop', plus: { active: false, until: 0 }, cape: '', api: 'https://hammershop.pl/api/launcher' });
+  assert.deepEqual(read(), { discordUrl: 'https://discord.gg/hammer', shopUrl: 'https://hammershop.pl/sklep', plusUrl: 'https://hammershop.pl/launcher#plus', brand: 'HammerShop', plus: { active: false, until: 0 }, cape: '', api: 'https://hammershop.pl/api/launcher' });
 
   const until = Math.floor(Date.now() / 1000) + 30 * 86400;
   s.plus.activate(keys.code({ mc: gracz.id, exp: until }));
@@ -290,4 +290,17 @@ test('services: every start writes Hammer+ of the playing account into the mod\'
   s.plus.activate(keys.code({ mc: kowal.id, exp: 0 }));
   await s.hammerClient.sync(i.id);
   assert.deepEqual([read().plus, read().cape], [{ active: true, until: 0 }, 'royal']);
+});
+
+test('the mod\'s Hammer+ button („Zobacz w sklepie”) is sent to Hammer+ on the website – the shop (shopUrl) sells plugins', () => {
+  assert.equal(plusPage({ website: 'https://hammerclient.com' }), 'https://hammerclient.com/launcher#plus');
+  assert.equal(plusPage({ website: 'https://hammerclient.com/' }), 'https://hammerclient.com/launcher#plus');
+  for (const website of ['', 'http://hammerclient.com', 'hammerclient.com', undefined]) assert.equal(plusPage({ website }), '');
+  const file = launcherFile({ links: { shopUrl: 'https://hammershop.pl', plusUrl: plusPage({ website: 'https://hammerclient.com' }) } });
+  assert.deepEqual([file.shopUrl, file.plusUrl], ['https://hammershop.pl', 'https://hammerclient.com/launcher#plus']);
+  assert.equal(launcherFile({ links: { plusUrl: 'javascript:alert(1)' } }).plusUrl, undefined, 'only https');
+  // The production config: the website really is where Hammer+ is sold, and not the shop.
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'launcher.config.json'), 'utf8'));
+  assert.notEqual(plusPage(config), '');
+  assert.ok(!plusPage(config).startsWith(config.shopUrl));
 });

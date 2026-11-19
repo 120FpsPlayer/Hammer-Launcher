@@ -66,6 +66,7 @@ function launcherHelp(interaction, cmd) {
         `${cmd('ticket-types off', 'ticket-types on', 'ticket-types list')} – wyłącz kategorię ticketów na jakiś czas (np. rekrutację) i włącz ją z powrotem`,
         [only('emojis'), only('panels'), only('names')].join(' · '),
         `${cmd('backup')} – kopia zapasowa danych bota · ${cmd('panel')} – wyślij panel ponownie`,
+        `${cmd('assistant on', 'assistant off')} – asystent AI w ticketach na całym serwerze`,
         cmd('setup show', 'setup set', 'setup role-add'),
       ].join('\n'),
     });

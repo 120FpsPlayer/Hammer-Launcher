@@ -159,6 +159,36 @@ test('two people joining at the same time are attributed one after another', asy
   assert.equal(record(guild, second).inviterId, bob.id, 'compared with the counts after the first join, not before it');
 });
 
+test('a burst of joins: two people join through one invite before the first lookup – both are counted for its owner', async () => {
+  const guild = await setup();
+  const alice = member(guild);
+  const bob = member(guild);
+  const a = guild.addInvite({ inviterId: alice.id });
+  const b = guild.addInvite({ inviterId: bob.id });
+  await invites.refresh(guild);
+
+  // Discord counts both uses before the first join's lookup runs: the first lookup sees +2, the second sees nothing new.
+  guild.useInvite(a.code);
+  guild.useInvite(a.code);
+  const first = guild.addMember(uid(), []);
+  const second = guild.addMember(uid(), []);
+  await Promise.all([hooks.emit('memberAdd', first), hooks.emit('memberAdd', second)]);
+  assert.equal(record(guild, first).inviterId, alice.id);
+  assert.equal(record(guild, second).inviterId, alice.id, 'the second join takes the use the first lookup saw');
+
+  // Two different invites at once can't be told apart – nobody is credited by a guess…
+  guild.useInvite(a.code);
+  guild.useInvite(b.code);
+  const third = guild.addMember(uid(), []);
+  const fourth = guild.addMember(uid(), []);
+  await Promise.all([hooks.emit('memberAdd', third), hooks.emit('memberAdd', fourth)]);
+  assert.equal(record(guild, third).inviterId, null);
+  assert.equal(record(guild, fourth).inviterId, null);
+  // …and the next ordinary join is attributed normally again.
+  const fifth = await join(guild, b.code);
+  assert.equal(record(guild, fifth).inviterId, bob.id);
+});
+
 // ───────────── Counting ─────────────
 
 test('an invite counts only once the member verifies and while they stay; leave / rejoin and self-invites', async () => {

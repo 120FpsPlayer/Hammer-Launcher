@@ -139,7 +139,7 @@ test('downloading from the website needs a Discord sign-in – the sign-in ends 
   const sid = await signIn(OLD, { start: fakeOut });
   assert.equal(signIn.landed, '/launcher?download=1&connected=1');
   const dl = await call('GET', '/download', { sid });
-  assert.deepEqual([dl.status, dl.headers.get('location')], [302, '/updates/Hammer-Launcher-Setup-2.9.0.exe']);
+  assert.deepEqual([dl.status, dl.headers.get('location')], [302, releases.downloadPath(webStore.currentRelease())]); // the installer's pinned address
   assert.equal(webStore.currentRelease().downloads, 1);
   assert.equal(webStore.referralOf(OLD.id).downloads, 1, 'counted for the account too');
   // Cancelled at Discord: back on the page, which then just says so.
@@ -155,7 +155,7 @@ test('downloading from the website needs a Discord sign-in – the sign-in ends 
   env.web.clientSecret = '';
   try {
     const open = await call('GET', '/download');
-    assert.deepEqual([open.status, open.headers.get('location')], [302, '/updates/Hammer-Launcher-Setup-2.9.0.exe']);
+    assert.deepEqual([open.status, open.headers.get('location')], [302, releases.downloadPath(webStore.currentRelease())]);
     assert.equal(webStore.currentRelease().downloads, 2);
     assert.equal((await call('GET', '/api/shop/auth/start?next=polecaj')).headers.get('location'), '/launcher/polecaj?auth=unavailable');
   } finally {

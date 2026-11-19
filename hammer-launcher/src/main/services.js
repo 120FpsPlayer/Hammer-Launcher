@@ -30,7 +30,7 @@ const { jvmArgs, effectivePreset, zgcSupported } = require('./jvm');
 const { LOADER_NAMES } = require('./installer');
 const { createCommunity } = require('./community');
 const { listScreenshots, removeScreenshot, screenshotPath } = require('./gallery');
-const { loadHammerClient, syncHammerClient } = require('./hammerclient');
+const { loadHammerClient, syncHammerClient, plusPage } = require('./hammerclient');
 const serverList = require('./servers');
 const worldSaves = require('./worlds');
 const diskCleanup = require('./cleanup');
@@ -213,6 +213,9 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
       emit('selfupdate:state', state);
     },
     log: updateLog,
+    // An update that installed and still left this version running is not installed again by itself (a loop).
+    tried: () => store.get().updateTried,
+    remember: (attempt) => store.set({ updateTried: attempt }),
     now,
     userAgent: userAgent(appVersion),
   });
@@ -434,7 +437,7 @@ function createServices({ root, config, accounts, emit = () => {}, fetchFn = (..
     const invite = await community.invite().catch(() => null);
     const st = plus.status();
     const cape = wornCape();
-    const res = await syncHammerClient({ instance, client: hammerClient(), content, links: { discordUrl: invite ? `https://discord.gg/${invite}` : '', shopUrl: config.shopUrl, brand: config.brand }, plus: { active: st.active, until: st.until }, cape, api: shop.base(), cosmetics: wornCosmetics() });
+    const res = await syncHammerClient({ instance, client: hammerClient(), content, links: { discordUrl: invite ? `https://discord.gg/${invite}` : '', shopUrl: config.shopUrl, plusUrl: plusPage(config), brand: config.brand }, plus: { active: st.active, until: st.until }, cape, api: shop.base(), cosmetics: wornCosmetics() });
     try {
       deliverCustomCape(instance, cape === CUSTOM_CAPE && res.active);
     } catch (err) {

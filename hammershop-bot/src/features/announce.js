@@ -9,6 +9,14 @@ const { ASSETS, COLORS, banner, hasBanner } = require('../lib/theme');
 const { UserError, embed } = require('../lib/utils');
 const { container, text, divider, gallery, v2, linkBtn, row } = require('../lib/v2');
 
+/**
+ * Is this one of the server's own banners? On Hammer Launcher a shared banner (assets/banners/) carries the shop's
+ * name, so only assets/banners-launcher/ counts there.
+ */
+function ownBanner(key, launcher = require('../lib/profile').launcher) {
+  return launcher ? fs.existsSync(path.join(ASSETS, 'banners-launcher', `${key}.png`)) : hasBanner(key);
+}
+
 /** Banners offered by /announce (max 25 choices). */
 const BANNER_CHOICES = [
   ['announcements', '📢 Announcements'],
@@ -28,7 +36,7 @@ const BANNER_CHOICES = [
   ['boosters', '🚀 Boosters'],
   ['leaderboard', '🏆 Leaderboard'],
   ['discord', '💬 Discord'],
-].filter(([key]) => hasBanner(key));
+].filter(([key]) => ownBanner(key));
 
 const PING_CHOICES = [
   ['none', 'No ping'],
@@ -106,8 +114,7 @@ const panelKind = (kind) => (Object.hasOwn(PANEL_KINDS, String(kind)) ? PANEL_KI
  * (there is no launcher banner for events, so they get the announcements one).
  */
 function kindBanner(kind, launcher = require('../lib/profile').launcher) {
-  const own = (key) => (launcher ? fs.existsSync(path.join(ASSETS, 'banners-launcher', `${key}.png`)) : hasBanner(key));
-  return [panelKind(kind)?.banner, 'announcements'].filter(Boolean).find(own) ?? null;
+  return [panelKind(kind)?.banner, 'announcements'].filter(Boolean).find((key) => ownBanner(key, launcher)) ?? null;
 }
 
 /** The kinds for the panel's form and preview. */

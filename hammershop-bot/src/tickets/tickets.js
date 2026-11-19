@@ -135,7 +135,7 @@ function checkCanOpen(member, { force = false } = {}) {
   }
   if (force) return null;
   if (lockdown.pausedFor(member)) {
-    return 'Serwer jest teraz zablokowany – nowe tickety i zamówienia są wstrzymane do odblokowania. Twoje otwarte tickety działają normalnie.';
+    return `Serwer jest teraz zablokowany – ${require('../lib/profile').launcher ? 'nowe tickety są wstrzymane' : 'nowe tickety i zamówienia są wstrzymane'} do odblokowania. Twoje otwarte tickety działają normalnie.`;
   }
   const roleError = openDeniedReason(member);
   if (roleError) return roleError;

@@ -279,7 +279,7 @@ test('sign-in comes back to the page it started on – only to pages of this sit
   const out = await call('GET', '/download');
   assert.match(out.location, /\/discord\/authorize\?/);
   assert.equal(decodeURIComponent(cookieOf(out, 'hs_next').split('=')[1]), '/?download=1');
-  assert.equal((await call('GET', '/download', { sid })).location, '/updates/Hammer-Launcher-Setup-2.11.1.exe');
+  assert.equal((await call('GET', '/download', { sid })).location, releases.downloadPath(webStore.currentRelease())); // /updates/_v/<sha>/Hammer-Launcher-Setup-2.11.1.exe
   // Stripe sends the buyer back to the Hammer+ page.
   const res = await call('POST', '/api/shop/checkout', { sid, body: { kind: 'plus', plan: 'p30', nick: 'Alex', requestId: crypto.randomUUID() } });
   assert.equal(res.status, 200, JSON.stringify(res.body));

@@ -271,13 +271,22 @@ jobs:
         run: |
           if [ -z "$UPDATE_SIGNING_KEY" ]; then echo "Brak sekretu UPDATE_SIGNING_KEY – wydanie bez podpisu."; exit 0; fi
           for f in dist/Hammer-Launcher-Setup-*.exe; do node scripts/sign-release.js "$f" > /dev/null; ls -la "$f.sig"; done
+      # What goes to the website (admin panel → Wersje launchera): the installer, its .blockmap and .sig – nothing else.
+      # The portable exe is a separate artifact: uploaded by mistake it would replace the installer for new players, and
+      # installed launchers would "update" into a copy that cannot install itself.
       - uses: actions/upload-artifact@v4
         with:
           name: Hammer-Launcher-Windows
           path: |
-            hammer-launcher/dist/*.exe
-            hammer-launcher/dist/*.exe.blockmap
-            hammer-launcher/dist/*.exe.sig
+            hammer-launcher/dist/Hammer-Launcher-Setup-*.exe
+            hammer-launcher/dist/Hammer-Launcher-Setup-*.exe.blockmap
+            hammer-launcher/dist/Hammer-Launcher-Setup-*.exe.sig
             hammer-launcher/dist/latest.yml
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hammer-Launcher-portable-nie-wgrywac-na-strone
+          path: hammer-launcher/dist/Hammer-Launcher-*-portable.exe
           if-no-files-found: error
           retention-days: 30

@@ -749,6 +749,19 @@ class PreviewTest {
     }
 
     @Test
+    void hammerPlusButtonOpensHammerPlusOnTheWebsite() throws Exception {
+        // The launcher says where Hammer+ is sold (its website) – the shop link is HammerShop's plugin shop.
+        java.nio.file.Path dir = Files.createTempDirectory("hammer-plus-url");
+        Files.writeString(dir.resolve("hammerclient-launcher.json"), "{\"shopUrl\":\"https://hammershop.pl\",\"plusUrl\":\"https://hammerclient.com/launcher#plus\"}");
+        var cfg = pl.hammershop.client.core.Config.load(dir);
+        assertEquals("https://hammerclient.com/launcher#plus", cfg.plusShopUrl());
+        assertEquals("https://hammershop.pl", cfg.shopUrl, "the main menu's shop button stays the shop");
+        // An older launcher without plusUrl: the shop, as before. Never anything but https.
+        Files.writeString(dir.resolve("hammerclient-launcher.json"), "{\"shopUrl\":\"https://hammershop.pl\",\"plusUrl\":\"javascript:x\"}");
+        assertEquals("https://hammershop.pl", pl.hammershop.client.core.Config.load(dir).plusShopUrl());
+    }
+
+    @Test
     void hammerPlus() throws Exception {
         var cfg = Hammer.config();
         Module crosshair = Modules.byId("crosshair");

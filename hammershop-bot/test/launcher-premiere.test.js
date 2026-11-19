@@ -1,0 +1,178 @@
+'use strict';
+
+// The Hammer Launcher server before its public premiere: what every member and the team see there must speak
+// launcher – no shop's commands, banners, AutoMod messages or texts.
+process.env.HS_TEST_PROFILE = 'launcher';
+
+const { db } = require('./helpers/setup');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { FakeGuild } = require('./helpers/fakeDiscord');
+const { buildServer } = require('../src/builder/executor');
+const { addMissing } = require('../src/builder/update');
+const config = require('../src/lib/config');
+const { localizeCommand } = require('../src/lib/commandsPl');
+const commands = require('../src/commands')();
+
+const SHOP_WORDS = /HammerShop|[Ss]klep|[Oo]pini[ae]|[Zz]amówie|[Pp]rodukt|🛒|📦|🏷️|💳|tylko-klienci|zrealizuj/;
+
+async function built() {
+  const guild = new FakeGuild({ ownerId: '1' });
+  await buildServer({ guild, mode: 'add', invokerId: guild.ownerId });
+  return guild;
+}
+
+test('every slash command on the launcher server: no shop in names, descriptions and choices (/pomoc names Hammer Launcher)', () => {
+  const texts = [];
+  const walk = (node, where) => {
+    texts.push([`${where} name`, node.name], [`${where} description`, node.description]);
+    for (const c of node.choices ?? []) texts.push([`${where} choice`, c.name]);
+    for (const o of node.options ?? []) walk(o, `${where} ${o.name}`);
+  };
+  for (const cmd of commands.values()) {
+    const json = localizeCommand(cmd.data.toJSON());
+    walk(json, `/${json.name}`);
+  }
+  const shopLike = texts.filter(([, t]) => SHOP_WORDS.test(String(t ?? '')));
+  assert.deepEqual(shopLike, [], 'shop words in the launcher server\'s commands');
+  assert.match(localizeCommand(commands.get('help').data.toJSON()).description, /Hammer Launcher/);
+});
+
+test('/ogloszenie offers only the launcher\'s own banners – a shared banner would carry the HammerShop name', () => {
+  const announce = require('../src/features/announce');
+  const { bannerPath, ASSETS } = require('../src/lib/theme');
+  assert.ok(announce.BANNER_CHOICES.length >= 5);
+  for (const [key] of announce.BANNER_CHOICES) {
+    assert.equal(path.dirname(bannerPath(key)), path.join(ASSETS, 'banners-launcher'), `/ogloszenie baner:${key}`);
+  }
+});
+
+test('AutoMod: the rules and the message members see when a message is blocked carry Hammer Launcher, not HammerShop', async () => {
+  const guild = await built();
+  const rules = [...guild.autoModerationRules.cache.values()];
+  assert.equal(rules.length, 6);
+  for (const rule of rules) {
+    assert.match(rule.name, /^Hammer Launcher · /);
+    for (const a of rule.actions) if (a.metadata.customMessage) assert.equal(a.metadata.customMessage, 'Zablokowane przez AutoMod Hammer Launcher. Przeczytaj regulamin.');
+  }
+});
+
+test('/zbuduj tylko:update renames the AutoMod rules a build made as „HammerShop” – alert channel and timeouts stay, your own rules too', async () => {
+  // The server was built when every server was „HammerShop” (before the launcher profile had its own name).
+  const brand = config.brand.name;
+  config.brand.name = 'HammerShop';
+  let guild;
+  try {
+    guild = await built();
+  } finally {
+    config.brand.name = brand;
+  }
+  const own = await guild.autoModerationRules.create({ name: 'HammerShop · Moja reguła', triggerType: 1, eventType: 1, triggerMetadata: { keywordFilter: ['*xyz*'] }, actions: [{ type: 1, metadata: { customMessage: 'Moja wiadomość' } }] });
+  const before = [...guild.autoModerationRules.cache.values()].filter((r) => r !== own);
+  assert.ok(before.every((r) => r.name.startsWith('HammerShop · ')));
+
+  const res = await addMissing(guild);
+  assert.deepEqual(res.errors, []);
+  assert.equal(res.automod.length, 6);
+  const alerts = db.channelId(guild.id, 'automodLogs');
+  for (const rule of before) {
+    assert.match(rule.name, /^Hammer Launcher · /);
+    const block = rule.actions.find((a) => a.type === 1);
+    if (block) assert.equal(block.metadata.customMessage, 'Zablokowane przez AutoMod Hammer Launcher. Przeczytaj regulamin.');
+    const alert = rule.actions.find((a) => a.type === 2);
+    if (alert) assert.equal(alert.metadata.channelId, alerts, `${rule.name}: still alerts in #logi-automod`);
+  }
+  const timeouts = before.flatMap((r) => r.actions.filter((a) => a.type === 3).map((a) => a.metadata.durationSeconds)).sort((a, b) => a - b);
+  assert.deepEqual(timeouts, [600, 3600]);
+  assert.equal(own.name, 'HammerShop · Moja reguła', 'a rule the bot does not know is left alone');
+  assert.equal((await addMissing(guild)).automod.length, 0, 'nothing left to rename the second time');
+});
+
+test('the 💻 Developer is one of the admins: team channels, logs and #kopie-zapasowe – also on a server built before (tylko:update)', async () => {
+  const guild = await built();
+  const dev = guild.addMember('300000000000000501', [db.roleId(guild.id, 'member'), db.roleId(guild.id, 'developer')]);
+  const member = guild.addMember('300000000000000502', [db.roleId(guild.id, 'member')]);
+  const ch = (key) => guild.channels.cache.get(db.channelId(guild.id, key));
+  const PRIVATE = ['staffChat', 'staffCommands', 'discordUpdates', 'ticketLogs', 'transcripts', 'serverLogs', 'automodLogs', 'backups'];
+  const sees = (m, key) => ch(key).permissionsFor(m).has('ViewChannel');
+  for (const key of PRIVATE) {
+    assert.ok(sees(dev, key), `the Developer sees #${key}`);
+    assert.ok(!sees(member, key), `a member does not see #${key}`);
+  }
+  assert.ok(ch('announcements').permissionsFor(dev).has('SendMessages'), 'the Developer can post in a read-only channel');
+  assert.ok(!ch('announcements').permissionsFor(member).has('SendMessages'));
+
+  // A server built before: the channels have no overwrite for the Developer – the update gives it, once.
+  const devRole = db.roleId(guild.id, 'developer');
+  for (const c of guild.channels.cache.values()) await c.permissionOverwrites.delete(devRole);
+  db.setBuild(guild.id, { ...db.build(guild.id), developerAccess: undefined });
+  assert.ok(!sees(dev, 'staffChat'));
+  const res = await addMissing(guild);
+  assert.deepEqual(res.errors, []);
+  for (const key of PRIVATE) assert.ok(sees(dev, key), `after the update the Developer sees #${key}`);
+  assert.equal(db.build(guild.id).developerAccess, true);
+});
+
+test('#hammer-plus names the same perks as the website: animated themes, wings / halo / hats, the 💎 Hammer+ rank, yesterday\'s world', async () => {
+  const guild = await built();
+  const { textOf } = require('./helpers/fakeInteraction');
+  const card = guild.channels.cache.get(db.channelId(guild.id, 'plus')).messageList.map((m) => textOf(m.body)).join('\n');
+  for (const perk of [/ruchomym tłem/, /skrzydła, aureola i czapki/, /Ranga \*\*💎 Hammer\+\*\* na naszym Discordzie/, /wczorajszą wersję/, /Chmura/, /200 skórek/, /Znaczek Hammer\+/]) {
+    assert.match(card, perk);
+  }
+});
+
+test('a lockdown on the launcher server talks about tickets only – no orders or vouches there', async () => {
+  const guild = await built();
+  const lockdown = require('../src/features/lockdown');
+  const tickets = require('../src/tickets/tickets');
+  const { textOf } = require('./helpers/fakeInteraction');
+  const owner = guild.members.cache.get('1') ?? guild.addMember('1', []);
+  const reply = await lockdown.lock(guild, owner, 'Trwa raid');
+  const notice = guild.channels.cache.get(db.channelId(guild.id, 'announcements')).messageList.map((m) => textOf(m.body)).join('\n');
+  assert.match(notice, /nowe tickety/);
+  assert.doesNotMatch(notice + JSON.stringify(lockdown.lockReply(guild, reply, 'Trwa raid')), /zamówieni|opini/);
+  const member = guild.addMember('300000000000000503', [db.roleId(guild.id, 'member')]);
+  await assert.rejects(tickets.openTicket(member, config.getType('support'), []), (err) => /nowe tickety są wstrzymane/.test(err.message) && !/zamówieni/.test(err.message));
+  await lockdown.unlock(guild, owner);
+  const after = guild.channels.cache.get(db.channelId(guild.id, 'announcements')).messageList.map((m) => textOf(m.body)).join('\n');
+  assert.doesNotMatch(after, /zamówieni|opini/);
+});
+
+test('start-up: no Hammer+ key on the launcher server → a clear console line (nothing on sale, no codes) that warns against a new key', () => {
+  const { env } = require('../src/env');
+  const hammerplus = require('../src/features/hammerplus');
+  const saved = env.plusPrivateKey;
+  try {
+    env.plusPrivateKey = '';
+    assert.match(hammerplus.keyWarning(true), /brak HAMMER_PLUS_PRIVATE_KEY[\s\S]*nie jest w sprzedaży[\s\S]*nowy klucz z npm run plus-key nie zadziała/);
+    assert.equal(hammerplus.keyWarning(false), null, 'the shop server sells no Hammer+ – no warning there');
+    assert.match(hammerplus.setupHelp(), /Masz już klucz/);
+  } finally {
+    env.plusPrivateKey = saved;
+  }
+});
+
+test('verification in a burst of joins: Discord gets its answer before the role change waits in Discord\'s queue', async () => {
+  const guild = await built();
+  const { createInteraction, lastResponse, textOf } = require('./helpers/fakeInteraction');
+  const handle = require('../src/handlers/interactions');
+  const verify = guild.channels.cache.get(db.channelId(guild.id, 'verify'));
+  const newcomer = guild.addMember('300000000000000504', [], { createdTimestamp: Date.now() - 30 * 86_400_000 });
+  const start = createInteraction({ guild, member: newcomer, kind: 'button', customId: 'verify:start', channel: verify });
+  await handle(start, commands);
+  const [, , a, b] = start.state.modals[0].custom_id.split(':');
+  const answer = createInteraction({ guild, member: newcomer, kind: 'modal', customId: start.state.modals[0].custom_id, fields: { answer: String(Number(a) + Number(b)) }, channel: verify });
+  const add = newcomer.roles.add.bind(newcomer.roles);
+  let answeredFirst = null;
+  newcomer.roles.add = async (...args) => {
+    answeredFirst = answer.deferred || answer.replied;
+    return add(...args);
+  };
+  await handle(answer, commands);
+  assert.equal(answeredFirst, true, 'the interaction was answered (deferred) before the role was added');
+  assert.ok(newcomer.roles.cache.has(db.roleId(guild.id, 'member')));
+  assert.match(textOf(lastResponse(answer)), /Konto zweryfikowane![\s\S]*/);
+  assert.match(JSON.stringify(lastResponse(answer)), /Pobierz launcher/);
+});

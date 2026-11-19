@@ -260,7 +260,8 @@
           confirmBox('Ukryć pobieranie?', 'Strona przestanie dawać launcher do pobrania, a aktualizacje się zatrzymają – do czasu ustawienia aktualnej wersji.', 'Ukryj').then(function (yes) { if (yes) api('POST', 'releases/current', { version: null }).then(loaders.wersje).catch(oops); });
         } }));
         if (r.canEdit) actions.appendChild(el('button', { class: 'btn small danger', type: 'button', text: 'Usuń', onclick: function () {
-          confirmBox('Usunąć wersję ' + rel.version + '?', 'Instalator tej wersji zostanie skasowany z serwera.').then(function (yes) { if (yes) api('DELETE', 'releases/' + encodeURIComponent(rel.version)).then(function () { toast('Usunięto.'); return loaders.wersje(); }).catch(oops); });
+          // The current one: the site stops giving the launcher and updates stop (the server sets no other version by itself).
+          confirmBox('Usunąć wersję ' + rel.version + '?', 'Instalator tej wersji zostanie skasowany z serwera.' + (rel.current ? ' To jest aktualna wersja – strona przestanie dawać launcher do pobrania, a aktualizacje się zatrzymają, dopóki nie ustawisz innej wersji jako aktualnej.' : '')).then(function (yes) { if (yes) api('DELETE', 'releases/' + encodeURIComponent(rel.version)).then(function () { toast('Usunięto.'); return loaders.wersje(); }).catch(oops); });
         } }));
         list.appendChild(el('tr', {}, [
           el('td', {}, [el('b', { text: rel.version }), rel.current ? el('span', { class: 'pill ok', text: 'aktualna' }) : null, rel.signed ? el('span', { class: 'pill gold', text: 'podpisana' }) : null, rel.minVersion ? el('div', { class: 'muted small', text: 'wymaga co najmniej ' + rel.minVersion }) : null]),

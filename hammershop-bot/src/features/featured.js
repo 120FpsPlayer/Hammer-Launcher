@@ -7,7 +7,7 @@
  *
  *   db.guild(id).featuredServers = [{ id, name, address, description, tags, icon, mc, loader, pack, addedBy, addedAt }]
  *     id – from the name ("hammer-smp") · address – host or host:port, lowercase · tags – up to 6 short words
- *     icon – an https picture or null · mc – "1.21.4" or null · loader – one of LOADERS or null · pack – text or null
+ *     icon – an https picture or null · mc – "1.21.4" or null · loader – one of LOADERS or null · pack – a Modrinth slug / id or null
  */
 
 const db = require('../lib/db');
@@ -55,6 +55,23 @@ function parseIcon(raw) {
   return url.href;
 }
 
+/** A Modrinth project id or slug – exactly what Hammer Launcher takes (hammer-launcher/src/main/invite.js → PACK). */
+const PACK = /^[0-9A-Za-z][\w.+!-]{2,63}$/;
+
+/**
+ * The modpack: its Modrinth slug or id ("fabulously-optimized"), or a link to it on modrinth.com (the slug is taken from
+ * it). Anything else – a pack's display name with spaces, another site – the launcher could not install, so it is
+ * refused here instead of being dropped there without a word.
+ */
+function parsePack(raw) {
+  const text = clean(raw);
+  if (!text) return null;
+  const link = /^(?:https?:\/\/)?(?:www\.)?modrinth\.com\/(?:modpack|project)\/([^/?#\s]+)/i.exec(text);
+  const id = link ? link[1] : text;
+  if (!PACK.test(id)) throw new UserError('Paczkę modów podaj jako link z Modrinth (`https://modrinth.com/modpack/…`) albo jej skrót z tego linku, np. `fabulously-optimized` – sama nazwa paczki ze spacjami nie wystarczy.');
+  return id;
+}
+
 /** "Survival, PvP ,  survival" → ['survival', 'pvp'] */
 function parseTags(raw) {
   const tags = [...new Set(String(raw ?? '').split(',').map((t) => clean(t).toLowerCase()).filter(Boolean))];
@@ -92,7 +109,7 @@ function add(guildId, { name, address, description, tags = null, icon = null, mc
     icon: parseIcon(icon),
     mc: clean(mc) || null,
     loader: clean(loader).toLowerCase() || null,
-    pack: clean(pack) || null,
+    pack: parsePack(pack),
   };
   if (!entry.name || entry.name.length > LIMITS.name) throw new UserError(`Nazwa serwera musi mieć od 1 do ${LIMITS.name} znaków.`);
   if (!entry.description || entry.description.length > LIMITS.description) throw new UserError(`Opis musi mieć od 1 do ${LIMITS.description} znaków.`);
@@ -132,4 +149,4 @@ const publicList = (guildId) =>
     pack: s.pack ?? null,
   }));
 
-module.exports = { LOADERS, MAX_SERVERS, list, find, add, remove, publicList, parseAddress, parseIcon, parseTags };
+module.exports = { LOADERS, MAX_SERVERS, list, find, add, remove, publicList, parseAddress, parseIcon, parseTags, parsePack };

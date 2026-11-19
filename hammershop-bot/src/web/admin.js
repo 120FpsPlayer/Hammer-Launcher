@@ -568,6 +568,7 @@ async function api(req, res, url, h) {
       const sent = await mail.send({
         subject: `Test – e-mail ze strony ${config.brand.name} działa`,
         text: `To jest testowa wiadomość wysłana z panelu admina (${h.publicUrl() || 'strona'}).\n\nSkoro ją czytasz, wszystko jest ustawione dobrze: na ten adres będą przychodzić wiadomości z formularza kontaktowego i powiadomienia o zakupach.`,
+        retry: false, // the owner waits for the answer – the real reason right away, not after another minute of trying
       });
       await log(sent.ok ? '✉️ Testowy e-mail wysłany z panelu' : '✉️ Testowy e-mail z panelu nie wyszedł – przyczynę widać w panelu (Wiadomości)');
       return h.send(res, 200, { ok: sent.ok, to: mailInfo().to, reason: sent.ok ? null : sent.reason });

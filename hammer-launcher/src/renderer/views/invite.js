@@ -222,7 +222,7 @@
               h('div', h('b', `Dołącz paczkę modów „${data.pack.name}”`), h('small', 'Launcher znajomego zainstaluje ją z Modrinth. Wyłącz, jeśli serwer jej nie wymaga.')),
             )
           : null,
-        h('p.cloud-note', icon('info'), data.web ? 'Znajomy potrzebuje Hammer Launchera. Jeśli go jeszcze nie ma, link otworzy stronę HammerShop, z której go pobierze.' : 'Znajomy potrzebuje Hammer Launchera – bez niego ten link się nie otworzy. Może go też wkleić w launcherze: Serwery → „Mam zaproszenie”.'),
+        h('p.cloud-note', icon('info'), data.web ? 'Znajomy potrzebuje Hammer Launchera. Jeśli go jeszcze nie ma, link otworzy stronę Hammer Launchera, z której go pobierze.' : 'Znajomy potrzebuje Hammer Launchera – bez niego ten link się nie otworzy. Może go też wkleić w launcherze: Serwery → „Mam zaproszenie”.'),
       );
     }
 

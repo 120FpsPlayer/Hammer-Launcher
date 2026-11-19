@@ -20,6 +20,11 @@ const TYPES = {
   verify: { label: '✅ Verification', banner: 'verification' },
   roles: { label: '🎭 Roles & notifications', banner: 'roles' },
 };
+// The Hammer Launcher server has no shop and no vouches – and their banners carry the shop's name.
+if (require('../lib/profile').launcher) {
+  delete TYPES.shop;
+  delete TYPES.vouches;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()

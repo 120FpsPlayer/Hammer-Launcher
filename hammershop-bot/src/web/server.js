@@ -430,6 +430,36 @@ async function webhook(req, res) {
   return send(res, 200, { received: true });
 }
 
+/**
+ * Paid orders nobody told the site about: the webhook did not come (no STRIPE_WEBHOOK_SECRET, the test-mode secret left
+ * next to live keys, a proxy that stopped Stripe) and the buyer closed the tab before Stripe sent them back – a phone
+ * switching to the bank's app for BLIK does that easily. Every few minutes the open payment pages are read back from
+ * Stripe: a paid one is settled exactly like on the buyer's return (the code, the DM, the e-mails), an expired one is
+ * marked so. A payment page lives an hour (expires_at), so an order is asked about for a little longer and then never
+ * again. → how many orders became paid
+ */
+const RECHECK_MS = 5 * 60_000;
+const RECHECK_FROM_MS = 60_000; // the buyer is most likely still on Stripe's page – their return or the webhook comes first
+const RECHECK_UNTIL_MS = 3 * 3600_000;
+async function recheckPending(now = Date.now()) {
+  if (!paymentsReady()) return 0;
+  const open = store.allOrders().filter((o) => o.status === 'pending' && o.stripe_id && now - o.created * 1000 >= RECHECK_FROM_MS && now - o.created * 1000 <= RECHECK_UNTIL_MS);
+  let paid = 0;
+  for (const order of open) {
+    const session = await stripe.getCheckout(order.stripe_id).catch((err) => {
+      console.warn(`[web] sprawdzanie ${order.id}:`, err.message);
+      return null;
+    });
+    if (!session) continue;
+    const after = await settle(store.getOrder(order.id), session, { fresh: true });
+    if (after?.status === 'paid') {
+      paid += 1;
+      console.log(`[web] ${order.id}: płatność potwierdzona przy sprawdzaniu otwartych zamówień (bez powiadomienia ze Stripe – sprawdź webhook)`);
+    }
+  }
+  return paid;
+}
+
 // ───────────── Discord sign-in ─────────────
 /**
  * Where sign-in may send people back to (?next=<name>) – only pages of this site, by name, never an address: the
@@ -494,7 +524,7 @@ function download(req, res) {
     store.countDownload(release.version);
     if (user) store.countUserDownload(user.id);
   }
-  return redirect(res, `/updates/${encodeURIComponent(release.file)}`);
+  return redirect(res, releases.downloadPath(release)); // the address Cloudflare may keep (src/web/releases.js)
 }
 
 // ───────────── Pages and static files ─────────────
@@ -674,7 +704,7 @@ async function handle(req, res) {
  */
 function createWebServer(h = {}) {
   hooks = { ...hooks, ...h };
-  return http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     handle(req, res).catch((err) => {
       const status = err.status ?? (isUserError(err) ? 400 : null); // a wrong nick, address, version… – said plainly
       if (!status) console.error('[web]', err);
@@ -682,6 +712,15 @@ function createWebServer(h = {}) {
       else res.end();
     });
   });
+  let checking = false;
+  const timer = setInterval(() => {
+    if (checking) return;
+    checking = true;
+    recheckPending().catch((err) => console.warn('[web] sprawdzanie otwartych zamówień:', err.message)).finally(() => (checking = false));
+  }, RECHECK_MS);
+  timer.unref?.();
+  server.on('close', () => clearInterval(timer));
+  return server;
 }
 
-module.exports = { createWebServer, authReady, paymentsReady, webhookReady, plusOnSale };
+module.exports = { createWebServer, authReady, paymentsReady, webhookReady, plusOnSale, recheckPending };
