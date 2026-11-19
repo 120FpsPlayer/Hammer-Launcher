@@ -47,3 +47,12 @@ test('featured servers: the modpack is a Modrinth slug / id the launcher can ins
     for (const s of featured.publicList(guild.id)) if (s.pack) assert.ok(PACK.test(s.pack), s.pack);
   }
 });
+
+test('the panel refuses a version that is not the one in the installer\'s name (no endless „update” loop on players\' PCs)', async () => {
+  store.load();
+  fs.mkdirSync(releases.DIR(), { recursive: true });
+  fs.writeFileSync(releases.fileOf('Hammer-Launcher-Setup-2.11.5.exe'), Buffer.from('MZ 2.11.5'));
+  await assert.rejects(releases.publish({ version: '2.12.0', file: 'Hammer-Launcher-Setup-2.11.5.exe' }), (err) => err.status === 400 && /wersja 2\.11\.5/.test(err.message));
+  const release = await releases.publish({ version: '2.11.5', file: 'Hammer-Launcher-Setup-2.11.5.exe' });
+  assert.equal(release.version, '2.11.5');
+});

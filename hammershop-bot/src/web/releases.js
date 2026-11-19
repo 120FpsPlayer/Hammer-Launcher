@@ -303,6 +303,10 @@ async function publish({ version, file, blockmap = null, notes = '', minVersion 
   if (signature !== null && !/^[A-Za-z0-9+/]{86}==$/.test(signature)) throw problem(400, 'Podpis to 88 znaków base64 – wklej zawartość pliku .sig.');
   const taken = store.releases().find((r) => r.version !== version && (r.file === file || (blockmap && r.blockmap === blockmap)));
   if (taken) throw problem(409, `Ten plik należy już do wersji ${taken.version}.`);
+  // The installer's name carries its version (Hammer-Launcher-Setup-2.11.4.exe). Published under another number, every
+  // installed launcher would install it, start as the old version, find the "new" one again – and over again.
+  const named = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\.exe$/.exec(file)?.[1];
+  if (named && named !== version) throw problem(400, `Ten instalator to wersja ${named}, a wpisałeś ${version}. Wpisz wersję z nazwy pliku – inaczej launchery graczy w kółko „aktualizowałyby się” do tego samego pliku.`);
   const { sha512, size } = await hashFile(file);
   const before = store.getRelease(version);
   const { release, dropped } = store.saveRelease({
