@@ -28,6 +28,7 @@
   <section class="gate card" id="gate">
     <h1 id="gate-title">Panel admina</h1>
     <p class="muted" id="gate-text">Sprawdzam dostęp…</p>
+    <p class="notice ok" id="gate-done" role="status" hidden></p>
     <p><a class="btn primary" id="gate-login" href="/api/shop/auth/start?next=admin" hidden>Zaloguj przez Discord</a></p>
   </section>
 
@@ -57,6 +58,8 @@
       <div class="card reset-card" id="reset-card" hidden>
         <div class="row"><h2>Zerowanie statystyk</h2><button class="btn small danger right" type="button" id="reset-open">Wyzeruj statystyki</button></div>
         <p class="muted small">Pobrania (dziennie, przy wersjach i przy kontach) i uruchomienia launchera wrócą do zera – na stronie, w panelu i na kanale „📥 Pobrania” na Discordzie. Zamówienia, kody Hammer+, konta, nagrody z poleceń, aktualności, wersje launchera i ustawienia zostają.</p>
+        <!--launcher--><div class="row start-row"><h2>Start od zera (przed premierą)</h2><button class="btn small danger right" type="button" id="start-open">Start od zera</button></div>
+        <p class="muted small">Usuwa wszystko, co zostało po testach: statystyki, zamówienia, konta i polecenia na stronie, wiadomości, zamknięte tickety, zaproszenia i listę kodów Hammer+. Zbudowany serwer, wersje launchera, aktualności i ustawienia zostają. Najpierw bot zapisuje kopię danych na serwerze.</p><!--/launcher-->
       </div>
     </section>
 
@@ -323,6 +326,41 @@
     <div class="actions"><button class="btn" type="button" id="reset-cancel">Anuluj</button><button class="btn danger" type="submit" id="reset-yes" disabled>Wyzeruj</button></div>
   </form>
 </dialog>
+<!--launcher--><dialog id="start-dialog" aria-labelledby="start-title">
+  <form method="dialog" id="start-form" class="fields">
+    <h2 id="start-title" tabindex="-1">Start od zera – przed premierą</h2>
+    <p class="muted">Usuwa dane z testów, żeby po premierze liczyło się tylko to, co prawdziwe. Najpierw bot zapisze kopię obu plików z danymi w folderze <code>data/kopia-przed-startem-…</code> na serwerze – z niej da się wszystko przywrócić.</p>
+    <div class="start-lists">
+      <div class="start-list gone">
+        <h3>Usuniemy</h3>
+        <ul>
+          <li>statystyki: pobrania (dziennie, przy wersjach i przy kontach) i uruchomienia launchera</li>
+          <li>zamówienia ze strony</li>
+          <li>konta i sesje na stronie – <b>wszyscy, także Ty, zalogują się od nowa</b></li>
+          <li>„Zaproś znajomego”: linki, kto kogo polecił, nagrody i dni do odebrania</li>
+          <li>wiadomości z formularza kontaktowego</li>
+          <li>kopie w chmurze Hammer+, wybrane peleryny i dodatki</li>
+          <li>zamknięte tickety razem z ich kanałami (transkrypcje zostają) – numery ticketów liczą się od nowa: od #0001 albo od najwyższego otwartego</li>
+          <li>śledzenie zaproszeń, licznik wiadomości (#ranking) i zakończone giveawaye</li>
+          <li>listę wystawionych kodów Hammer+ (z <code>/hammerplus</code>, z panelu i z zakupów) – same kody dalej działają w launcherze do końca ważności, ale ranga 💎 Hammer+ znika</li>
+        </ul>
+      </div>
+      <div class="start-list kept">
+        <h3>Zostaje</h3>
+        <ul>
+          <li>zbudowany serwer Discord: kanały, role, emotki, panele</li>
+          <li>wersje launchera i ich pliki, aktualności, komunikat w launcherze</li>
+          <li>cennik Hammer+, polecane serwery, #plany, historia ogłoszeń</li>
+          <li>wpisy <code>/wiedza</code>, ustawienia, czarna lista, notatki zespołu</li>
+          <li>otwarte tickety, trwające giveawaye i klucze w pliku <code>.env</code></li>
+        </ul>
+      </div>
+    </div>
+    <label>Wpisz PREMIERA, żeby potwierdzić<input type="text" id="start-confirm" autocomplete="off" spellcheck="false" maxlength="12" placeholder="PREMIERA"></label>
+    <p class="notice bad small" id="start-error" role="alert" hidden></p>
+    <div class="actions"><button class="btn" type="button" id="start-cancel">Anuluj</button><button class="btn danger" type="submit" id="start-yes" disabled>Usuń dane z testów</button></div>
+  </form>
+</dialog><!--/launcher-->
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/assets/admin.js"></script>
 </body>

@@ -526,6 +526,12 @@ module.exports = {
  * → what there was ({ downloads, launches, releases, people }) – for the log line.
  */
 function resetStats() {
+  const before = zeroStats();
+  flushSoon(); // on the disk at once, not a moment later (a write that fails is tried again by itself)
+  return before;
+}
+/** Every statistic back to 0 (in memory) → what there was. */
+function zeroStats() {
   const sum = (values) => values.reduce((s, n) => s + (Number(n) || 0), 0);
   const people = Object.values(state.referrals?.people ?? {});
   const before = {
@@ -542,10 +548,65 @@ function resetStats() {
     p.downloads = 0;
     delete p.downloadedAt;
   }
-  flushSoon(); // on the disk at once, not a moment later (a write that fails is tried again by itself)
   return before;
 }
 module.exports.resetStats = resetStats;
+
+// ── „Start od zera (przed premierą)” (the admin panel, owner only – src/web/admin.js) ──
+const BACKUP_PREFIX = 'kopia-przed-startem-';
+
+/**
+ * Before anything is deleted: both databases – the bot's data/db.json and this data/web.json – exactly as they are now
+ * (whatever waits in memory is written out first), copied into data/kopia-przed-startem-<YYYY-MM-DD-HHmm>/ (Polish
+ * time). It is inside the data folder, which the website never serves. Putting the two files back (with the bot
+ * switched off) undoes the reset. Throws when the copy cannot be made – and then nothing may be deleted.
+ * → the folder's name
+ */
+function backupBeforeStart(now = Date.now()) {
+  db.flush();
+  flush();
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  const stamp = `${BACKUP_PREFIX}${p.year}-${p.month}-${p.day}-${p.hour}${p.minute}`;
+  let name = stamp;
+  for (let n = 2; fs.existsSync(path.join(db.dataDir, name)); n += 1) name = `${stamp}-${n}`; // twice in one minute
+  const dir = path.join(db.dataDir, name);
+  try {
+    fs.mkdirSync(dir);
+    for (const file of ['db.json', 'web.json']) {
+      const from = path.join(db.dataDir, file);
+      fs.copyFileSync(from, path.join(dir, file));
+      if (fs.statSync(path.join(dir, file)).size !== fs.statSync(from).size) throw Object.assign(new Error(`kopia ${file} jest niepełna`), { code: 'ESHORT' });
+    }
+  } catch (err) {
+    fs.rmSync(dir, { recursive: true, force: true }); // half a copy is no copy
+    throw err;
+  }
+  return name;
+}
+
+/**
+ * The website's part of „Start od zera”: what the test weeks left goes – every statistic (as „Wyzeruj statystyki”),
+ * the orders, „Zaproś znajomego” (links, who referred whom, rewards, balances), the contact form's messages, the
+ * Hammer+ cloud copies, the capes and cosmetics, and every account and session (everybody signs in again – the owner
+ * too). What the owner set up stays: news, the alert bar, the releases and their files, the Hammer+ price list, the
+ * roadmap, the announcements' history. Written to the disk at once. → how many of each there were.
+ */
+function startOver() {
+  const count = (map) => Object.keys(map ?? {}).length;
+  const stats = zeroStats();
+  const before = {
+    ...stats,
+    orders: count(state.orders), users: count(state.users), sessions: count(state.sessions),
+    referrals: count(state.referrals?.people), messages: (state.messages ?? []).length,
+    cloud: count(state.cloud), capes: count(state.capes), cosmetics: count(state.cosmetics),
+  };
+  Object.assign(state, { users: {}, sessions: {}, orders: {}, cloud: {}, capes: {}, referrals: null });
+  delete state.cosmetics;
+  delete state.messages;
+  flushSoon();
+  return before;
+}
+Object.assign(module.exports, { BACKUP_PREFIX, backupBeforeStart, startOver });
 
 Object.assign(module.exports, { siteUserExists, referralCode, referrerOf, referralOf, addReferral, countUserDownload, referralStats, referralPurchase, addReferralDays, takeReferralBalance, addReferralReward, referralOverview });
 

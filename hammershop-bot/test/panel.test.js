@@ -127,6 +127,20 @@ test('the panel is only for the shop\'s people: not signed in, a plain member, a
   assert.equal(webStore.newsList().length, 0);
 });
 
+test('„Start od zera (przed premierą)” is Hammer Launcher\'s – the shop\'s site has real customers: no button, no route, nothing deleted', async () => {
+  const users = Object.keys(webStore._state().users).length;
+  const res = await admin('POST', 'start-over', { body: { confirm: 'PREMIERA' } });
+  assert.deepEqual([res.status, res.body.error], [404, 'Nie znaleziono']);
+  assert.equal(Object.keys(webStore._state().users).length, users);
+  assert.equal((await admin('GET', 'me')).status, 200, 'still signed in');
+  assert.ok(!fs.readdirSync(require('../src/lib/db').dataDir).some((f) => f.startsWith('kopia-przed-startem-')), 'no copy made');
+  const page = (await call('GET', '/admin')).body;
+  assert.match(page, /id="reset-open"/, '„Wyzeruj statystyki” is there');
+  assert.doesNotMatch(page, /start-open|start-dialog|PREMIERA/);
+  // …and the shop's launcher page has no premiere strip (config.launch is empty there).
+  assert.doesNotMatch((await call('GET', '/launcher')).body, /class="launch|Oficjalny start|\{\{launch\}\}/);
+});
+
 test('news: written in the panel, shown in the launcher (pinned first), posted on Discord when asked', async () => {
   assert.deepEqual(await feed(), { news: [], alert: null, release: null });
   const first = await admin('POST', 'news', { who: 'admin', body: { title: '  Nowy   sezon ', body: 'Startujemy w piątek.\r\n\r\n\r\n\r\nZapraszamy!', tag: 'Serwer', url: 'https://hammershop.pl/sezon' } });

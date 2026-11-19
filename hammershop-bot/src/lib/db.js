@@ -267,4 +267,46 @@ module.exports = {
   tickets(filter = () => true) {
     return Object.values(state.tickets).filter(filter);
   },
+
+  /**
+   * „Start od zera (przed premierą)” (the admin panel – src/web/admin.js): the test weeks' activity goes, on every
+   * server in this file – closed tickets (the open ones stay) and the ticket counter (set to the highest open number,
+   * so the next ticket never repeats one; none open → the next is #0001), invite tracking, the list of Hammer+ codes
+   * issued (the codes keep working – they are signed), ended giveaways (running ones stay) and the message counters
+   * (#ranking). What the team set up stays: the built server and its panels, settings, blacklist, staff notes,
+   * /wiedza, featured servers – and everything of the shop's (products, sales, vouches, balances…). Written at once.
+   * → { tickets, closedChannels: [{ guildId, channelId }] (closed tickets whose channel may still be there), invites,
+   *     plusCodes, giveaways, activity } – what went.
+   */
+  startOver() {
+    const out = { tickets: 0, closedChannels: [], invites: 0, plusCodes: 0, giveaways: 0, activity: 0 };
+    for (const [channelId, t] of Object.entries(state.tickets)) {
+      if (t.status === 'open') continue;
+      if (t.status === 'closed') out.closedChannels.push({ guildId: t.guildId, channelId });
+      delete state.tickets[channelId];
+      out.tickets += 1;
+    }
+    for (const guildId of Object.keys(state.guilds)) {
+      const g = guild(guildId);
+      g.counter = Math.max(0, ...Object.values(state.tickets).filter((t) => t.guildId === guildId).map((t) => Number(t.number) || 0));
+      out.invites += Object.keys(g.invites.members ?? {}).length;
+      g.invites = { members: {}, inviters: {}, rewarded: {} };
+      out.plusCodes += g.plusCodes.length;
+      g.plusCodes = [];
+      for (const [id, gw] of Object.entries(g.giveaways)) {
+        if (!gw?.ended) continue;
+        delete g.giveaways[id];
+        out.giveaways += 1;
+      }
+      out.activity += Object.keys(g.activity.total ?? {}).length;
+      g.activity = { total: {}, weekKey: null, week: {} };
+    }
+    try {
+      flush();
+    } catch (err) {
+      console.error('[db] Nie udało się zapisać danych:', err.message);
+      save(); // tried again in a moment
+    }
+    return out;
+  },
 };

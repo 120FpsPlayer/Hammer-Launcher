@@ -28,6 +28,19 @@ try {
   else console.log(`ℹ E-mail: wyłączony – w pliku .env brakuje MAIL_PASS (hasło do aplikacji z konta Google ${mail.from}). Formularz kontaktowy działa i tak: panel admina + Discord.`);
 }
 
+// „Oficjalny start” on the launcher's start page (config.launch): the date as the page shows it – or what is wrong with it.
+try {
+  const pages = require('../src/web/pages');
+  const day = pages.launchDay();
+  if (day) {
+    const state = pages.launchState();
+    console.log(`✔ Oficjalny start na stronie: ${day.label}${day.time ? `, ${day.time}` : ''} – ${!state ? 'ten dzień już minął, pasek jest ukryty' : state.today ? 'dziś („Startujemy dziś!”)' : state.when}.`);
+  }
+} catch (err) {
+  console.error(`✖ ${err.message}`);
+  process.exit(1);
+}
+
 // The Hammer Launcher server (BOT_PROFILE=launcher) is checked with its own build: config.launcher.json, its channels and cards.
 const launcher = require('../src/lib/profile').launcher;
 if (launcher) console.log('ℹ Profil: Hammer Launcher (BOT_PROFILE=launcher) – config.json + config.launcher.json.');

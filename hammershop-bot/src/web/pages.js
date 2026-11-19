@@ -21,6 +21,7 @@
  *
  *   {{base}} {{home}}      '' and '/' on the launcher's own site, '/launcher' and '/launcher' on HammerShop's
  *   {{title}} …            the page's own title, description and address (see `render`)
+ *   {{launch}}             the start page's „Oficjalny start” strip (config.launch – `launchStrip`), '' when there is none
  *   <!--shop-->…<!--/shop-->, <!--launcher-->…<!--/launcher-->   only on that site
  *   <!--contact-->…<!--/contact-->                               only when a contact address is set (config.contact.email)
  *   data-nav="<page>"      on links: the current page's link gets aria-current="page"
@@ -156,12 +157,74 @@ function blocks(html, on) {
 /** What is only for one of the two sites (see the top of this file) – also used for the admin panel's page. */
 const forProfile = (html) => blocks(html, { shop: profile.shop, launcher: profile.launcher });
 
+// ── „Oficjalny start”: the premiere date on the start page (config.launch – Polish time) ──
+const ZONE = 'Europe/Warsaw';
+const MONTHS = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** config.launch, checked → { date: 'YYYY-MM-DD', time: 'HH:MM' | '', label: '6 grudnia 2026' } | null (nothing set). */
+function launchDay(launch = config.launch) {
+  const date = String(launch?.date ?? '').trim();
+  const time = String(launch?.time ?? '').trim();
+  if (!date) return null;
+  const [, y, m, d] = DATE.exec(date) ?? [];
+  const real = y && new Date(Date.UTC(+y, m - 1, +d)).toISOString().slice(0, 10) === date; // no 31 February
+  if (!real || (time && !TIME.test(time))) throw new Error(`"launch": data ${JSON.stringify(date)}${time ? ` i godzina ${JSON.stringify(time)}` : ''} – wpisz datę jako RRRR-MM-DD (np. 2026-12-06) i godzinę jako GG:MM (np. 18:00) albo "".`);
+  return { date, time, label: `${+d} ${MONTHS[m - 1]} ${y}` };
+}
+
+/** What day and time it is in Poland: { day: 'YYYY-MM-DD', time: 'HH:MM' }. */
+function polishNow(now) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now)).map((p) => [p.type, p.value]));
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+/** Calendar days from one 'YYYY-MM-DD' to another (a clock change on the way does not matter). */
+const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00Z`) - Date.parse(`${from}T00:00Z`)) / 86_400_000);
+
+/**
+ * What the strip says at `now` → { today: true } on the day (from its hour, when one is set), { today: false, when }
+ * before it (when: „za 17 dni”, „jutro”, „jutro o 18:00”, „dziś o 18:00”), null without a date or once the day is over.
+ */
+function launchState(launch = config.launch, now = Date.now()) {
+  const day = launchDay(launch);
+  if (!day) return null;
+  const at = polishNow(now);
+  const days = daysBetween(at.day, day.date);
+  if (days < 0) return null;
+  if (days === 0 && (!day.time || at.time >= day.time)) return { ...day, today: true };
+  const hour = day.time ? ` o ${day.time}` : '';
+  // 1 day is „jutro”; from 2 on Polish says „dni” (2 dni, 5 dni, 22 dni).
+  return { ...day, today: false, when: days === 0 ? `dziś${hour}` : days === 1 ? `jutro${hour}` : `za ${days} dni` };
+}
+
+/**
+ * The strip in the start page's hero, drawn on the server (the page is never cached): '' when there is nothing to
+ * show. data-* lets launcher.js move it on while the page stays open (the next day, the hour of the premiere).
+ */
+function launchStrip(launch = config.launch, now = Date.now()) {
+  let state;
+  try {
+    state = launchState(launch, now);
+  } catch (err) {
+    if (!launchStrip.warned) console.warn(`🌐 Strona: ${err.message} Pasek „Oficjalny start” jest ukryty.`);
+    launchStrip.warned = true;
+    return '';
+  }
+  if (!state) return '';
+  const data = `data-date="${state.date}" data-time="${state.time}" data-now="${now}"`; // data-now: the server's clock – a visitor's may be wrong
+  const iso = `${state.date}${state.time ? `T${state.time}` : ''}`;
+  if (state.today) return `<p class="launch today" id="launch" ${data}><span class="launch-ico" aria-hidden="true">🚀</span><span class="launch-text"><b>Startujemy dziś!</b></span></p>`;
+  return `<p class="launch" id="launch" ${data}><span class="launch-ico" aria-hidden="true">🚀</span><span class="launch-text">Oficjalny start: <b><time datetime="${iso}">${state.label}</time></b></span><span class="launch-when">${state.when}</span></p>`;
+}
+
 /**
  * A page as the browser gets it: the layout around the page's own part, for this site, with its title, description
  * and address (origin: the site's public address – canonical and the link preview want whole addresses), the current
  * page's link marked and every /assets/… address stamped. page: one of PAGES or NOT_FOUND.
  */
-function render(page, origin = '') {
+function render(page, origin = '', { now = Date.now() } = {}) {
   const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
   const partner = config.partner ?? {};
   const contact = String(config.contact?.email ?? '').trim();
@@ -180,6 +243,7 @@ function render(page, origin = '') {
     contact: esc(contact),
     partner_url: esc(https(partner.url) || 'https://hammershop.pl'),
     partner_discord: esc(https(partner.discord)),
+    launch: page.id === 'start' ? launchStrip(config.launch, now) : '', // „Oficjalny start” (only the start page has the place for it)
   };
   let html = read('layout.html').replace('{{main}}', () => read(page.file));
   html = blocks(forProfile(html), { contact: Boolean(contact), 'partner-discord': Boolean(values.partner_discord) });
@@ -197,4 +261,4 @@ function sitemap(origin) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
-module.exports = { PAGES, NOT_FOUND, BASE, HOME, DIR, pathOf, resolve, signInTargets, render, forProfile, robots, sitemap };
+module.exports = { PAGES, NOT_FOUND, BASE, HOME, DIR, pathOf, resolve, signInTargets, render, forProfile, robots, sitemap, launchDay, launchState, launchStrip };

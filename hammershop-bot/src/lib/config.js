@@ -19,6 +19,9 @@ const FEATURE_DEFAULTS = {
   contact: { email: '' },
   // The Hammer Launcher server's co-creator, shown on its own channel (#hammershop): url – its site, discord – an invite ('' = no button).
   partner: { name: '', url: '', discord: '' },
+  // The official premiere, shown on the launcher's start page with a countdown (src/web/pages.js): date 'YYYY-MM-DD', time
+  // 'HH:MM' or '' – both in Polish time (Europe/Warsaw). '' = nothing is shown; after the day the strip goes by itself.
+  launch: { date: '', time: '' },
   // Stripe's page when someone buys Hammer+ on the website: the name above the price, the line under it and the text under
   // the Pay button ('' = without it). {plan} {nick} {time} {days} are filled in (src/web/server.js).
   checkout: { plusName: '{plan} – {nick}', plusDescription: 'Hammer+ w Hammer Launcherze dla konta Minecraft {nick} – {time}', plusMessage: "Zaraz po płatności zobaczysz swój kod Hammer+ na stronie i dostaniesz go w wiadomości prywatnej na Discordzie oraz na e-mail podany wyżej. Wpisujesz go w Hammer Launcherze: Hammer+ → „Mam kod”." },

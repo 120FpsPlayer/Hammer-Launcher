@@ -641,7 +641,7 @@ async function handle(req, res) {
       level: (id) => hooks.level(id), announce: (a) => hooks.announce(a), log: (t) => hooks.log(t),
       plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements, roadmap: hooks.roadmap,
       publicUrl: () => web().publicUrl, authReady, paymentsReady, webhookReady, playing: () => launcher.onlineNow(), invitesPaused: () => Boolean(hooks.invitesPaused?.()), ownInviteFailing: () => Boolean(hooks.ownInviteFailing?.()),
-      statsReset: () => hooks.statsReset?.(),
+      statsReset: () => hooks.statsReset?.(), startOver: (what) => hooks.startOver?.(what),
     });
   }
   if (!p.startsWith('/api/shop/')) {

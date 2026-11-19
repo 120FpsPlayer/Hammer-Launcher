@@ -156,3 +156,23 @@ legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 8
 .reset-card { border-color: #ff6b5e33; }
 #reset-dialog .fields { gap: 12px; }
 #reset-confirm { text-transform: uppercase; letter-spacing: .08em; }
+/* Pulpit: „Start od zera (przed premierą)” (owner, Hammer Launcher's site) – what goes and what stays, side by side */
+.start-row { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+#start-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+#start-dialog .fields { gap: 12px; }
+#start-dialog code, #gate-done code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #ffffff0d; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+.start-lists { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; align-items: start; }
+.start-list { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 11px 14px; font-size: 13px; line-height: 1.42; }
+.start-list h3 { font-size: 13px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+.start-list ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.start-list.gone { border-color: #ff6b5e44; background: #ff6b5e0d; }
+.start-list.gone h3 { color: #ffb3ab; }
+.start-list.kept { border-color: #5fd08a44; background: #5fd08a0d; }
+.start-list.kept h3 { color: #a8ebc2; }
+#start-confirm { text-transform: uppercase; letter-spacing: .08em; }
+#start-title:focus { outline: none; } /* the dialog opens on its title: the lists are read before anything is typed */
+#gate-done { text-align: left; }
+@media (max-width: 560px) {
+  .start-lists { grid-template-columns: 1fr; }
+  #start-dialog { padding: 20px 18px; }
+}

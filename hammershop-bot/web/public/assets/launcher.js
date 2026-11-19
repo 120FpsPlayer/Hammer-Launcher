@@ -126,6 +126,38 @@
     location.href = '/download';
   }
 
+  // ── „Oficjalny start” (the start page): the server draws it; a page left open moves on by itself – „jutro” the next
+  // day, „Startujemy dziś!” on the day (from its hour, when one is set), gone the day after. Polish time, the server's clock. ──
+  (function () {
+    var strip = $('launch');
+    if (!strip) return;
+    var date = strip.getAttribute('data-date');
+    var time = strip.getAttribute('data-time') || '';
+    var skew = (Number(strip.getAttribute('data-now')) || Date.now()) - Date.now();
+    function polishNow() {
+      var p = {};
+      new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date(Date.now() + skew)).forEach(function (x) { p[x.type] = x.value; });
+      return { day: p.year + '-' + p.month + '-' + p.day, time: p.hour + ':' + p.minute };
+    }
+    var timer = setInterval(function () {
+      var now = polishNow();
+      var days = Math.round((Date.parse(date + 'T00:00Z') - Date.parse(now.day + 'T00:00Z')) / 86400000);
+      if (days < 0) { strip.hidden = true; clearInterval(timer); return; }
+      if (days === 0 && (!time || now.time >= time)) {
+        if (strip.className === 'launch today') return;
+        strip.className = 'launch today';
+        strip.textContent = '';
+        strip.appendChild(el('span', { class: 'launch-ico', 'aria-hidden': 'true', text: '🚀' }));
+        strip.appendChild(el('span', { class: 'launch-text' }, [el('b', { text: 'Startujemy dziś!' })]));
+        return;
+      }
+      var hour = time ? ' o ' + time : '';
+      var when = strip.querySelector('.launch-when');
+      if (when) when.textContent = days === 0 ? 'dziś' + hour : days === 1 ? 'jutro' + hour : 'za ' + days + ' dni';
+    }, 60000);
+  })();
+
   // ── Aktualności: the current version and what the admin panel published ──
   function showNews(feed) {
     var box = $('news');

@@ -1,4 +1,4 @@
-/* The admin panel: news, Discord announcements, the #plany card, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages – over /api/admin/. */
+/* The admin panel: news, Discord announcements, the #plany card, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages, the resets – over /api/admin/. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -18,10 +18,33 @@
     if (body !== undefined) { options.headers['content-type'] = 'application/json'; options.body = JSON.stringify(body); }
     return fetch('/api/admin/' + route, options).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.status === 401) signedOut();
         if (!res.ok) throw Object.assign(new Error(data.error || 'Coś poszło nie tak. Spróbuj ponownie.'), { status: res.status });
         return data;
       });
     });
+  }
+  /**
+   * Signed out while the panel is open (the session ended; „Start od zera” signs everybody out): back to the sign-in
+   * instead of errors. folder: after „Start od zera” – where the copy of the data is.
+   */
+  function signedOut(folder) {
+    if ($('panel').hidden && !folder) return; // the sign-in is showing already (the reset's own answer still says where the copy is)
+    $('panel').hidden = true;
+    $('who').textContent = '';
+    $('gate').hidden = false;
+    $('gate-login').hidden = false;
+    $('gate-title').textContent = folder ? 'Gotowe – start od zera' : 'Zaloguj się ponownie';
+    $('gate-text').textContent = folder ? 'Wszyscy zostali wylogowani – także Ty. Zaloguj się ponownie przez Discord.' : 'Twoja sesja się skończyła. Zaloguj się przez Discord, żeby wrócić do panelu.';
+    var done = $('gate-done');
+    done.textContent = '';
+    done.hidden = !folder;
+    if (folder) {
+      done.appendChild(document.createTextNode('Dane z testów są usunięte. Kopia sprzed resetu jest na serwerze w folderze '));
+      done.appendChild(el('code', { text: 'data/' + folder }));
+      done.appendChild(document.createTextNode(' – żeby wszystko cofnąć, przy wyłączonym bocie skopiuj z niej oba pliki (db.json i web.json) z powrotem do folderu data.'));
+    }
+    window.scrollTo(0, 0);
   }
   var toastTimer = null;
   function toast(text, bad) {
@@ -148,6 +171,47 @@
       }).then(function () {
         yes.textContent = 'Wyzeruj';
         yes.disabled = !typed();
+      });
+    });
+  })();
+
+  // ── „Start od zera (przed premierą)” (owner, Hammer Launcher's site only): the dialog lists what goes and what stays –
+  // the data goes once PREMIERA is typed; everybody is signed out then, so the panel shows the sign-in and the copy's folder ──
+  (function () {
+    var dialog = $('start-dialog');
+    if (!dialog) return;
+    var input = $('start-confirm');
+    var yes = $('start-yes');
+    var no = $('start-cancel');
+    var error = $('start-error');
+    var label = yes.textContent;
+    var typed = function () { return input.value.trim().toUpperCase() === 'PREMIERA'; };
+    input.addEventListener('input', function () { yes.disabled = !typed(); error.hidden = true; });
+    $('start-open').addEventListener('click', function () {
+      $('start-form').reset();
+      yes.disabled = true;
+      error.hidden = true;
+      dialog.showModal();
+      dialog.scrollTop = 0;
+      $('start-title').focus(); // the lists first – on a phone the keyboard would cover them
+    });
+    no.addEventListener('click', function () { dialog.close(); });
+    $('start-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!typed()) return;
+      yes.disabled = true;
+      no.disabled = true;
+      yes.textContent = 'Usuwam…';
+      api('POST', 'start-over', { confirm: input.value.trim() }).then(function (r) {
+        dialog.close();
+        signedOut(r.folder);
+      }).catch(function (err) {
+        error.textContent = err.message;
+        error.hidden = false;
+      }).then(function () {
+        yes.textContent = label;
+        yes.disabled = !typed();
+        no.disabled = false;
       });
     });
   })();

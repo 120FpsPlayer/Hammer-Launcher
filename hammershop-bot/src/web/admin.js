@@ -13,6 +13,10 @@
  *   GET    overview              → numbers for the dashboard
  *   POST   stats/reset           (owner) { confirm: 'ZERUJ' } – „Wyzeruj statystyki”: downloads and launcher starts
  *                                back to 0 (store.resetStats – nothing else) → { ok, before, overview }
+ *   POST   start-over            (owner, Hammer Launcher's site) { confirm: 'PREMIERA' } – „Start od zera (przed
+ *                                premierą)”: a copy of data/db.json and data/web.json in data/kopia-przed-startem-…/,
+ *                                then the test weeks' data goes (store.startOver, db.startOver – everybody is signed
+ *                                out, the owner too) → { ok, folder, before }
  *   GET    news                  POST news            PUT news/<id>          DELETE news/<id>
  *   GET    alert                 PUT alert            DELETE alert
  *   GET    releases              → { current, list, files (in data/releases/, not published), maxMb }
@@ -50,6 +54,8 @@
  */
 
 const config = require('../lib/config');
+const db = require('../lib/db');
+const profile = require('../lib/profile');
 const store = require('./store');
 const releases = require('./releases');
 const plusLib = require('../lib/plus');
@@ -86,6 +92,9 @@ function httpsUrl(value, what) {
   if (url.protocol !== 'https:' || url.username || url.password) throw problem(400, `${what}: adres musi zaczynać się od https://`);
   return url.href;
 }
+
+/** „1 zamówienie”, „3 zamówienia”, „5 zamówień” – a number with its Polish word. */
+const count = (n, one, few, many) => `${n} ${n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many}`;
 
 /** "12.11.2026" – the date as the shop's customers write it. */
 const plDate = (ms) => new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Warsaw' }).format(new Date(ms));
@@ -276,7 +285,7 @@ const uploadSaid = new Map();
  * /api/admin/… – h: the website's helpers { send, fail, jsonBody, userOf, limited, originOk } and the bot's side
  * { level, announce, log, plus { grant, recent, inspect, active }, featured { list, add, remove },
  *   announcements { info, bannerFile, post, remove }, roadmap { info, publish }, currency, publicUrl, authReady,
- *   paymentsReady, webhookReady }.
+ *   paymentsReady, webhookReady, statsReset, startOver({ closedChannels }) }.
  */
 async function api(req, res, url, h) {
   const route = url.pathname.slice(PREFIX.length).replace(/\/+$/, '');
@@ -394,6 +403,31 @@ async function api(req, res, url, h) {
     await log(`🧹 Wyzerowano statystyki strony (pobrania i uruchomienia launchera; było ${before.downloads} pobrań z 90 dni i ${before.releases} na liczniku wersji)`);
     Promise.resolve(h.statsReset?.()).catch(() => null); // the Discord „📥 Pobrania” channel – renames can wait, the answer does not
     return h.send(res, 200, { ok: true, before, overview: overview(h) });
+  }
+
+  // ── „Start od zera (przed premierą)” (owner, Hammer Launcher's site): everything the test weeks left – on the website
+  // and in the bot – goes, after a copy of both databases. The owner types PREMIERA. ──
+  if (route === 'start-over' && method === 'POST') {
+    if (!profile.launcher) return h.fail(res, 404, 'Nie znaleziono'); // the shop's site has real customers – no such button there
+    ownerOnly();
+    if (line(Object(body).confirm, 20).toUpperCase() !== 'PREMIERA') return h.fail(res, 400, 'Wpisz PREMIERA w polu potwierdzenia – bez tego nic nie zostanie usunięte.');
+    let folder;
+    try {
+      folder = store.backupBeforeStart();
+    } catch (err) {
+      console.warn(`[web] Start od zera przerwany – nie udało się zrobić kopii danych: ${err.code ?? ''} ${err.message}`);
+      return h.fail(res, 500, `Nie udało się zrobić kopii danych (${err.code === 'ENOSPC' ? 'na dysku serwera zabrakło miejsca' : err.code ?? err.message}) – nic nie zostało usunięte. Spróbuj ponownie.`);
+    }
+    const web = store.startOver();
+    const { closedChannels, ...bot } = db.startOver();
+    const before = { ...web, ...bot };
+    const orders = count(before.orders, 'zamówienie', 'zamówienia', 'zamówień');
+    const accounts = `${count(before.users, 'konto', 'konta', 'kont')} na stronie`;
+    const tickets = count(before.tickets, 'zamknięty ticket', 'zamknięte tickety', 'zamkniętych ticketów');
+    console.log(`[web] Start od zera z panelu admina przez ${user.id} – kopia danych: data/${folder}. Usunięto: ${orders}, ${accounts}, ${count(before.referrals, 'wpis', 'wpisy', 'wpisów')} poleceń, ${count(before.messages, 'wiadomość', 'wiadomości', 'wiadomości')}, ${count(before.downloads, 'pobranie', 'pobrania', 'pobrań')} (90 dni), ${count(before.launches, 'uruchomienie', 'uruchomienia', 'uruchomień')} launchera, ${tickets}, ${count(before.invites, 'zaproszenie', 'zaproszenia', 'zaproszeń')}, ${count(before.plusCodes, 'wpis', 'wpisy', 'wpisów')} kodów Hammer+, ${count(before.giveaways, 'zakończony giveaway', 'zakończone giveawaye', 'zakończonych giveawayów')}.`);
+    await log(`🧹 **Start od zera (przed premierą)**: usunięto dane z testów – statystyki, ${orders}, ${accounts}, polecenia, wiadomości, ${tickets}, zaproszenia, listę kodów Hammer+ i zakończone giveawaye. Kopia sprzed resetu: \`data/${folder}\``);
+    Promise.resolve(h.startOver?.({ closedChannels })).catch(() => null); // Discord: „📥 Pobrania”, #ranking, closed tickets' channels, 💎 Hammer+
+    return h.send(res, 200, { ok: true, folder, before });
   }
 
   // ── News ──

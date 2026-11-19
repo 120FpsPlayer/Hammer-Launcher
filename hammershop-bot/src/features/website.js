@@ -56,6 +56,7 @@ const { notice, container, header, text, divider, linkBtn, row, v2, channelUrl }
 const { e, ce } = require('../lib/theme');
 const { isSafeSelfRole } = require('../lib/guards');
 const permissions = require('../lib/permissions');
+const panels = require('../lib/panels');
 const plusLib = require('../lib/plus');
 const { banner, hasBanner } = require('../lib/theme');
 const { gallery } = require('../lib/v2');
@@ -779,6 +780,24 @@ const panelReferrals = {
 /** „Wyzeruj statystyki” in the admin panel: the Discord „📥 Pobrania” channel shows the 0 right away, not at the next round. */
 const statsReset = () => (client ? require('./stats').updateStatChannels(client, { keys: ['statDownloads'] }) : null);
 
+/**
+ * „Start od zera (przed premierą)” in the admin panel (the data is gone already – src/web/admin.js): Discord shows it
+ * right away – the „📥 Pobrania” channel, the #ranking card, no closed ticket left with its buttons but without its
+ * record (their transcripts stay where they were posted), and the 💎 Hammer+ role off those whose codes were on the
+ * list (the codes themselves keep working in the launcher).
+ */
+async function startOver({ closedChannels = [] } = {}) {
+  if (!client) return;
+  await statsReset()?.catch(() => null);
+  for (const guild of client.guilds.cache.values()) await panels.refresh(guild, 'leaderboard').catch(() => null);
+  for (const { guildId, channelId } of closedChannels) {
+    const channel = client.guilds.cache.get(guildId)?.channels.cache.get(channelId);
+    if (channel && !db.getTicket(channelId)) await channel.delete('Start od zera – zamknięty ticket z testów').catch(() => null);
+  }
+  const guild = guildOf();
+  if (guild) await require('./plusrole').syncAll(guild).catch(() => null);
+}
+
 // ───────────── The website's contact form → the team ─────────────
 /**
  * A message from the Kontakt page (src/web/contact.js) → a card on the team's chat (#💼 czat-zespołu), or in the
@@ -933,7 +952,7 @@ function start(c) {
     }
   });
   webAuth.setClientId(c.application?.id ?? c.user?.id);
-  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, receipt: buyerMail, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard, statsReset });
+  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, receipt: buyerMail, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard, statsReset, startOver });
   server.on('error', (err) => {
     console.warn(`🌐 Strona: nie można użyć portu ${env.web.port} (${err.code ?? err.message}) – bot działa dalej bez niej.`);
     server = null;
@@ -963,5 +982,5 @@ hooks.on('inviteDelete', (invite) => {
 module.exports = {
   catalog, featuredServers, plain, tabOf, artOf, guildOf, ticketOrder, handOver, onPaid, onLogin, isMember, start, stop: () => server?.close(), _setClient: (c) => (client = c),
   deliverPlus, plusDm, panelLevel, announce, panelLog, panelPlus, panelFeatured, panelReferrals, launcherChannel, checkInvite, inviteOf, invitesPaused, ownInviteFailing,
-  panelAnnouncements, contactCard, purchaseMail, buyerMail, orderMails, plusCode, statsReset, panelRoadmap,
+  panelAnnouncements, contactCard, purchaseMail, buyerMail, orderMails, plusCode, statsReset, startOver, panelRoadmap,
 };
