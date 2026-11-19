@@ -14,6 +14,7 @@ const { promisify } = require('node:util');
 const { AttachmentBuilder } = require('discord.js');
 const hooks = require('../lib/hooks');
 const config = require('../lib/config');
+const profile = require('../lib/profile');
 const db = require('../lib/db');
 const { COLORS } = require('../lib/theme');
 const { embed, sendToChannel, truncate, ts } = require('../lib/utils');
@@ -38,7 +39,7 @@ function size(bytes) {
 /** hammershop-backup-2026-10-03-1405.json.gz (local time of the shop). */
 function fileName(now, tz = timezone()) {
   const p = localParts(now, tz);
-  return `hammershop-backup-${p.year}-${pad2(p.month)}-${pad2(p.day)}-${pad2(p.hour)}${pad2(p.minute)}.json.gz`;
+  return `${profile.launcher ? 'hammer-launcher' : 'hammershop'}-backup-${p.year}-${pad2(p.month)}-${pad2(p.day)}-${pad2(p.hour)}${pad2(p.minute)}.json.gz`;
 }
 
 /** This server's data in the shape of data/db.json – only its guild record and its own tickets. */
@@ -90,10 +91,15 @@ function backupEmbed(guild, b, { by } = {}) {
     .addFields(
       { name: 'Rozmiar', value: `${size(b.size)} (${size(b.rawSize)} po rozpakowaniu)`, inline: true },
       { name: 'Tickety', value: `${c.tickets} (otwarte: ${c.openTickets})`, inline: true },
-      { name: 'Sprzedaż', value: String(c.sales), inline: true },
-      { name: 'Produkty', value: String(c.products), inline: true },
-      { name: 'Opinie', value: String(c.vouches), inline: true },
-      { name: 'Kody rabatowe', value: String(c.promos), inline: true },
+      // The launcher's server has no shop: no sales, products, vouches or promo codes to count.
+      ...(profile.launcher
+        ? []
+        : [
+            { name: 'Sprzedaż', value: String(c.sales), inline: true },
+            { name: 'Produkty', value: String(c.products), inline: true },
+            { name: 'Opinie', value: String(c.vouches), inline: true },
+            { name: 'Kody rabatowe', value: String(c.promos), inline: true },
+          ]),
       { name: '♻️ Jak przywrócić', value: RESTORE },
     );
 }
@@ -167,4 +173,4 @@ async function runBackups(client, now = Date.now()) {
 
 hooks.every('backups', CHECK_EVERY, (client) => runBackups(client), 3 * 60_000);
 
-module.exports = { LIMITS, size, fileName, snapshot, createBackup, backupNow, isDue, runBackups };
+module.exports = { LIMITS, size, fileName, snapshot, backupEmbed, createBackup, backupNow, isDue, runBackups };

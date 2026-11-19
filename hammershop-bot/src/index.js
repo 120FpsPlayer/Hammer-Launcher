@@ -25,6 +25,7 @@ const { reportRoles } = require('./lib/permissions');
 const { onEmojiChange } = require('./builder/emojis');
 const { rejectOnRateLimit } = require('./lib/ratelimit');
 const hooks = require('./lib/hooks');
+const profile = require('./lib/profile');
 require('./features/load');
 
 db.load();
@@ -90,7 +91,7 @@ client.once(Events.ClientReady, async (c) => {
     const open = db.tickets((x) => x.status === 'open').length;
     const vouchCount = db.allGuildIds().reduce((n, id) => n + db.guild(id).vouches.length, 0);
     const list = [
-      { name: `🛒 ${config.brand.name} · ${slash('help')}`, type: ActivityType.Watching },
+      { name: `${profile.launcher ? '🔨' : '🛒'} ${config.brand.name} · ${slash('help')}`, type: ActivityType.Watching },
       { name: `🎫 ${count(open, 'otwarty ticket', 'otwarte tickety', 'otwartych ticketów')}`, type: ActivityType.Watching },
       ...(vouchCount ? [{ name: `⭐ ${count(vouchCount, 'opinia', 'opinie', 'opinii')}`, type: ActivityType.Watching }] : []),
     ];

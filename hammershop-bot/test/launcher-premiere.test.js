@@ -213,3 +213,15 @@ test('Hammer+ DM after a purchase and the #hammer-plus card: „płatność onli
   assert.match(card, /Zapłać online przez Stripe/);
   assert.doesNotMatch(card, /Zapłać kartą/);
 });
+
+test('the backup card and file, and /zaproszenia, on the launcher server: no sales, products, vouches, promo codes or invite rewards', () => {
+  const backups = require('../src/features/backups');
+  const guild = new FakeGuild({ ownerId: '1' });
+  const card = backups.backupEmbed(guild, { name: 'x.json.gz', size: 1000, rawSize: 4000, createdAt: Date.now(), counts: { tickets: 2, openTickets: 1, sales: 0, products: 0, vouches: 0, promos: 0 } }).toJSON();
+  const names = card.fields.map((f) => f.name);
+  assert.deepEqual(names.filter((n) => /Sprzedaż|Produkty|Opinie|Kody rabatowe/.test(n)), []);
+  assert.ok(names.includes('Tickety'));
+  assert.match(backups.fileName(new Date('2026-10-03T12:05:00Z')), /^hammer-launcher-backup-2026-10-03-\d{4}\.json\.gz$/);
+  const invites = localizeCommand(commands.get('invites').data.toJSON());
+  assert.doesNotMatch(JSON.stringify(invites), /nagrod/);
+});

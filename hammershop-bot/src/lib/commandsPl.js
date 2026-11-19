@@ -301,6 +301,9 @@ if (require('./profile').launcher) {
   // No Sprzedawca role on this server – Hammer+ and the featured servers are for its admins.
   MAP.hammerplus.description = 'Hammer+ w Hammer Launcherze – kody przypisane do konta Minecraft (admini)';
   MAP.featured.description = 'Polecane serwery w Hammer Launcherze (admini)';
+  // No invite rewards here (config.launcher.json → invites.rewards is empty).
+  MAP.invites.description = 'Zaproszenia: Twoje zaproszenia i ranking zapraszających';
+  MAP.invites.options.stats.description = 'Ważne, oczekujące i utracone zaproszenia – Twoje lub innej osoby';
 }
 
 // ───────────── English → Polish (for Discord) ─────────────
