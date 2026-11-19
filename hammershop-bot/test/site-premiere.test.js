@@ -24,7 +24,8 @@ const website = require('../src/features/website');
 const webStore = require('../src/web/store');
 const webAuth = require('../src/web/discord');
 const releases = require('../src/web/releases');
-const { createWebServer, recheckPending } = require('../src/web/server');
+const { createWebServer, recheckPending, clientIp } = require('../src/web/server');
+const admin = require('../src/web/admin');
 
 const OWNER = { id: '1', username: 'szef', global_name: 'Szef', avatar: null };
 const BUYER = { id: '200000000000000031', username: 'kupujacy', global_name: 'Kupujący', avatar: null };
@@ -159,6 +160,41 @@ test('paid, but neither the webhook nor the buyer came back (tab closed, webhook
   assert.ok(mine.orders.find((o) => o.id === paid.order).plus.code.startsWith('HP1.'));
   // Asked again: nothing happens twice.
   assert.equal(await recheckPending(Date.now() + 7 * 60_000), 0);
+});
+
+test('per-address limits: CF-Connecting-IP counts only when the connection comes from Cloudflare or the own network', () => {
+  const ip = (peer, headers = {}) => clientIp({ socket: { remoteAddress: peer }, headers });
+  const cf = { 'cf-connecting-ip': '83.12.34.56' };
+  // Behind Cloudflare – IPv4, IPv4 on a dual-stack socket, IPv6 – and behind the hosting's own container network / a local proxy.
+  for (const peer of ['162.158.10.20', '::ffff:172.70.1.1', '2a06:98c1:3120::7', '172.18.0.1', '127.0.0.1']) assert.equal(ip(peer, cf), '83.12.34.56', peer);
+  assert.equal(ip('127.0.0.1', { 'x-forwarded-for': '1.2.3.4, 83.12.34.56' }), '83.12.34.56', 'the entry the own proxy added');
+  // Straight to the server's port, past Cloudflare: a made-up header changes nothing – every made-up address is one visitor.
+  const original = console.warn;
+  const warned = [];
+  console.warn = (...a) => warned.push(a.join(' '));
+  try {
+    for (const fake of ['1.1.1.1', '2.2.2.2']) assert.equal(ip('203.0.113.9', { 'cf-connecting-ip': fake, 'x-forwarded-for': fake }), '203.0.113.9');
+    assert.equal(ip('::ffff:203.0.113.9'), '203.0.113.9');
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(warned.length, 1, 'the console hears about it once');
+});
+
+test('panel: „Co nowego” is as long as the launcher shows it (2000), and nothing is cut through the middle of an emoji', async () => {
+  if (!webStore.currentRelease()) await publishBuild(crypto.randomBytes(1024));
+  const publish = (notes) => fetch(`${base}/api/admin/releases`, { method: 'POST', headers: { cookie: ownerSid, origin: base, 'content-type': 'application/json' }, body: JSON.stringify({ version: '2.11.3', file: FILE, notes }) });
+  const long = await publish('– poprawka\n'.repeat(250));
+  assert.equal(long.status, 400);
+  assert.match((await long.json()).error, /„Co nowego” może mieć najwyżej 2000 znaków – tyle pokaże launcher \(teraz 2749\)/);
+  assert.equal((await publish('x'.repeat(2000))).status, 200);
+  assert.equal(webStore.currentRelease().notes.length, 2000);
+  assert.match(fs.readFileSync(require.resolve('../web/public/admin.html'), 'utf8'), /id="release-notes" maxlength="2000"/);
+  // A news title of 119 letters and an emoji: cut at 120 it would end in half of the emoji („�”).
+  const title = admin.line(`${'a'.repeat(119)}🔥 ognia`, 120);
+  assert.equal(title, 'a'.repeat(119));
+  assert.equal(admin.block('ab🔥', 3), 'ab');
+  assert.equal(admin.line('Nowy sezon 🔥', 120), 'Nowy sezon 🔥');
 });
 
 /** A mail server that is busy for the first `busy` connections ("421 – try again later"), then the real fake. */

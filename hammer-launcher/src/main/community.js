@@ -26,7 +26,10 @@ const cdn = (kind, id, hash, size) => (id && hash ? `https://cdn.discordapp.com/
 function createCommunity({ config, fetchFn = (...a) => fetch(...a), now = () => Date.now() }) {
   const cache = new Map();
 
-  /** Cached for a few minutes; when a refresh fails the last good value is kept. */
+  /**
+   * Cached for a few minutes; when a refresh fails the last good value is kept – except after a 404: that is an
+   * answer (a dead Discord invite), not a hiccup, and the old card must not stay „live”.
+   */
   async function cached(key, fn, ttl = TTL) {
     const hit = cache.get(key);
     if (hit && now() - hit.at < ttl) return hit.value;
@@ -35,7 +38,8 @@ function createCommunity({ config, fetchFn = (...a) => fetch(...a), now = () => 
       cache.set(key, { at: now(), value });
       return value;
     } catch (err) {
-      if (hit) return hit.value;
+      if (err?.status === 404) cache.delete(key);
+      else if (hit) return hit.value;
       throw err;
     }
   }

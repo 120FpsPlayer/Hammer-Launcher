@@ -78,7 +78,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!isShopManager(interaction.member)) return replyError(interaction, 'Tylko administratorzy i sprzedawcy mogą zarządzać polecanymi serwerami.');
+    if (!isShopManager(interaction.member)) return replyError(interaction, require('../lib/profile').launcher ? 'Tylko administratorzy mogą zarządzać polecanymi serwerami.' : 'Tylko administratorzy i sprzedawcy mogą zarządzać polecanymi serwerami.');
     const o = interaction.options;
     const sub = o.getSubcommand();
     const guild = interaction.guild;

@@ -391,7 +391,7 @@ async function deliver({ subject, text, html, inline, replyTo, to }) {
  */
 async function send(message = {}) {
   let result;
-  const waits = message.retry === false ? [] : test.retryMs ?? (testing ? [] : RETRY_MS);
+  const waits = message?.retry === false ? [] : test.retryMs ?? (testing ? [] : RETRY_MS);
   for (let attempt = 0; ; attempt += 1) {
     try {
       result = await deliver(message);

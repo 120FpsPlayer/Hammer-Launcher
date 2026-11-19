@@ -581,7 +581,7 @@ function plusDm(guild, order, code, record, roleState = null) {
     text(
       `**Konto Minecraft:** \`${record.nick}\` · **Ważny:** ${hp.validity(record.exp)}\n` +
         '**Jak go użyć:** otwórz Hammer Launcher → **Hammer+** → **„Mam kod”** → wklej kod. Działa tylko na tym koncie Minecraft.\n' +
-        `-# Numer zamówienia \`${order.id}\` · zapłacono ${money(order.amount / unit())} · kartą (Stripe). Kod znajdziesz też na stronie launchera po zalogowaniu.`,
+        `-# Numer zamówienia \`${order.id}\` · zapłacono ${money(order.amount / unit())} · płatność online (Stripe). Kod znajdziesz też na stronie launchera po zalogowaniu.`,
     ),
   );
   const invite = roleState === 'not-member' ? inviteOf() : null;

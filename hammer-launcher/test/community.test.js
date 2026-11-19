@@ -114,3 +114,28 @@ test('gallery: screenshots from every instance, newest first, only real files ca
   removeScreenshot(b, 'mid.jpg');
   assert.equal(fs.existsSync(path.join(b.dir, 'screenshots', 'mid.jpg')), false);
 });
+
+test('an invite that dies after a good card: Discord\'s 404 is said (not the old card as live), and the website is asked for the new one', async () => {
+  let clock = 0;
+  const fetchFn = mockFetch([
+    { match: /hammershop\.pl\/api\/shop\/store$/, json: { discordUrl: 'https://discord.gg/fromBot', products: [], currency: 'pln' } },
+    { match: /invites\/fromBot/, once: true, json: DISCORD },
+    { match: /invites\/fromBot/, status: 404, json: { message: 'Unknown Invite' } },
+  ]);
+  const c = createCommunity({ config: { discordInvite: '', website: 'https://hammershop.pl' }, fetchFn, now: () => clock });
+  assert.equal((await c.discord()).live, true);
+  clock += 10 * 60 * 1000; // the card is refreshed after a few minutes – the invite is gone by then
+  const dead = await c.discord();
+  assert.deepEqual([dead.live, dead.invalid, dead.members], [false, true, null]);
+  const storeCalls = () => fetchFn.calls.filter((call) => /api\/shop\/store$/.test(call.url)).length;
+  const before = storeCalls();
+  await c.discord();
+  assert.equal(storeCalls(), before + 1, 'the website is asked again for the invite the bot made instead');
+  // A Discord that does not answer at all keeps the last good card (that is not a dead invite).
+  const flaky = mockFetch([{ match: /invites\/hammershop/, once: true, json: DISCORD }]);
+  let t = 0;
+  const offline = createCommunity({ config: { discordInvite: 'hammershop' }, fetchFn: (...a) => (t ? Promise.reject(new TypeError('fetch failed')) : flaky(...a)), now: () => t });
+  await offline.discord();
+  t = 10 * 60 * 1000;
+  assert.equal((await offline.discord()).live, true);
+});

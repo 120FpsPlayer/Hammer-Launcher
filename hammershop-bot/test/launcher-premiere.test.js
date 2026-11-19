@@ -15,7 +15,7 @@ const config = require('../src/lib/config');
 const { localizeCommand } = require('../src/lib/commandsPl');
 const commands = require('../src/commands')();
 
-const SHOP_WORDS = /HammerShop|[Ss]klep|[Oo]pini[ae]|[Zz]amówie|[Pp]rodukt|🛒|📦|🏷️|💳|tylko-klienci|zrealizuj/;
+const SHOP_WORDS = /HammerShop|[Ss]klep|[Oo]pini[ae]|[Zz]amówie|[Pp]rodukt|[Ss]przedawc|🛒|📦|🏷️|💳|tylko-klienci|zrealizuj/;
 
 async function built() {
   const guild = new FakeGuild({ ownerId: '1' });
@@ -175,4 +175,41 @@ test('verification in a burst of joins: Discord gets its answer before the role 
   assert.ok(newcomer.roles.cache.has(db.roleId(guild.id, 'member')));
   assert.match(textOf(lastResponse(answer)), /Konto zweryfikowane![\s\S]*/);
   assert.match(JSON.stringify(lastResponse(answer)), /Pobierz launcher/);
+});
+
+test('/pomoc for the owner lists every command of the launcher server – also turning the AI assistant on and off', async () => {
+  const guild = await built();
+  const { createInteraction, lastResponse, textOf } = require('./helpers/fakeInteraction');
+  const handle = require('../src/handlers/interactions');
+  const owner = guild.members.cache.get('1') ?? guild.addMember('1', []);
+  const i = createInteraction({ guild, member: owner, kind: 'command', commandName: 'help' });
+  await handle(i, commands);
+  const help = textOf(lastResponse(i));
+  for (const cmd of commands.values()) {
+    const name = localizeCommand(cmd.data.toJSON()).name;
+    if (name !== 'pomoc') assert.ok(help.includes(`/${name}`), `/pomoc names /${name}`);
+  }
+  assert.match(help, /\/asystent wlacz` · `\/asystent wylacz/);
+  assert.doesNotMatch(help, SHOP_WORDS);
+});
+
+test('Hammer+ DM after a purchase and the #hammer-plus card: „płatność online”, not „kartą” (Stripe also takes BLIK, Przelewy24…)', async () => {
+  const guild = await built();
+  const { textOf } = require('./helpers/fakeInteraction');
+  const website = require('../src/features/website');
+  const hammerplus = require('../src/features/hammerplus');
+  const { env } = require('../src/env');
+  const saved = env.plusPrivateKey;
+  env.plusPrivateKey = require('node:crypto').generateKeyPairSync('ed25519').privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
+  try {
+    const { code, record } = hammerplus.grantKnown(guild.id, { mc: '069a79f444e94726a5befca90e38aaf5', nick: 'Notch', days: 30, now: Date.now(), discordId: '300000000000000505' });
+    const dm = textOf(website.plusDm(guild, { id: 'o1', amount: 1499 }, code, record, 'added'));
+    assert.match(dm, /płatność online \(Stripe\)/);
+    assert.doesNotMatch(dm, /kartą/);
+  } finally {
+    env.plusPrivateKey = saved;
+  }
+  const card = guild.channels.cache.get(db.channelId(guild.id, 'plus')).messageList.map((m) => textOf(m.body)).join('\n');
+  assert.match(card, /Zapłać online przez Stripe/);
+  assert.doesNotMatch(card, /Zapłać kartą/);
 });

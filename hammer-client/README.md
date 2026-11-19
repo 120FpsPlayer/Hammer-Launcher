@@ -101,7 +101,7 @@ W GitHub Actions mod buduje się sam, a każda wspierana wersja gry jest urucham
 ## Pliki ustawień w instancji
 
 - `config/hammerclient.json` – wybory gracza (moduły, układ HUD, profile, wygląd).
-- `config/hammerclient-launcher.json` – zapisuje go launcher: link do Discorda, sklep, nazwa marki, Hammer+ (`plus.active`, `plus.until`), wybrana peleryna (`cape`: id peleryny Hammer albo `custom`), dodatki (`cosmetics: { wings, halo, hat }`, tylko gdy coś jest założone) i adres API sklepu (`api`).
+- `config/hammerclient-launcher.json` – zapisuje go launcher: link do Discorda, sklep, nazwa marki, Hammer+ (`plus.active`, `plus.until`), wybrana peleryna (`cape`: id peleryny Hammer albo `custom`), dodatki (`cosmetics: { wings, halo, hat }`, tylko gdy coś jest założone), adres API sklepu (`api`) i stronę, na której kupuje się Hammer+ (`plusUrl` – przycisk „Zobacz w sklepie” w ustawieniach Hammer+; bez niego, ze starszego launchera, otwiera się `shopUrl`).
 - `config/hammerclient/waypoints.json` – waypointy gracza.
 - `config/hammerclient/menu.png` – własne tło menu (kopiuje je launcher, Hammer+).
 - `config/hammerclient/benchmark.json` – wynik ostatniego testu FPS.

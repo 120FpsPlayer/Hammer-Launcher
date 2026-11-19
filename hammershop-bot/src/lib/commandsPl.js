@@ -298,6 +298,9 @@ if (require('./profile').launcher) {
   MAP.build.description = 'Zbuduj cały serwer – role, kanały, banery, emotki, tickety i więcej';
   MAP.build.options.only.choices.panels = '🔄 Panele – odśwież banery i karty (po zmianie config.launcher.json)';
   MAP.panel.description = 'Wyślij panel (tickety, ranking, weryfikacja, role) na kanał';
+  // No Sprzedawca role on this server – Hammer+ and the featured servers are for its admins.
+  MAP.hammerplus.description = 'Hammer+ w Hammer Launcherze – kody przypisane do konta Minecraft (admini)';
+  MAP.featured.description = 'Polecane serwery w Hammer Launcherze (admini)';
 }
 
 // ───────────── English → Polish (for Discord) ─────────────

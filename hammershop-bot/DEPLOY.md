@@ -85,6 +85,7 @@ Caddy sam wyrobi i odnowi certyfikat. Wejdź na `https://twojadomena.pl` – pow
 > Używasz nginx zamiast Caddy? Ustaw `client_max_body_size 16m;` – panel wgrywa instalator w kawałkach po 8 MB, a domyślny limit nginx (1 MB) to za mało.
 >
 > Strona może też stać za Cloudflare (np. na hostingu z własną domeną): jego limit 100 MB na jedno żądanie nie przeszkadza, bo żaden kawałek nie jest większy niż 8 MB.
+> W Cloudflare zostaw **Bot Fight Mode wyłączony** i nie włączaj trybu „I'm Under Attack” – zatrzymałyby powiadomienia ze Stripe (webhook) i launchery pytające o aktualizacje. **Rocket Loader** też wyłącz (psuje skrypty strony). Instalator z przycisku „Pobierz” ma adres z odciskiem pliku (`/updates/_v/…/plik.exe`), więc Cloudflare trzyma go u siebie – przy wielu pobraniach naraz serwer nie wysyła go setki razy.
 
 ## 6. Zbuduj serwer Discord i sprawdź całość
 1. Utwórz na Discordzie nowy, pusty serwer, dodaj bota (link z logów) i wpisz `/zbuduj`. Z `BOT_PROFILE=launcher` powstanie serwer **Hammer Launcher** (kanały pobierania, aktualizacji, aktualności, Hammer+, zgłoszeń błędów), bez profilu – serwer sklepu HammerShop.

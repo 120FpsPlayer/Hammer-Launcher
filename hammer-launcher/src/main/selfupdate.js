@@ -194,7 +194,7 @@ const TEXT = {
 function notesOf(info) {
   const raw = info?.releaseNotes;
   const text = Array.isArray(raw) ? raw.map((n) => (typeof n?.note === 'string' ? n.note : '')).filter(Boolean).join('\n\n') : raw;
-  return block(typeof text === 'string' ? text.replace(/<[^>]{0,200}>/g, '') : '', MAX_NOTES) || null;
+  return block(typeof text === 'string' ? text.replace(/<[^>]{0,200}>/g, '') : '', MAX_NOTES, { more: true }) || null;
 }
 
 /**

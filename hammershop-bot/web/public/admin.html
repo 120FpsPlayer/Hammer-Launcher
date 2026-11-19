@@ -220,7 +220,7 @@
             <label>Instalator<select id="release-file" required></select></label>
             <label>Wersja<input type="text" id="release-version" required placeholder="2.6.0" pattern="\d+\.\d+\.\d+(-[0-9A-Za-z.\-]+)?"></label>
           </div>
-          <label>Co nowego (pokaże się w launcherze)<textarea id="release-notes" maxlength="4000" placeholder="– Nowa zakładka…&#10;– Poprawki…"></textarea></label>
+          <label>Co nowego (pokaże się w launcherze)<textarea id="release-notes" maxlength="2000" placeholder="– Nowa zakładka…&#10;– Poprawki…"></textarea></label>
           <div class="fields two">
             <label>Plik .blockmap (opcjonalnie)<select id="release-blockmap"><option value="">— brak —</option></select></label>
             <label>Najstarsza wspierana wersja (opcjonalnie)<input type="text" id="release-min" placeholder="np. 2.6.0"><span class="hint">Starsze launchery pokażą „Wymagana aktualizacja” i nie pozwolą grać, dopóki się nie zaktualizują.</span></label>
@@ -279,7 +279,7 @@
           </div>
           <div class="fields two">
             <label>Ikona (opcjonalnie)<input type="url" id="server-icon" maxlength="300" placeholder="https://…/ikona.png"></label>
-            <label>Paczka modów z Modrinth (opcjonalnie)<input type="text" id="server-pack" maxlength="64" placeholder="nazwa albo ID projektu"></label>
+            <label>Paczka modów z Modrinth (opcjonalnie)<input type="text" id="server-pack" maxlength="120" placeholder="link z Modrinth albo skrót, np. fabulously-optimized"></label>
           </div>
           <div class="row"><button class="btn primary" type="submit">Dodaj serwer</button></div>
         </form>

@@ -61,12 +61,18 @@ const PREFIX = '/api/admin/';
 const LEVELS = ['info', 'warning', 'critical'];
 const MAX_PLANS = 8;
 const MAX_PLAN_PRICE = 100_000_00; // in the smallest unit
+const MAX_NOTES = 2000; // what the launcher shows of „Co nowego” (hammer-launcher src/main/selfupdate.js MAX_NOTES)
 const problem = (status, message) => Object.assign(new Error(message), { status });
 
+/** Cut to max characters – never through the middle of an emoji (half of one shows as „�” everywhere). */
+const cut = (text, max) => {
+  const out = text.slice(0, max);
+  return /[\ud800-\udbff]$/.test(out) ? out.slice(0, -1) : out;
+};
 /** One line of text: control and direction characters out, spaces squeezed, cut to max. */
-const line = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+const line = (value, max) => cut(String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim(), max);
 /** Text that may have line breaks. */
-const block = (value, max) => String(value ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
+const block = (value, max) => cut(String(value ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\n{3,}/g, '\n\n').trim(), max);
 
 function httpsUrl(value, what) {
   const text = line(value, 500);
@@ -438,8 +444,10 @@ async function api(req, res, url, h) {
   if (head === 'releases') {
     ownerOnly();
     if (method === 'POST' && !arg) {
+      const notes = block(body.notes, 20_000);
+      if (notes.length > MAX_NOTES) return h.fail(res, 400, `„Co nowego” może mieć najwyżej ${MAX_NOTES} znaków – tyle pokaże launcher (teraz ${notes.length}).`);
       const release = await releases.publish({
-        version: line(body.version, 40), file: line(body.file, 160), blockmap: line(body.blockmap, 160) || null, notes: block(body.notes, 4000),
+        version: line(body.version, 40), file: line(body.file, 160), blockmap: line(body.blockmap, 160) || null, notes,
         minVersion: line(body.minVersion, 40) || null, signature: line(body.signature, 120) || null, by: user.id,
       });
       if (body.discord) {
@@ -594,7 +602,7 @@ async function api(req, res, url, h) {
   // ── Featured servers ──
   if (head === 'featured') {
     if (method === 'POST' && !arg) {
-      const server = await h.featured.add({ name: line(body.name, 60), address: line(body.address, 100), description: line(body.description, 200), tags: line(body.tags, 120) || null, icon: line(body.icon, 300) || null, mc: line(body.mc, 12) || null, loader: line(body.loader, 12) || null, pack: line(body.pack, 64) || null }, user.id);
+      const server = await h.featured.add({ name: line(body.name, 60), address: line(body.address, 100), description: line(body.description, 200), tags: line(body.tags, 120) || null, icon: line(body.icon, 300) || null, mc: line(body.mc, 12) || null, loader: line(body.loader, 12) || null, pack: line(body.pack, 120) || null }, user.id);
       await log(`⭐ Polecany serwer w launcherze: **${server.name}** (\`${server.address}\`)`);
       return h.send(res, 200, { server });
     }

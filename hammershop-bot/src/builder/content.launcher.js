@@ -176,7 +176,7 @@ function plus(x) {
       `### ${x.E('card')} Jak go zdobyć\n` +
         `> **1.** Wejdź na stronę launchera i wybierz plan Hammer+${site() ? '' : ' (adres podamy w ogłoszeniach)'}\n` +
         '> **2.** Zaloguj się przez Discorda i wpisz swój **nick w Minecraft**\n' +
-        '> **3.** Zapłać kartą (Stripe) – kod pojawi się od razu na stronie i w wiadomości prywatnej od bota\n' +
+        '> **3.** Zapłać online przez Stripe (np. kartą, Apple Pay albo Google Pay) – kod pojawi się od razu na stronie i w wiadomości prywatnej od bota\n' +
         '> **4.** W launcherze: **Hammer+ → „Mam kod”** → wklej kod\n' +
         `> ${x.E('gift')} **Zaproś znajomego** – +7 dni Hammer+ za każdego, kto z Twojego linku kupi Hammer+ (link masz na stronie launchera)\n` +
         `-# Kod działa na koncie Minecraft, dla którego go kupisz. Coś poszło nie tak? Ticket **Hammer+ i płatności** na ${x.ch('tickets')}.`,

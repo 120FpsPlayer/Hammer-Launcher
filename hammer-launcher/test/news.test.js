@@ -317,3 +317,25 @@ test('services: the feed for the window – a closed message stays away, „nowe
   assert.equal(none.news.closeAlert().alert, null);
   assert.equal(none.news.markSeen(), 0);
 });
+
+const { notesOf } = require('../src/main/selfupdate');
+
+test('cut texts: an emoji is never cut in half, and release notes longer than the launcher shows end with „…”', () => {
+  // A title of 119 letters and an emoji: cut at 120 UTF-16 units it would end in half an emoji („�”).
+  const title = line(`${'a'.repeat(119)}🎉 i dalej`, 120);
+  assert.equal(title, `${'a'.repeat(119)}🎉`);
+  assert.equal(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(line(`${'a'.repeat(119)}🎉`, 120)), false);
+  assert.equal(line('🎉'.repeat(5), 3), '🎉🎉🎉');
+  // The panel takes 4000 characters of „Co nowego”, the launcher shows 2000: the cut is said.
+  const long = `${'Nowość. '.repeat(400)}Koniec.`;
+  const fromYml = notesOf({ releaseNotes: long });
+  assert.equal(Array.from(fromYml).length <= 2000, true);
+  assert.ok(fromYml.endsWith('…'));
+  assert.ok(!fromYml.includes('Koniec.'));
+  const fromShop = cleanRelease({ version: '2.12.0', notes: long, date: '19.11.2026', minVersion: null, size: 1, url: 'https://hammerclient.com/download' }).notes;
+  assert.ok(fromShop.endsWith('…') && Array.from(fromShop).length <= 2000);
+  // Short notes stay as they are.
+  assert.equal(notesOf({ releaseNotes: 'Poprawki.' }), 'Poprawki.');
+  assert.equal(block('abc', 3, { more: true }), 'abc');
+  assert.equal(block('abcd', 3, { more: true }), 'ab…');
+});

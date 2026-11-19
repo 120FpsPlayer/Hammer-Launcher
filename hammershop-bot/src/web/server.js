@@ -42,6 +42,7 @@
  */
 
 const http = require('node:http');
+const net = require('node:net');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -173,18 +174,44 @@ function originOk(req) {
 }
 
 /**
+ * Who may say who the visitor is: Cloudflare (its published ranges – cloudflare.com/ips) and this machine's own network
+ * (127.x, 10.x, 172.16–31.x, 192.168.x, the hosting's container network, a Caddy / nginx on the same server). Anybody
+ * else talks to the server's port directly – past Cloudflare – and could put any address into CF-Connecting-IP to dodge
+ * every limit; for them the connection's own address counts.
+ */
+const PROXIES = new net.BlockList();
+for (const range of ['173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8', '100.64.0.0/10', '169.254.0.0/16']) PROXIES.addSubnet(range.split('/')[0], Number(range.split('/')[1]), 'ipv4');
+for (const range of ['2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32', '::1/128', 'fc00::/7', 'fe80::/10']) PROXIES.addSubnet(range.split('/')[0], Number(range.split('/')[1]), 'ipv6');
+/** "::ffff:1.2.3.4" (an IPv4 connection on a dual-stack socket) → "1.2.3.4". */
+const plainIp = (address) => String(address ?? '').replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '');
+const fromProxy = (address) => {
+  const family = net.isIP(address);
+  return family !== 0 && PROXIES.check(address, family === 6 ? 'ipv6' : 'ipv4');
+};
+let bypassSaid = false;
+
+/**
  * Who is asking – for the per-address limits and counters. Behind Cloudflare it says so itself (CF-Connecting-IP).
  * Otherwise the last X-Forwarded-For entry is the one the own proxy (Caddy, nginx) added: the first one is whatever the
- * client wrote there, so it could dodge every limit with a made-up address.
+ * client wrote there, so it could dodge every limit with a made-up address. Both only when the connection comes from
+ * Cloudflare or this machine's own network (PROXIES).
  */
 const clientIp = (req) => {
+  const peer = plainIp(req.socket?.remoteAddress);
   const cf = String(req.headers['cf-connecting-ip'] ?? '').trim();
+  if (peer && !fromProxy(peer)) {
+    if (cf && !bypassSaid) {
+      bypassSaid = true;
+      console.warn(`[web] Zapytanie z nagłówkiem CF-Connecting-IP przyszło spoza Cloudflare (${peer}) – ktoś łączy się z portem strony z pominięciem Cloudflare. Limity liczę wtedy po adresie połączenia.`);
+    }
+    return peer;
+  }
   if (cf && cf.length <= 64) return cf;
   const hops = String(req.headers['x-forwarded-for'] ?? '')
     .split(',')
     .map((h) => h.trim())
     .filter(Boolean);
-  return hops.at(-1) || req.socket.remoteAddress || '?';
+  return hops.at(-1) || peer || '?';
 };
 
 // Simple per-IP limits: { key → [timestamps] }
@@ -723,4 +750,4 @@ function createWebServer(h = {}) {
   return server;
 }
 
-module.exports = { createWebServer, authReady, paymentsReady, webhookReady, plusOnSale, recheckPending };
+module.exports = { createWebServer, authReady, paymentsReady, webhookReady, plusOnSale, recheckPending, clientIp };

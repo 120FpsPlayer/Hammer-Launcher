@@ -98,7 +98,7 @@ module.exports = {
     .addSubcommand((s) => s.setName('key').setDescription('Is the signing key set? Shows the public key to put into the launcher')),
 
   async execute(interaction) {
-    if (!isShopManager(interaction.member)) return replyError(interaction, 'Tylko administratorzy i sprzedawcy mogą zarządzać Hammer+.');
+    if (!isShopManager(interaction.member)) return replyError(interaction, require('../lib/profile').launcher ? 'Tylko administratorzy mogą zarządzać Hammer+.' : 'Tylko administratorzy i sprzedawcy mogą zarządzać Hammer+.');
     const o = interaction.options;
     const sub = o.getSubcommand();
     const guild = interaction.guild;

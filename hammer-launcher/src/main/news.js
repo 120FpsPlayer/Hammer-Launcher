@@ -89,7 +89,7 @@ function cleanRelease(raw) {
   const date = typeof raw.date === 'string' && raw.date.length <= 40 ? Date.parse(raw.date) : NaN;
   return {
     version: raw.version.trim().replace(/^v/, ''),
-    notes: block(raw.notes, LIMITS.notes) || null,
+    notes: block(raw.notes, LIMITS.notes, { more: true }) || null,
     date: Number.isFinite(date) ? date : null,
     minVersion: parseVersion(raw.minVersion) ? raw.minVersion.trim().replace(/^v/, '') : null,
     size: typeof raw.size === 'number' && Number.isFinite(raw.size) && raw.size > 0 ? Math.round(raw.size) : null,
