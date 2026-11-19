@@ -61,6 +61,9 @@ async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` 
   // the 💻 Developer (Hammer Launcher) is one of the admins – team channels, logs, #kopie-zapasowe – since developerAccess.
   const widened = new Set(newRoles);
   if (roles.developer && guild.roles.cache.has(roles.developer) && !db.build(guild.id).developerAccess) widened.add('developer');
+  // 🎧 Support on the Hammer Launcher server sees #logi-automod (it moderates: timeouts, deleting messages) since supportAutomod.
+  const supportAutomod = require('../lib/profile').launcher && roles.support && guild.roles.cache.has(roles.support) && !db.build(guild.id).supportAutomod;
+  if (supportAutomod) widened.add('support');
   if (widened.size) {
     // Existing channels give these roles the same access a fresh build would.
     for (const cat of CATEGORIES) {
@@ -75,6 +78,7 @@ async function addMissing(guild, { reason = `Aktualizacja ${config.brand.name}` 
       }
     }
     if (widened.has('developer')) db.setBuild(guild.id, { ...db.build(guild.id), developerAccess: true });
+    if (supportAutomod) db.setBuild(guild.id, { ...db.build(guild.id), supportAutomod: true });
   }
   // Roles from an older version: the new default names and colours (names and colours you chose stay).
   res.restyled = await restyleRoles(guild, roles, { roleIcons, reason, onError: (what, err) => res.errors.push(`${what}: ${describeError(err)}`) });

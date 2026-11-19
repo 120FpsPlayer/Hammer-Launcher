@@ -225,3 +225,29 @@ test('the backup card and file, and /zaproszenia, on the launcher server: no sal
   const invites = localizeCommand(commands.get('invites').data.toJSON());
   assert.doesNotMatch(JSON.stringify(invites), /nagrod/);
 });
+
+test('🎧 Support moderates: it sees #logi-automod (not the admins\' logs) and can time people out – also on a server built before (tylko:update)', async () => {
+  const guild = await built();
+  const support = guild.addMember('300000000000000601', [db.roleId(guild.id, 'member'), db.roleId(guild.id, 'support')]);
+  const ch = (key) => guild.channels.cache.get(db.channelId(guild.id, key));
+  const sees = (key) => ch(key).permissionsFor(support).has('ViewChannel');
+  assert.ok(sees('automodLogs') && sees('ticketLogs') && sees('staffChat'));
+  assert.ok(!sees('serverLogs') && !sees('backups') && !sees('discordUpdates'));
+  assert.ok(guild.roles.cache.get(db.roleId(guild.id, 'support')).permissions.has('ModerateMembers'), 'Support can give a timeout (Przerwa)');
+
+  // A server built before: #logi-automod had no overwrite for Support – the update gives it, once.
+  await ch('automodLogs').permissionOverwrites.delete(db.roleId(guild.id, 'support'));
+  db.setBuild(guild.id, { ...db.build(guild.id), supportAutomod: undefined });
+  assert.ok(!sees('automodLogs'));
+  const res = await addMissing(guild);
+  assert.deepEqual(res.errors, []);
+  assert.ok(sees('automodLogs') && !sees('serverLogs'));
+  assert.equal(db.build(guild.id).supportAutomod, true);
+});
+
+test('Poradnik zespołu: what the whole team does (tickets, timeouts, deleting messages) apart from what only admins do (Hammer+, panel)', async () => {
+  const guild = await built();
+  const { textOf } = require('./helpers/fakeInteraction');
+  const guide = guild.channels.cache.get(db.channelId(guild.id, 'staffChat')).messageList.map((m) => textOf(m.body)).join('\n');
+  assert.match(guide, /Cały zespół[\s\S]*Tickety[\s\S]*Przerwa[\s\S]*Usuń wiadomość[\s\S]*Admini[\s\S]*hammerplus nadaj[\s\S]*Panel admina/);
+});

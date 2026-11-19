@@ -305,16 +305,24 @@ function staff(x) {
   c.addTextDisplayComponents(
     text(
       `# ${x.E('shield')} Poradnik zespołu\nWszystko, czego potrzebujesz, żeby prowadzić **${x.brand}**.\n` +
+        `## ${x.E('chat')} Cały zespół (${x.role('support', 'Support')} i wyżej)\n` +
         `### ${x.E('ticket')} Tickety\n> Przejmij ticket, zanim odpowiesz · gotowe odpowiedzi wysyłasz przez \`${slash('reply')}\` (prośba o log, o wersję, jak wpisać kod Hammer+…)\n` +
         '> Przy błędzie zawsze poproś o **wersję launchera, wersję Minecrafta i log** (Konsola → Wyślij logi)\n' +
+        '> Asystent AI odpowiada pierwszy – gdy zawoła zespół albo gracz poprosi o człowieka, wchodzisz Ty\n' +
+        '> Kod Hammer+ nie działa albo problem z płatnością → zawołaj admina, kody wystawiają tylko admini\n' +
         `> Transkrypcje trafiają na ${x.ch('transcripts')}, każda akcja na ${x.ch('ticketLogs')}\n` +
+        `### ${x.E('shield')} Porządek na serwerze\n> **Wyciszenie:** prawy przycisk na osobie → **Przerwa** (Timeout) → wybierz czas, np. 10 minut albo 1 dzień\n` +
+        '> **Spam albo obraźliwa wiadomość:** najedź na nią → ⋯ → **Usuń wiadomość**\n' +
+        `> Wiadomości zablokowane przez AutoMod widzisz na ${x.ch('automodLogs', '#logi-automod')}\n` +
+        '> Raid, wyrzucenie albo ban → zawołaj admina\n' +
+        `## ${x.E('crown')} Admini (${x.role('founder', 'CEO')}, ${x.role('coowner', 'Co-CEO')}, ${x.role('developer', 'Developer')})\n` +
         `### ${x.E('star')} Hammer+\n> \`${slash('hammerplus grant')}\` – kod dla nicku (sprawdzany w Mojang) · \`${slash('hammerplus check')}\` – czyj jest kod i do kiedy działa · \`${slash('hammerplus list')}\`\n` +
         '> Kod kupiony na stronie przychodzi graczowi sam (strona + DM). Zły nick albo kod nie działa → sprawdź kod, w razie potrzeby wystaw nowy\n' +
         `### ${x.E('rocket')} Launcher i strona\n> Panel admina na stronie${site() ? ` (${site()}/admin)` : ''}: **aktualności** i **komunikat** widoczne w launcherze, **wersje launchera**, cennik Hammer+, polecane serwery, **plany** na ${x.ch('roadmap', '#plany')}\n` +
         `> Nowe wersje i aktualności z panelu pojawiają się same na ${x.ch('updates')} i ${x.ch('news')} · \`${slash('launcher')}\` pokazuje aktualną wersję · \`${slash('featured add')}\` – polecane serwery\n` +
-        `### ${x.E('gift')} Społeczność\n> \`${slash('giveaway start')}\` · \`${slash('giveaway end')}\` · \`${slash('giveaway reroll')}\` · \`${slash('announce')}\` – ładne ogłoszenie z opcjonalnym banerem i pingiem\n` +
+        `### ${x.E('gift')} Społeczność i bezpieczeństwo\n> \`${slash('giveaway start')}\` · \`${slash('giveaway end')}\` · \`${slash('giveaway reroll')}\` · \`${slash('announce')}\` – ładne ogłoszenie z opcjonalnym banerem i pingiem · \`${slash('lockdown')}\` / \`${slash('unlock')}\` – blokada serwera przy raidzie\n` +
         `### ${x.E('refresh')} Zmiana tekstów\n> Edytuj \`config.launcher.json\` albo \`regulamin-launcher.md\`, uruchom bota ponownie i użyj \`${slash('build')} tylko:panels\` – każda karta zaktualizuje się na miejscu\n` +
-        `### ${x.E('warning')} Złote zasady\n> Nigdy nie proś o hasła ani dane karty · nie wysyłaj plików na DM · zachowuj kulturę · w razie wątpliwości zapytaj ${x.role('founder', 'CEO')} albo ${x.role('coowner', 'Co-CEO')}`,
+        `### ${x.E('warning')} Złote zasady (wszyscy)\n> Nigdy nie proś o hasła ani dane karty · nie wysyłaj plików na DM · zachowuj kulturę · w razie wątpliwości zapytaj ${x.role('founder', 'CEO')} albo ${x.role('coowner', 'Co-CEO')}`,
     ),
   );
   return card(c);

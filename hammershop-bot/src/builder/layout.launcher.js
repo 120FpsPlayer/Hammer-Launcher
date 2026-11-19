@@ -130,7 +130,7 @@ const CATEGORIES = [
       text('transcripts', '📄 transkrypcje', { profile: 'staffLogs' }),
       text('verifyLogs', '✅ logi-weryfikacji', { profile: 'logs' }),
       text('serverLogs', '📋 logi-serwera', { profile: 'logs' }),
-      text('automodLogs', '🤖 logi-automod', { profile: 'logs' }),
+      text('automodLogs', '🤖 logi-automod', { profile: 'staffLogs' }), // Support moderates here too (blocked messages → timeout)
       text('backups', '💾 kopie-zapasowe', { profile: 'admins', topic: 'Automatyczne kopie zapasowe danych bota – ten kanał musi zostać prywatny.' }),
     ],
   },
