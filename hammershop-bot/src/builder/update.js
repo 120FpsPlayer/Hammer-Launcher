@@ -278,4 +278,4 @@ async function restyleRoles(guild, roles, { roleIcons = false, reason, onError =
   return changed;
 }
 
-module.exports = { addMissing, removeRetired, restyleRoles };
+module.exports = { addMissing, removeRetired, restyleRoles, placeCategory };

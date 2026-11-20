@@ -1,7 +1,8 @@
 /* One script for all the launcher's pages (web/pages/, put together by src/web/pages.js). Every part starts only when
    the page has its elements: the header (who is signed in, the menu on small screens), the download buttons (after a
-   Discord sign-in), the news, Hammer+ bought by card and „Twoje kody”, „Zaproś znajomego”, the contact form. At the
-   end: the look (scroll reveal, the feature tabs and clips, the three parts of the Funkcje page, 3D, the theme deck). */
+   Discord sign-in), the news, Hammer+ bought by card and „Twoje kody”, „Zaproś znajomego”, the contact form, the
+   partners' „Kopiuj IP”. At the end: the look (scroll reveal, the feature tabs and clips, the three parts of the
+   Funkcje page, 3D, the theme deck). */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -239,6 +240,30 @@
         });
     });
   }
+
+  // ── Partnerzy: „Kopiuj IP” next to a partner's Minecraft address ──
+  all('[data-copy]').forEach(function (button) {
+    var label = button.textContent;
+    var timer = null;
+    button.addEventListener('click', function () {
+      var value = button.getAttribute('data-copy');
+      var done = function () {
+        button.textContent = 'Skopiowano!';
+        button.classList.add('copied');
+        toast('Adres ' + value + ' skopiowany – wklej go w Minecrafcie: Tryb wieloosobowy → Dodaj serwer.');
+        clearTimeout(timer);
+        timer = setTimeout(function () { button.textContent = label; button.classList.remove('copied'); }, 2500);
+      };
+      var byHand = function () {
+        // No clipboard (an old browser, a page that is not https): the address gets selected – Ctrl+C does the rest.
+        var code = button.parentNode.querySelector('code');
+        if (code && window.getSelection) { var range = document.createRange(); range.selectNodeContents(code); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+        toast('Zaznaczyliśmy adres – skopiuj go (Ctrl+C).', true);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(done, byHand);
+      else byHand();
+    });
+  });
 
   function codeCard(order, fresh) {
     var p = order.plus || {};

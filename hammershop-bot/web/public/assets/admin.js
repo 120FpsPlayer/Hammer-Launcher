@@ -1,4 +1,4 @@
-/* The admin panel: news, Discord announcements, the #plany card, the alert bar, launcher releases, Hammer+, featured servers, orders, contact messages, the resets – over /api/admin/. */
+/* The admin panel: news, Discord announcements, the #plany card, the alert bar, launcher releases, Hammer+, featured servers, partnerships, orders, contact messages, the resets – over /api/admin/. */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -19,7 +19,7 @@
     return fetch('/api/admin/' + route, options).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (res.status === 401) signedOut();
-        if (!res.ok) throw Object.assign(new Error(data.error || 'Coś poszło nie tak. Spróbuj ponownie.'), { status: res.status });
+        if (!res.ok) throw Object.assign(new Error(data.error || 'Coś poszło nie tak. Spróbuj ponownie.'), { status: res.status, data: data });
         return data;
       });
     });
@@ -606,6 +606,248 @@
       .then(function () { toast('Serwer dodany do polecanych.'); event.target.reset(); return loaders.serwery(); }).catch(oops);
   });
 
+  // ── Partnerstwa (the launcher's site only): a partner's Discord server gets a channel under 🤝 PARTNERSTWA, its
+  // Minecraft server goes to the launcher's „Polecane serwery”. A logo goes up as soon as it is chosen (checked by the
+  // server) and waits there under a token the form sends with the partner. ──
+  (function () {
+    if (!$('tab-partnerstwa')) return;
+    var LOGO_MAX = 2 * 1024 * 1024;
+    var LOGO_HINT = $('partner-logo-hint').textContent;
+    var KIND_PILL = { discord: 'kind-discord', minecraft: 'kind-minecraft', both: 'kind-both' };
+    // logo: 'keep' (the partner's own, or none), 'new' (upload holds the token), 'remove' (take the saved one off)
+    var part = { list: [], info: null, editing: null, logo: 'keep', upload: null, uploading: false, saved: null };
+    var kind = function () { var c = document.querySelector('input[name="partner-kind"]:checked'); return c ? c.value : 'discord'; };
+    var v = function (id) { return $(id).value.trim(); };
+    function partError(text) { $('partner-error').textContent = text || ''; $('partner-error').hidden = !text; }
+    function partWarning(text) { $('partner-warning').textContent = text || ''; $('partner-warning').hidden = !text; }
+    function counts() { $('partner-name-count').textContent = String($('partner-name').value.length); $('partner-description-count').textContent = String($('partner-description').value.length); }
+    function blocks() {
+      var k = kind();
+      $('partner-discord').hidden = k === 'minecraft';
+      $('partner-minecraft').hidden = k === 'discord';
+    }
+    /** The square preview: the new file, the saved logo, or the icon address – else the word „Logo”. */
+    function preview(src) {
+      var img = $('partner-logo-img');
+      if (!src) { img.hidden = true; img.removeAttribute('src'); $('partner-logo-empty').hidden = false; return; }
+      img.src = src;
+      img.hidden = false;
+      $('partner-logo-empty').hidden = true;
+    }
+    function iconPreview() {
+      if (part.logo === 'new' || (part.logo === 'keep' && part.saved)) return;
+      var icon = v('partner-icon');
+      preview(/^https:\/\/\S+\.\S+$/.test(icon) ? icon : null);
+    }
+    function logoButtons() { $('partner-logo-remove').hidden = !(part.logo === 'new' || (part.logo === 'keep' && part.saved)); }
+    function reset() {
+      part.editing = null;
+      part.logo = 'keep';
+      part.upload = null;
+      part.saved = null;
+      $('partner-form').reset();
+      $('partner-form-title').textContent = 'Nowe partnerstwo';
+      $('partner-save').textContent = 'Dodaj partnera';
+      $('partner-cancel').hidden = true;
+      $('partner-announce-row').hidden = false;
+      $('partner-logo-hint').textContent = LOGO_HINT;
+      preview(null);
+      logoButtons();
+      blocks();
+      counts();
+      partError('');
+    }
+    function edit(p) {
+      reset();
+      part.editing = p.id;
+      part.saved = p.logo;
+      document.querySelector('input[name="partner-kind"][value="' + p.kind + '"]').checked = true;
+      $('partner-name').value = p.name;
+      $('partner-description').value = p.description;
+      $('partner-icon').value = p.icon || '';
+      $('partner-invite').value = p.discord ? p.discord.invite : '';
+      var mc = p.minecraft || {};
+      $('partner-address').value = mc.address || '';
+      $('partner-mc').value = mc.mc || '';
+      $('partner-loader').value = mc.loader || '';
+      $('partner-tags').value = (mc.tags || []).join(', ');
+      $('partner-pack').value = mc.pack || '';
+      $('partner-form-title').textContent = 'Edycja: ' + p.name;
+      $('partner-save').textContent = 'Zapisz zmiany';
+      $('partner-cancel').hidden = false;
+      $('partner-announce-row').hidden = true;
+      preview(p.logo || p.image);
+      logoButtons();
+      blocks();
+      counts();
+      $('partner-form').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      $('partner-name').focus({ preventScroll: true });
+    }
+
+    // The logo: checked here (type, size) for a quick answer, then by the server (what the file really is, its pixels).
+    $('partner-logo-file').addEventListener('change', function () {
+      var file = $('partner-logo-file').files[0];
+      if (!file) return;
+      partError('');
+      var fail = function (text) { partError(text); $('partner-logo-file').value = ''; };
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type) && !/\.(png|jpe?g|webp|gif)$/i.test(file.name)) return fail('Logo musi być obrazkiem PNG, JPG, WebP albo GIF.');
+      if (file.size > LOGO_MAX) return fail('Ten plik ma ' + (Math.ceil(file.size / 104857.6) / 10).toFixed(1).replace('.', ',') + ' MB – logo może mieć najwyżej 2 MB. Zmniejsz je (np. na squoosh.app) i spróbuj ponownie.');
+      part.uploading = true;
+      $('partner-save').disabled = true;
+      $('partner-logo-hint').textContent = 'Wgrywam logo…';
+      fetch('/api/admin/partners/logo', { method: 'PUT', credentials: 'same-origin', headers: { accept: 'application/json', 'content-type': file.type || 'application/octet-stream' }, body: file }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (res.status === 401) signedOut();
+          if (!res.ok) throw new Error(data.error || 'Nie udało się wgrać logo. Spróbuj ponownie.');
+          return data;
+        });
+      }).then(function (r) {
+        part.logo = 'new';
+        part.upload = r.upload;
+        // The preview straight from the file (a data: address – the page's rules allow no blob:).
+        var reader = new FileReader();
+        reader.onload = function () { preview(reader.result); };
+        reader.readAsDataURL(file);
+        $('partner-logo-hint').textContent = 'Logo gotowe (' + r.width + '×' + r.height + ' px) – zapisze się razem z partnerem.';
+        logoButtons();
+      }).catch(function (err) {
+        fail(err.message);
+        $('partner-logo-hint').textContent = LOGO_HINT;
+      }).then(function () { part.uploading = false; $('partner-save').disabled = false; });
+    });
+    $('partner-logo-remove').addEventListener('click', function () {
+      part.logo = part.saved ? 'remove' : 'keep';
+      part.upload = null;
+      $('partner-logo-file').value = '';
+      $('partner-logo-hint').textContent = part.saved ? 'Logo zostanie usunięte, gdy zapiszesz zmiany.' : LOGO_HINT;
+      if (part.saved) part.saved = null;
+      preview(null);
+      iconPreview();
+      logoButtons();
+    });
+    $('partner-icon').addEventListener('input', iconPreview);
+    $('partner-name').addEventListener('input', counts);
+    $('partner-description').addEventListener('input', counts);
+    $('partner-kinds').addEventListener('change', function () { blocks(); partError(''); });
+    $('partner-cancel').addEventListener('click', function () { reset(); draw(); });
+
+    function badge(p) { return el('span', { class: 'pill partner-kind ' + KIND_PILL[p.kind], text: p.kindLabel }); }
+    function draw() {
+      var box = $('partner-list');
+      box.textContent = '';
+      part.list.forEach(function (p) {
+        var logo = p.image ? el('img', { class: 'partner-thumb', src: p.image, alt: '', referrerpolicy: 'no-referrer' }) : el('span', { class: 'partner-thumb none', text: (p.name[0] || '?').toUpperCase() });
+        var links = [];
+        if (p.discord) {
+          links.push(p.discord.channel ? el('a', { class: 'btn small', href: p.discord.channel.url, target: '_blank', rel: 'noopener', text: '#' + p.discord.channel.name }) : el('span', { class: 'pill warn', title: 'Ktoś usunął kanał na Discordzie – kliknij „Edytuj” i „Zapisz zmiany”, a bot zrobi go od nowa.', text: 'kanał usunięty' }));
+          links.push(el('a', { class: 'small', href: p.discord.invite, target: '_blank', rel: 'noopener', text: p.discord.invite.replace(/^https:\/\//, '') }));
+        }
+        if (p.minecraft) {
+          links.push(el('code', { class: 'partner-ip', text: p.minecraft.address }));
+          if (!p.minecraft.featured) links.push(el('span', { class: 'pill warn', title: 'Ktoś usunął go z „Polecanych serwerów” – „Edytuj” i „Zapisz zmiany” doda go z powrotem.', text: 'nie ma go w polecanych' }));
+        }
+        var facts = [p.discord && p.discord.memberCount ? people(p.discord.memberCount) + ' na Discordzie' : '', 'dodany ' + when(p.addedAt) + (p.addedBy ? ' · ' + (p.addedBy.name || p.addedBy.id) : '')].filter(Boolean).join(' · ');
+        box.appendChild(el('div', { class: 'item partner-item' + (part.editing === p.id ? ' plan-editing' : '') }, [
+          el('div', { class: 'partner-row' }, [logo, el('div', { class: 'grow' }, [el('div', { class: 'row' }, [el('span', { class: 'title', text: p.name }), badge(p)]), el('div', { class: 'muted small', text: facts })])]),
+          el('div', { class: 'body', text: p.description }),
+          links.length ? el('div', { class: 'row partner-links' }, links) : null,
+          el('div', { class: 'row' }, [
+            el('button', { class: 'btn small', type: 'button', text: 'Edytuj', onclick: function () { edit(p); draw(); } }),
+            el('button', { class: 'btn small danger', type: 'button', text: 'Zakończ', onclick: function () { askDelete(p); } }),
+          ]),
+        ]));
+      });
+      if (!part.list.length) box.appendChild(el('p', { class: 'empty', text: 'Nie ma jeszcze partnerów. Dodaj pierwszego w formularzu „Nowe partnerstwo” – do tego czasu strona „Partnerzy” zachęca do współpracy.' }));
+      var info = part.info || {};
+      $('partner-count').textContent = info.max ? part.list.length + ' z ' + info.max : '';
+    }
+
+    /** „Zakończ”: what goes, and the goodbye on #📢 ogłoszenia (ticked by default). */
+    function askDelete(p) {
+      var dialog = $('partner-delete');
+      var what = [];
+      if (p.discord) what.push(p.discord.channel ? 'kanał #' + p.discord.channel.name + ' z Discorda' : 'jego kanał z Discorda (jeśli jeszcze jest)');
+      if (p.minecraft) what.push('serwer ' + p.minecraft.address + ' z polecanych w launcherze');
+      $('partner-delete-title').textContent = 'Zakończyć partnerstwo z ' + p.name + '?';
+      $('partner-delete-text').textContent = 'Bot usunie ' + (what.length ? what.join(' i ') + ', ' : '') + 'kartę ze strony „Partnerzy”' + (p.logo ? ' i logo' : '') + '. Tego nie da się cofnąć.';
+      var announce = $('partner-delete-announce');
+      var canAnnounce = Boolean(part.info && part.info.announcements);
+      announce.checked = canAnnounce;
+      announce.disabled = !canAnnounce;
+      announce.parentNode.title = canAnnounce ? '' : 'Na serwerze nie ma kanału #📢 ogłoszenia.';
+      $('partner-delete-error').hidden = true;
+      $('partner-delete-yes').disabled = false;
+      $('partner-delete-no').onclick = function () { dialog.close(); };
+      $('partner-delete-form').onsubmit = function (event) {
+        event.preventDefault();
+        $('partner-delete-yes').disabled = true;
+        api('DELETE', 'partners/' + encodeURIComponent(p.id) + '?announce=' + (announce.checked ? '1' : '0')).then(function (r) {
+          dialog.close();
+          if (part.editing === p.id) reset();
+          if (r.announced && !r.announced.ok) toast('Partnerstwo zakończone, ale ogłoszenie nie wyszło: ' + r.announced.error, true);
+          else toast(r.announced ? 'Partnerstwo zakończone – pożegnanie jest na #ogłoszenia.' : 'Partnerstwo zakończone.');
+          return loaders.partnerstwa();
+        }).catch(function (err) {
+          $('partner-delete-error').textContent = err.message;
+          $('partner-delete-error').hidden = false;
+          $('partner-delete-yes').disabled = false;
+        });
+      };
+      dialog.showModal();
+    }
+
+    loaders.partnerstwa = function () {
+      return api('GET', 'partners').then(function (r) {
+        part.list = r.partners;
+        part.info = r.info;
+        var info = r.info || {};
+        var problem = !info.built ? 'Bot nie widzi jeszcze zbudowanego serwera Discord – partnerów dodasz, gdy będzie połączony (serwer buduje komenda /zbuduj).'
+          : !info.category ? 'Na Discordzie nie ma jeszcze kategorii 🤝 PARTNERSTWA – bot zrobi ją sam przy pierwszym partnerze z Discordem (albo dodaj ją komendą /zbuduj tylko:update).' : '';
+        $('partner-setup').textContent = problem;
+        $('partner-setup').hidden = !problem;
+        var announce = $('partner-announce');
+        announce.disabled = !info.announcements;
+        $('partner-announce-row').title = info.announcements ? '' : 'Na serwerze nie ma kanału #📢 ogłoszenia.';
+        if (!info.announcements) announce.checked = false;
+        draw();
+      });
+    };
+
+    $('partner-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var k = kind();
+      var discord = k !== 'minecraft';
+      var minecraft = k !== 'discord';
+      var f = { name: v('partner-name'), kind: k, description: v('partner-description'), icon: v('partner-icon'), invite: discord ? v('partner-invite') : '', address: minecraft ? v('partner-address') : '', mc: minecraft ? v('partner-mc') : '', loader: minecraft ? $('partner-loader').value : '', tags: minecraft ? v('partner-tags') : '', pack: minecraft ? v('partner-pack') : '' };
+      var wrong = !f.name ? ['Wpisz nazwę partnera.', 'partner-name'] : !f.description ? ['Napisz kilka słów o partnerze – opis pokaże się na karcie.', 'partner-description']
+        : f.icon && !/^https:\/\//i.test(f.icon) ? ['Ikona musi być adresem obrazka zaczynającym się od https://', 'partner-icon']
+          : discord && !f.invite ? ['Wklej link zaproszenia na serwer Discord partnera, np. https://discord.gg/abc123.', 'partner-invite']
+            : minecraft && !f.address ? ['Wpisz adres serwera Minecraft partnera, np. mc.partner.pl.', 'partner-address'] : null;
+      if (wrong) { partError(wrong[0]); $(wrong[1]).focus(); return; }
+      if (part.uploading) return;
+      partError('');
+      partWarning('');
+      if (part.logo === 'new') f.logo = part.upload;
+      else if (part.logo === 'remove') f.logo = null;
+      var editing = part.editing;
+      if (!editing) f.announce = $('partner-announce').checked;
+      var label = $('partner-save').textContent;
+      $('partner-save').textContent = editing ? 'Zapisuję…' : 'Dodaję…';
+      busy(event.target, editing ? api('PUT', 'partners/' + encodeURIComponent(editing), f) : api('POST', 'partners', f)).then(function (r) {
+        var news = r.announced;
+        toast(editing ? 'Zapisano – Discord, launcher i strona są już zmienione.' : news && news.ok ? 'Partner dodany i ogłoszony na Discordzie.' : 'Partner dodany.');
+        reset();
+        var notes = [r.warning, news && !news.ok ? 'Partner jest zapisany, ale ogłoszenie nie wyszło: ' + news.error : ''].filter(Boolean).join(' ');
+        partWarning(notes);
+        return loaders.partnerstwa();
+      }, function (err) {
+        $('partner-save').textContent = label;
+        partError(err.message); // the form keeps everything typed
+      }).catch(oops);
+    });
+    reset();
+  })();
+
   // ── Zamówienia ──
   var STATUS = { paid: ['Opłacone', 'ok'], pending: ['Czeka na płatność', 'warn'], expired: ['Wygasło', ''], failed: ['Nieudane', 'bad'] };
   /** One of the order's e-mails: sent (to whom), on its way, or not sent – and why, in a few words (the whole reason on hover). */
@@ -941,7 +1183,10 @@
   });
 
   // ── Wiadomości: what people wrote in the website's contact form – and whether it also goes out by e-mail ──
-  var msg = { unread: 0, total: null, tested: false };
+  // drafts: the answers being written, by message – the list is drawn again (a new message, the check every minute,
+  // a failed send) and an open form comes back with its text and its error.
+  var msg = { unread: 0, total: null, tested: false, drafts: {}, info: null };
+  var REPLY_MAX = 4000;
   function setUnread(n) {
     msg.unread = n;
     $('msg-count').textContent = n > 99 ? '99+' : String(n);
@@ -963,35 +1208,116 @@
     $('msg-test').hidden = !r.canTest;
     if (!msg.tested) $('msg-test-result').hidden = true; // an older test's answer: the line above is the newer truth
   }
+  /** The answers sent so far (and the attempts that did not go out – with why). */
+  function replyHistory(m) {
+    if (!m.replies.length) return null;
+    return el('div', { class: 'msg-replies' }, m.replies.map(function (reply) {
+      var head = el('div', { class: 'msg-reply-head small' }, [
+        el('b', { text: reply.ok ? 'Wysłana odpowiedź' : 'Nie wyszła' }),
+        ' · ' + when(reply.at) + (reply.by ? ' · ' + (reply.by.name || reply.by.id) : '') + ' · „' + reply.subject + '”',
+      ]);
+      var text = el('div', { class: 'msg-reply-text', text: reply.text });
+      // An attempt that did not go out: why, first – its text folded away (it is still in the form, or can be copied from here).
+      if (!reply.ok) return el('div', { class: 'msg-reply failed' }, [head, el('div', { class: 'msg-reply-error small', text: reply.error || 'Nieznany błąd.' }), el('details', {}, [el('summary', { class: 'small', text: 'Pokaż treść' }), text])]);
+      return el('div', { class: 'msg-reply' }, [head, text]);
+    }));
+  }
+  /** „Odpowiedz”: the form on the message's own card – the subject ready, the text counted, sent by the server. */
+  function replyForm(m, draft) {
+    var subject = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'Temat odpowiedzi' });
+    subject.value = draft.subject;
+    var text = el('textarea', { rows: '7', maxlength: String(REPLY_MAX), placeholder: 'Cześć ' + m.name + ',\n\n…', 'aria-label': 'Treść odpowiedzi' });
+    text.value = draft.text;
+    var counter = el('span', { text: String(draft.text.length) });
+    var error = el('p', { class: 'notice bad small', role: 'alert', text: draft.error || '' });
+    error.hidden = !draft.error;
+    var send = el('button', { class: 'btn primary', type: 'submit', text: 'Wyślij' });
+    var info = msg.info || {};
+    var form = el('form', { class: 'msg-reply-form fields', novalidate: '' }, [
+      el('h3', { text: 'Odpowiedź e-mailem' }),
+      el('label', {}, ['Temat', subject]),
+      el('label', {}, ['Odpowiedź', text, el('span', { class: 'hint' }, [counter, '/' + REPLY_MAX])]),
+      el('p', { class: 'muted small', text: 'Do: ' + m.name + ' (' + m.email + '). Wyjdzie z adresu strony' + (info.from ? ' (' + info.from + ')' : '') + (info.address ? ', a gdy ta osoba kliknie „Odpowiedz”, trafi to na ' + info.address : '') + '. Pod spodem dołączymy jej wiadomość.' }),
+      info.ready ? null : el('p', { class: 'notice warn small', text: 'E-mail nie jest jeszcze włączony (zobacz kartę „E-mail” wyżej) – odpowiedź nie wyjdzie, dopóki go nie ustawisz. Możesz też odpisać przez „Otwórz w poczcie”.' }),
+      error,
+      el('div', { class: 'row' }, [send, el('button', { class: 'btn', type: 'button', text: 'Anuluj', onclick: function () {
+        var close = function () { delete msg.drafts[m.id]; form.remove(); var b = document.querySelector('[data-reply="' + m.id + '"]'); if (b) { b.hidden = false; b.focus(); } };
+        if (!text.value.trim()) return close();
+        confirmBox('Odrzucić odpowiedź?', 'Tekst, który wpisałeś(-aś), zniknie.', 'Odrzuć').then(function (yes) { if (yes) close(); });
+      } })]),
+    ]);
+    subject.addEventListener('input', function () { draft.subject = subject.value; });
+    text.addEventListener('input', function () { draft.text = text.value; counter.textContent = String(text.value.length); });
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!text.value.trim()) { error.textContent = 'Wpisz treść odpowiedzi.'; error.hidden = false; text.focus(); return; }
+      error.hidden = true;
+      draft.error = '';
+      send.textContent = 'Wysyłam…';
+      busy(form, api('POST', 'messages/' + encodeURIComponent(m.id) + '/reply', { subject: subject.value.trim(), text: text.value })).then(function (r) {
+        delete msg.drafts[m.id];
+        toast('Odpowiedź wysłana na ' + r.to + '.');
+        return loaders.wiadomosci();
+      }, function (err) {
+        // Nothing typed is lost: the form comes back with the same text and the reason under it.
+        draft.error = err.message;
+        send.textContent = 'Wyślij';
+        error.textContent = err.message;
+        error.hidden = false;
+        if (err.data && err.data.item) return loaders.wiadomosci().then(function () { var t = document.querySelector('[data-reply-form="' + m.id + '"] textarea'); if (t) t.focus(); });
+        return null;
+      }).catch(oops);
+    });
+    form.setAttribute('data-reply-form', m.id);
+    return form;
+  }
   function messageItem(m, r) {
-    var reply = 'mailto:' + m.email + '?subject=' + encodeURIComponent('Re: ' + m.topicLabel + ' – ' + ann.brand);
+    var mailto = 'mailto:' + m.email + '?subject=' + encodeURIComponent(m.replySubject);
     var mailNote = m.mail === 'sent' ? 'e-mail wysłany' : m.mail === 'failed' ? 'e-mail nie wyszedł' : m.mail === 'pending' ? 'e-mail w drodze…' : '';
     var note = [mailNote, m.read && m.readBy ? 'przeczytane: ' + (m.readBy.name || m.readBy.id) : ''].filter(Boolean).join(' · ');
-    return el('div', { class: 'item msg-item' + (m.read ? '' : ' unread') }, [
+    var draft = msg.drafts[m.id];
+    var card = el('div', { class: 'item msg-item' + (m.read ? '' : ' unread') });
+    var replyButton = el('button', { class: 'btn small primary', type: 'button', text: 'Odpowiedz', 'data-reply': m.id, onclick: function () {
+      draft = msg.drafts[m.id] = msg.drafts[m.id] || { subject: m.replySubject, text: '', error: '' };
+      replyButton.hidden = true;
+      var form = replyForm(m, draft);
+      card.insertBefore(form, actions);
+      form.querySelector('textarea').focus();
+    } });
+    replyButton.hidden = Boolean(draft);
+    var actions = el('div', { class: 'row' }, [
+      replyButton,
+      el('a', { class: 'small msg-mailto', href: mailto, title: 'Otwiera program pocztowy na tym komputerze (jeśli jest ustawiony)', text: 'Otwórz w poczcie' }),
+      el('button', { class: 'btn small', type: 'button', text: m.read ? 'Oznacz jako nieprzeczytaną' : 'Przeczytane', onclick: function () { api('PUT', 'messages/' + encodeURIComponent(m.id), { read: !m.read }).then(loaders.wiadomosci).catch(oops); } }),
+      r.canDelete ? el('button', { class: 'btn small danger', type: 'button', text: 'Usuń', onclick: function () {
+        confirmBox('Usunąć wiadomość?', 'Wiadomość od „' + m.name + '” zniknie z panelu na dobre.' + (m.mail === 'sent' ? ' Jej kopia zostaje w skrzynce e-mail.' : '')).then(function (yes) { if (yes) api('DELETE', 'messages/' + encodeURIComponent(m.id)).then(function () { delete msg.drafts[m.id]; toast('Usunięto.'); return loaders.wiadomosci(); }).catch(oops); });
+      } }) : null,
+      note ? el('span', { class: 'muted small right', text: note, title: m.mailError || '' }) : null,
+    ]);
+    [
       el('div', { class: 'row' }, [
         m.read ? null : el('span', { class: 'pill gold', text: 'Nowa' }),
+        m.answered ? el('span', { class: 'pill ok msg-answered', text: '✅ Odpowiedziano' }) : null,
         el('span', { class: 'pill', text: m.topicLabel }),
         el('span', { class: 'title grow', text: m.name }),
         el('span', { class: 'muted small nowrap', text: when(m.at) }),
       ]),
       el('div', { class: 'msg-from' }, [
-        el('a', { href: reply, text: m.email }),
+        el('span', { class: 'msg-email', text: m.email }),
         m.user ? ' · Discord: ' + (m.user.name || m.user.username || '—') + (m.user.username ? ' (@' + m.user.username + ')' : '') + ' · ID ' + m.user.id : ' · bez konta Discord',
       ]),
       el('div', { class: 'text', text: m.text }),
-      el('div', { class: 'row' }, [
-        el('a', { class: 'btn small primary', href: reply, text: 'Odpowiedz' }),
-        el('button', { class: 'btn small', type: 'button', text: m.read ? 'Oznacz jako nieprzeczytaną' : 'Przeczytane', onclick: function () { api('PUT', 'messages/' + encodeURIComponent(m.id), { read: !m.read }).then(loaders.wiadomosci).catch(oops); } }),
-        r.canDelete ? el('button', { class: 'btn small danger', type: 'button', text: 'Usuń', onclick: function () {
-          confirmBox('Usunąć wiadomość?', 'Wiadomość od „' + m.name + '” zniknie z panelu na dobre.' + (m.mail === 'sent' ? ' Jej kopia zostaje w skrzynce e-mail.' : '')).then(function (yes) { if (yes) api('DELETE', 'messages/' + encodeURIComponent(m.id)).then(function () { toast('Usunięto.'); return loaders.wiadomosci(); }).catch(oops); });
-        } }) : null,
-        note ? el('span', { class: 'muted small right', text: note, title: m.mailError || '' }) : null,
-      ]),
-    ]);
+      replyHistory(m),
+      draft ? replyForm(m, draft) : null,
+      actions,
+    ].forEach(function (part) { if (part) card.appendChild(part); });
+    return card;
   }
   loaders.wiadomosci = function () {
     return api('GET', 'messages').then(function (r) {
       msg.total = r.messages.length;
+      msg.info = r.mail;
+      Object.keys(msg.drafts).forEach(function (id) { if (!r.messages.some(function (m) { return m.id === id; })) delete msg.drafts[id]; });
       setUnread(r.unread);
       mailStatus(r);
       var list = $('msg-list');

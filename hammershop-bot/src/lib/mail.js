@@ -2,9 +2,10 @@
 
 /**
  * E-mail from the website – a small SMTP client with no dependencies (node:net / node:tls). The site writes to its own
- * contact address (config.json → contact.email) when somebody sends the contact form or buys something, and to the
- * buyer – the address they typed on Stripe's page – with their confirmation (src/web/contact.js,
- * src/features/website.js; plain text, or text + HTML).
+ * contact address (config.json → contact.email) when somebody sends the contact form or buys something, to the
+ * buyer – the address they typed on Stripe's page – with their confirmation, and to whoever wrote through the contact
+ * form when the team answers from the admin panel (src/web/contact.js, src/features/website.js, src/web/admin.js;
+ * plain text, or text + HTML).
  *
  * .env (src/env.js → env.mail):
  *   MAIL_PASS   the password – for Gmail an "app password" (Google account → 2-step verification → App passwords).
@@ -302,7 +303,10 @@ async function talk(cfg, port, envelope, data) {
     }
     await signIn(io, capabilities, cfg);
     await io.command(`MAIL FROM:<${envelope.from}>`, [250]);
-    await io.command(`RCPT TO:<${envelope.to}>`, [250, 251]);
+    // A 5xx here is about the address itself (no such mailbox, a typo): the reason says so (reasonOf).
+    await io.command(`RCPT TO:<${envelope.to}>`, [250, 251]).catch((err) => {
+      throw err.reply?.code >= 500 ? Object.assign(err, { recipient: envelope.to }) : err;
+    });
     await io.command('DATA', [354]);
     await io.command(`${dotStuff(data)}.`, [250]); // (data ends with a line break of its own)
     await io.command('QUIT', null, null, Math.min(replyMs, 3000)).catch(() => null); // the message is accepted – a goodbye that does not come changes nothing
@@ -333,6 +337,7 @@ function reasonOf(err, cfg, ports) {
     case 'tls':
       return `Nie udało się nawiązać szyfrowanego połączenia z serwerem poczty ${cfg.host} (port ${err.port}): ${detail}.`;
     default: // 'rejected'
+      if (err.recipient) return `Serwer poczty ${cfg.host} odrzucił adres odbiorcy ${err.recipient} – sprawdź, czy nie ma w nim literówki (albo taka skrzynka nie istnieje). Odpowiedź serwera: ${detail}`;
       return `Serwer poczty ${cfg.host} nie przyjął wiadomości. Odpowiedź serwera: ${detail}`;
   }
 }

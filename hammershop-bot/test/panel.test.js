@@ -139,6 +139,11 @@ test('„Start od zera (przed premierą)” is Hammer Launcher\'s – the shop\'
   assert.doesNotMatch(page, /start-open|start-dialog|PREMIERA/);
   // …and the shop's launcher page has no premiere strip (config.launch is empty there).
   assert.doesNotMatch((await call('GET', '/launcher')).body, /class="launch|Oficjalny start|\{\{launch\}\}/);
+  // Partnerships are the Hammer Launcher server's too: no tab, no routes, no logos here.
+  assert.doesNotMatch(page, /data-tab="partnerstwa"|partner-delete/);
+  assert.equal((await admin('GET', 'partners')).status, 404);
+  assert.equal((await admin('POST', 'partners', { body: { name: 'x', kind: 'minecraft' } })).status, 404);
+  assert.match((await call('GET', '/partnerzy/logo/x-0123456789.png')).body, /<title>HammerShop/, 'an unknown address is the store\'s page, as always – never a file');
 });
 
 test('news: written in the panel, shown in the launcher (pinned first), posted on Discord when asked', async () => {

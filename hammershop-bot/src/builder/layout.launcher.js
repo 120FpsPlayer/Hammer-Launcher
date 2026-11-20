@@ -88,6 +88,17 @@ const CATEGORIES = [
     ],
   },
   {
+    // Partnerships from the admin panel's „Partnerstwa” tab (src/features/partners.js): each partner with a Discord
+    // server gets a read-only channel here, made by the bot (not part of this layout – /build only:update never
+    // removes them). Members read; the team and the bot post.
+    key: 'catPartnerships',
+    name: '🤝 PARTNERSTWA',
+    profile: 'public',
+    channels: [
+      text('partnerships', '📋 współpraca', { profile: 'readonly', posters: ['support'], topic: 'Nasi partnerzy – i jak zostać jednym z nich.', post: 'partnerships' }),
+    ],
+  },
+  {
     key: 'catSupport',
     name: '🎧 POMOC',
     profile: 'public',

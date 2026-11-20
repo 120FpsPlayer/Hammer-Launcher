@@ -897,6 +897,24 @@ const panelFeatured = {
   remove: (id) => require('./featured').remove(needGuild().id, id),
 };
 
+/**
+ * The panel's „Partnerstwa” tab and the website's „Partnerzy” page (src/features/partners.js) – the Hammer Launcher
+ * server only. logo: { buffer, type } from the panel's upload, null to take it off, undefined to keep it.
+ */
+const panelPartners = {
+  info: () => require('./partners').status(guildOf()),
+  list: () => (guildOf() ? require('./partners').panelList(guildOf()) : []),
+  publicList: () => (guildOf() ? require('./partners').publicList(guildOf().id) : []),
+  add: (fields, by, logo) => require('./partners').add(needGuild(), fields, by, { logo }),
+  update: (id, fields, by, logo) => require('./partners').update(needGuild(), id, fields, by, { logo }),
+  /** A partner's row as the panel lists it. */
+  row: (partner) => require('./partners').panelRow(guildOf(), partner),
+  /** 'start' | 'end' → the card on #📢 ogłoszenia (no ping) → { url, channelId, messageId, crossposted, title } */
+  announce: (partner, what, by) => require('./partners').announce(needGuild(), partner, what, by),
+  remove: (id, opts) => require('./partners').remove(needGuild(), id, opts),
+  dropLogo: (name) => require('./partners').dropLogo(name),
+};
+
 /** The opened ticket: the "paid on the website" notice, then instant delivery – like an order paid with store balance. */
 async function onOrderPlaced({ guild, channel, ticket }) {
   if (!channel || ticket?.order?.paidWith !== 'website') return;
@@ -952,7 +970,7 @@ function start(c) {
     }
   });
   webAuth.setClientId(c.application?.id ?? c.user?.id);
-  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, receipt: buyerMail, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, contact: contactCard, statsReset, startOver });
+  server = createWebServer({ catalog, info: () => ({ invite: inviteOf() }), invitesPaused: () => invitesPaused(), ownInviteFailing, onPaid, receipt: buyerMail, onLogin, isMember, currency, featured: featuredServers, level: panelLevel, announce, log: panelLog, plus: panelPlus, featuredAdmin: panelFeatured, referrals: panelReferrals, announcements: panelAnnouncements, roadmap: panelRoadmap, partners: panelPartners, contact: contactCard, statsReset, startOver });
   server.on('error', (err) => {
     console.warn(`🌐 Strona: nie można użyć portu ${env.web.port} (${err.code ?? err.message}) – bot działa dalej bez niej.`);
     server = null;
@@ -982,5 +1000,5 @@ hooks.on('inviteDelete', (invite) => {
 module.exports = {
   catalog, featuredServers, plain, tabOf, artOf, guildOf, ticketOrder, handOver, onPaid, onLogin, isMember, start, stop: () => server?.close(), _setClient: (c) => (client = c),
   deliverPlus, plusDm, panelLevel, announce, panelLog, panelPlus, panelFeatured, panelReferrals, launcherChannel, checkInvite, inviteOf, invitesPaused, ownInviteFailing,
-  panelAnnouncements, contactCard, purchaseMail, buyerMail, orderMails, plusCode, statsReset, startOver, panelRoadmap,
+  panelAnnouncements, contactCard, purchaseMail, buyerMail, orderMails, plusCode, statsReset, startOver, panelRoadmap, panelPartners,
 };

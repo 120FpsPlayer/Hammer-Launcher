@@ -95,7 +95,7 @@ test('the shop keeps its front page and its own unknown addresses; under /launch
     assert.equal(res.status, 200, shop);
     assert.match(res.body, /<title>HammerShop/, `${shop}: the store's single page, as before`);
   }
-  for (const nothing of ['/launcher/cokolwiek', '/launcher/hammershop', '/launcher/funkcje/cos', '/launcher/layout.html']) {
+  for (const nothing of ['/launcher/cokolwiek', '/launcher/hammershop', '/launcher/partnerzy', '/launcher/funkcje/cos', '/launcher/layout.html']) {
     const res = await get(nothing);
     assert.equal(res.status, 404, nothing);
     assert.match(res.body, /<title>Nie ma takiej strony – Hammer Launcher<\/title>/, nothing);

@@ -245,7 +245,7 @@ test('a server that says nothing, stops half-way or refuses the message: a reaso
   smtp.behave = { rejectRcpt: true };
   const noSuch = await send({ subject: 'x', text: 'y' });
   assert.deepEqual([noSuch.ok, noSuch.code], [false, 'rejected']);
-  assert.match(noSuch.reason, /nie przyjął wiadomości\. Odpowiedź serwera: 550 5\.1\.1/);
+  assert.match(noSuch.reason, /odrzucił adres odbiorcy hammerlauncherclient@gmail\.com – sprawdź, czy nie ma w nim literówki[\s\S]*Odpowiedź serwera: 550 5\.1\.1/);
   smtp.behave = { rejectData: true };
   const refused = await send({ subject: 'x', text: 'y' });
   assert.deepEqual([refused.ok, refused.code], [false, 'rejected']);

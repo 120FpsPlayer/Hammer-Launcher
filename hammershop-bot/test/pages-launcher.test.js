@@ -43,6 +43,7 @@ const SITE = [
   ['/pomoc', 'Pomoc i częste pytania – Hammer Launcher', /Częste pytania/],
   ['/kontakt', 'Kontakt – Hammer Launcher', /Napisz do nas/],
   ['/hammershop', 'HammerShop – współtwórca Hammer Launchera', /HammerShop – współtwórca Hammer Launchera/],
+  ['/partnerzy', 'Partnerzy – Hammer Launcher', /Partnerzy/],
 ];
 
 let fakes;

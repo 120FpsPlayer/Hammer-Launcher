@@ -12,6 +12,8 @@
  *   pomoc          /pomoc          frequent questions, where to get help
  *   kontakt        /kontakt        the contact form
  *   hammershop     /hammershop     HammerShop, the co-creator (Hammer Launcher's own site only)
+ *   partnerzy      /partnerzy      the servers we have a partnership with – from the admin panel's „Partnerstwa” tab
+ *                                  (Hammer Launcher's own site only; the cards are drawn here, see `partnerCards`)
  *
  * On Hammer Launcher's own site (BOT_PROFILE=launcher) they are the site itself; on HammerShop's site the same pages
  * live under /launcher (/launcher/hammer-plus …) – BASE below is the only difference.
@@ -86,6 +88,11 @@ const PAGES = [
     id: 'hammershop', slug: 'hammershop', file: 'hammershop.html', only: 'launcher',
     title: 'HammerShop – współtwórca Hammer Launchera',
     description: 'HammerShop współtworzy Hammer Launcher. Na co dzień to sklep dla wszystkich, którzy prowadzą własny serwer Minecraft albo Discord: pluginy, skrypty, boty i serwery.',
+  },
+  {
+    id: 'partnerzy', slug: 'partnerzy', file: 'partnerzy.html', only: 'launcher',
+    title: `Partnerzy – ${BRAND}`,
+    description: 'Serwery Discord i Minecraft, z którymi współpracuje Hammer Launcher. Dołącz do ich Discorda albo skopiuj adres serwera i graj – także prosto z launchera.',
   },
 ].filter((p) => !p.only || p.only === profile.name);
 
@@ -219,12 +226,52 @@ function launchStrip(launch = config.launch, now = Date.now()) {
   return `<p class="launch" id="launch" ${data}><span class="launch-ico" aria-hidden="true">🚀</span><span class="launch-text">Oficjalny start: <b><time datetime="${iso}">${state.label}</time></b></span><span class="launch-when">${state.when}</span></p>`;
 }
 
+// ── „Partnerzy”: one card per partner (src/features/partners.js publicList) – plain HTML, no inline style (the CSP) ──
+const PLACE = '\u0000partners\u0000'; // where the cards go – put in last, after the page's own replacements
+
+/** A picture address a card may show: the site's own logo files (/partnerzy/logo/…) or https. */
+const picture = (url) => (/^\/partnerzy\/logo\/[a-z0-9-]+\.(png|jpg|gif|webp)$/.test(String(url ?? '')) ? String(url) : https(url));
+
+/** "1 osoba", "3 osoby", "1250 osób" on the Discord button's line. */
+const people = (n) => `${new Intl.NumberFormat('pl-PL').format(n)} ${n === 1 ? 'osoba' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'osoby' : 'osób'}`;
+
+/** The cards, or – before the first partnership – a friendly word about how to become one. */
+function partnerCards(list = []) {
+  if (!list.length) {
+    return [
+      '<div class="empty-card reveal">',
+      '<span class="ti"><svg class="ico" aria-hidden="true"><use href="#i-users"/></svg></span>',
+      '<h2>Pierwsi partnerzy już niedługo</h2>',
+      `<p>Na razie nie mamy jeszcze partnerów. Prowadzisz serwer Discord albo Minecraft i&nbsp;chcesz z&nbsp;nami współpracować? Napisz do nas – w&nbsp;formularzu wybierz temat „Współpraca”.</p>`,
+      `<div class="cta center"><a class="btn primary" href="${BASE}/kontakt"><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg>Napisz do nas</a><a class="btn ghost" href="#" data-discord target="_blank" rel="noopener" hidden><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Nasz Discord</a></div>`,
+      '</div>',
+    ].join('');
+  }
+  const cards = list.map((p) => {
+    const image = picture(p.image);
+    const logo = image
+      ? `<img class="partner-logo" src="${esc(image)}" alt="" width="64" height="64" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+      : `<span class="partner-logo none" aria-hidden="true">${esc(Array.from(p.name)[0]?.toUpperCase() ?? '?')}</span>`;
+    const kinds = [p.invite ? '<span class="pill">Discord</span>' : '', p.address ? '<span class="pill gold">Minecraft</span>' : ''].join('');
+    const join = https(p.invite)
+      ? `<a class="btn primary small" href="${esc(https(p.invite))}" target="_blank" rel="noopener nofollow"><svg class="ico" aria-hidden="true"><use href="#i-discord"/></svg>Dołącz na Discorda</a>${p.members ? `<span class="partner-members">${esc(people(p.members))} na serwerze</span>` : ''}`
+      : '';
+    const version = [p.mc, p.loader ? p.loader[0].toUpperCase() + p.loader.slice(1) : null].filter(Boolean).join(' · ');
+    const ip = p.address
+      ? `<div class="partner-ip"><span class="partner-ip-label">Adres serwera${version ? ` · ${esc(version)}` : ''}</span><div class="partner-ip-row"><code>${esc(p.address)}</code><button class="btn small" type="button" data-copy="${esc(p.address)}" aria-label="Kopiuj adres serwera ${esc(p.address)}">Kopiuj IP</button></div></div>`
+      : '';
+    return `<article class="partner-card reveal"><div class="partner-head">${logo}<div class="partner-title"><h2>${esc(p.name)}</h2><p class="partner-kinds">${kinds}</p></div></div><p class="partner-desc">${esc(p.description)}</p>${join ? `<div class="partner-join">${join}</div>` : ''}${ip}</article>`;
+  });
+  return `<div class="partners">${cards.join('')}</div><p class="partners-apply reveal">Prowadzisz serwer i&nbsp;chcesz zostać naszym partnerem? <a href="${BASE}/kontakt">Napisz do nas</a> – w&nbsp;formularzu wybierz temat „Współpraca”.</p>`;
+}
+
 /**
  * A page as the browser gets it: the layout around the page's own part, for this site, with its title, description
  * and address (origin: the site's public address – canonical and the link preview want whole addresses), the current
- * page's link marked and every /assets/… address stamped. page: one of PAGES or NOT_FOUND.
+ * page's link marked and every /assets/… address stamped. page: one of PAGES or NOT_FOUND. partners: the „Partnerzy”
+ * page's list.
  */
-function render(page, origin = '', { now = Date.now() } = {}) {
+function render(page, origin = '', { now = Date.now(), partners = [] } = {}) {
   const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
   const partner = config.partner ?? {};
   const contact = String(config.contact?.email ?? '').trim();
@@ -244,12 +291,15 @@ function render(page, origin = '', { now = Date.now() } = {}) {
     partner_url: esc(https(partner.url) || 'https://hammershop.pl'),
     partner_discord: esc(https(partner.discord)),
     launch: page.id === 'start' ? launchStrip(config.launch, now) : '', // „Oficjalny start” (only the start page has the place for it)
+    partners: page.id === 'partnerzy' ? PLACE : '',
   };
   let html = read('layout.html').replace('{{main}}', () => read(page.file));
   html = blocks(forProfile(html), { contact: Boolean(contact), 'partner-discord': Boolean(values.partner_discord) });
   html = html.replace(/\{\{([a-z_]+)\}\}/g, (token, name) => (name in values ? values[name] : token));
   html = html.replace(/ data-nav="([a-z0-9-]+)"/g, (attr, id) => (id === page.id ? ' aria-current="page"' : ''));
-  return html.replace(ASSET_REF, (url) => stampAssets(url));
+  html = html.replace(ASSET_REF, (url) => stampAssets(url));
+  // What people typed in the panel goes in last: nothing in it is taken for a page marker or an /assets/ address.
+  return page.id === 'partnerzy' ? html.replace(PLACE, () => partnerCards(partners)) : html;
 }
 
 /** robots.txt of the launcher's own site: everything but the admin panel and the API. */
@@ -261,4 +311,4 @@ function sitemap(origin) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
-module.exports = { PAGES, NOT_FOUND, BASE, HOME, DIR, pathOf, resolve, signInTargets, render, forProfile, robots, sitemap, launchDay, launchState, launchStrip };
+module.exports = { PAGES, NOT_FOUND, BASE, HOME, DIR, pathOf, resolve, signInTargets, render, forProfile, robots, sitemap, launchDay, launchState, launchStrip, partnerCards };

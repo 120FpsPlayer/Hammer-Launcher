@@ -42,6 +42,7 @@
       <button role="tab" data-tab="wersje">Wersje launchera</button>
       <button role="tab" data-tab="plus">Hammer+</button>
       <button role="tab" data-tab="serwery">Polecane serwery</button>
+      <!--launcher--><button role="tab" data-tab="partnerstwa">Partnerstwa</button><!--/launcher-->
       <button role="tab" data-tab="zamowienia">Zamówienia</button>
       <button role="tab" data-tab="wiadomosci">Wiadomości<span class="count" id="msg-count" hidden></span></button>
     </nav>
@@ -290,6 +291,58 @@
       </div>
     </section>
 
+    <!--launcher-->
+    <!-- Partnerstwa: a partner's Discord server gets a channel under 🤝 PARTNERSTWA, its Minecraft server goes to „Polecane serwery” -->
+    <section class="tab" id="tab-partnerstwa" role="tabpanel" hidden>
+      <div class="notice warn" id="partner-setup" hidden></div>
+      <div class="grid-2 wide-left">
+        <form class="card fields" id="partner-form" novalidate>
+          <div><h2 id="partner-form-title">Nowe partnerstwo</h2><p class="muted small"><b>Discord</b> – bot sprawdzi zaproszenie i zrobi partnerowi kanał w kategorii <b>🤝 PARTNERSTWA</b>, z kartą i przyciskiem „Dołącz do serwera”. <b>Minecraft</b> – serwer trafi do „Polecanych serwerów” w launcherze. Każdy partner jest też na stronie <a href="/partnerzy" target="_blank" rel="noopener">Partnerzy</a>.</p></div>
+          <fieldset><legend>Rodzaj współpracy</legend><div class="ann-chips" id="partner-kinds">
+            <label class="ann-kind kind-discord"><input type="radio" name="partner-kind" value="discord" checked><i class="ann-dot"></i>Discord</label>
+            <label class="ann-kind kind-minecraft"><input type="radio" name="partner-kind" value="minecraft"><i class="ann-dot"></i>Minecraft</label>
+            <label class="ann-kind kind-both"><input type="radio" name="partner-kind" value="both"><i class="ann-dot"></i>Discord + Minecraft</label>
+          </div></fieldset>
+          <div class="fields two">
+            <label>Nazwa partnera<input type="text" id="partner-name" maxlength="40" placeholder="np. Kraina Craftu" autocomplete="off"><span class="hint"><span id="partner-name-count">0</span>/40</span></label>
+            <label>Ikona – adres obrazka (opcjonalnie)<input type="url" id="partner-icon" maxlength="300" placeholder="https://…/ikona.png" autocomplete="off"></label>
+          </div>
+          <label>Opis<textarea id="partner-description" maxlength="200" rows="3" placeholder="Jedno–dwa zdania: co to za serwer i dlaczego warto do niego wpaść."></textarea><span class="hint"><span id="partner-description-count">0</span>/200</span></label>
+          <div class="partner-logo-field">
+            <div class="partner-logo-preview" id="partner-logo-preview"><img id="partner-logo-img" alt="Podgląd logo" hidden><span id="partner-logo-empty" aria-hidden="true">Logo</span></div>
+            <div class="partner-logo-pick">
+              <label>Logo z komputera (opcjonalnie)<input type="file" id="partner-logo-file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+              <span class="hint" id="partner-logo-hint">PNG, JPG, WebP albo GIF, do 2 MB, najlepiej kwadrat (np. 512×512). Bez pliku pokażemy ikonę z adresu powyżej albo ikonę serwera Discord.</span>
+              <div class="row"><button class="btn small danger" type="button" id="partner-logo-remove" hidden>Usuń logo</button></div>
+            </div>
+          </div>
+          <fieldset class="partner-block" id="partner-discord"><legend>Discord</legend>
+            <label>Link zaproszenia na serwer partnera<input type="url" id="partner-invite" maxlength="200" placeholder="https://discord.gg/…" autocomplete="off" spellcheck="false"><span class="hint">Bez terminu ważności („Wygasa po: Nigdy”) – bot sprawdzi je w Discordzie i weźmie z niego nazwę, ikonę i liczbę osób.</span></label>
+          </fieldset>
+          <fieldset class="partner-block" id="partner-minecraft" hidden><legend>Minecraft</legend>
+            <div class="fields two">
+              <label>Adres serwera<input type="text" id="partner-address" maxlength="100" placeholder="mc.partner.pl" spellcheck="false" autocomplete="off"></label>
+              <label>Wersja gry (opcjonalnie)<input type="text" id="partner-mc" maxlength="12" placeholder="1.21.4" autocomplete="off"></label>
+            </div>
+            <div class="fields two">
+              <label>Loader (opcjonalnie)<select id="partner-loader"><option value="">—</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="vanilla">Vanilla</option></select></label>
+              <label>Tagi (opcjonalnie)<input type="text" id="partner-tags" maxlength="120" placeholder="survival, pvp" autocomplete="off"><span class="hint">Do 5 – tag „partner” bot dodaje sam.</span></label>
+            </div>
+            <label>Paczka modów z Modrinth (opcjonalnie)<input type="text" id="partner-pack" maxlength="120" placeholder="link z Modrinth albo skrót, np. fabulously-optimized" autocomplete="off" spellcheck="false"></label>
+          </fieldset>
+          <label class="check" id="partner-announce-row"><input type="checkbox" id="partner-announce"> Ogłoś nowe partnerstwo na #📢 ogłoszenia (bez pingu)</label>
+          <p class="notice bad small" id="partner-error" role="alert" hidden></p>
+          <p class="notice warn small" id="partner-warning" role="status" hidden></p>
+          <div class="row"><button class="btn primary" type="submit" id="partner-save">Dodaj partnera</button><button class="btn" type="button" id="partner-cancel" hidden>Anuluj edycję</button></div>
+        </form>
+        <div class="card stack">
+          <div class="row"><h2>Partnerzy</h2><span class="muted small" id="partner-count"></span><a class="small right" href="/partnerzy" target="_blank" rel="noopener">Strona „Partnerzy”</a></div>
+          <div class="list" id="partner-list"></div>
+        </div>
+      </div>
+    </section>
+    <!--/launcher-->
+
     <!-- Zamówienia -->
     <section class="tab" id="tab-zamowienia" role="tabpanel" hidden>
       <div class="card"><h2>Zamówienia ze strony</h2><p class="muted small">Ostatnie 100 płatności przez Stripe. Zamówienia z Discorda prowadzisz jak dotąd – w ticketach.</p><div class="table-wrap"><table><thead><tr><th>Numer</th><th>Kto</th><th>Co</th><th>Kwota</th><th>Status</th><th>Kiedy</th><th></th></tr></thead><tbody id="orders-list"></tbody></table></div></div>
@@ -305,7 +358,7 @@
       </div>
       <div class="card">
         <div class="row"><h2>Wiadomości ze strony</h2><span class="muted small" id="msg-summary"></span><button class="btn small right" type="button" id="msg-read-all" hidden>Oznacz wszystkie jako przeczytane</button></div>
-        <p class="muted small">To, co ludzie piszą w formularzu „Kontakt” na stronie – najnowsze na górze. Odpisujesz zwykłym e-mailem: przycisk „Odpowiedz” otwiera Twoją pocztę z adresem tej osoby.</p>
+        <p class="muted small">To, co ludzie piszą w formularzu „Kontakt” na stronie – najnowsze na górze. „Odpowiedz” otwiera pole odpowiedzi na karcie wiadomości: wpisujesz tekst, klikasz „Wyślij” i odpowiedź od razu wychodzi e-mailem z adresu strony, z wiadomością tej osoby pod spodem. Wolisz własny program pocztowy? Kliknij „Otwórz w poczcie”.</p>
         <div class="list" id="msg-list"></div>
       </div>
     </section>
@@ -350,7 +403,7 @@
         <ul>
           <li>zbudowany serwer Discord: kanały, role, emotki, panele</li>
           <li>wersje launchera i ich pliki, aktualności, komunikat w launcherze</li>
-          <li>cennik Hammer+, polecane serwery, #plany, historia ogłoszeń</li>
+          <li>cennik Hammer+, polecane serwery, partnerstwa, #plany, historia ogłoszeń</li>
           <li>wpisy <code>/wiedza</code>, ustawienia, czarna lista, notatki zespołu</li>
           <li>otwarte tickety, trwające giveawaye i klucze w pliku <code>.env</code></li>
         </ul>
@@ -359,6 +412,15 @@
     <label>Wpisz PREMIERA, żeby potwierdzić<input type="text" id="start-confirm" autocomplete="off" spellcheck="false" maxlength="12" placeholder="PREMIERA"></label>
     <p class="notice bad small" id="start-error" role="alert" hidden></p>
     <div class="actions"><button class="btn" type="button" id="start-cancel">Anuluj</button><button class="btn danger" type="submit" id="start-yes" disabled>Usuń dane z testów</button></div>
+  </form>
+</dialog><!--/launcher-->
+<!--launcher--><dialog id="partner-delete" aria-labelledby="partner-delete-title">
+  <form method="dialog" id="partner-delete-form" class="fields">
+    <h2 id="partner-delete-title">Zakończyć partnerstwo?</h2>
+    <p class="muted" id="partner-delete-text"></p>
+    <label class="check"><input type="checkbox" id="partner-delete-announce" checked> Ogłoś zakończenie na #📢 ogłoszenia (bez pingu)</label>
+    <p class="notice bad small" id="partner-delete-error" role="alert" hidden></p>
+    <div class="actions"><button class="btn" type="button" id="partner-delete-no">Anuluj</button><button class="btn danger" type="submit" id="partner-delete-yes">Zakończ partnerstwo</button></div>
   </form>
 </dialog><!--/launcher-->
 <div class="toast" id="toast" role="status" hidden></div>

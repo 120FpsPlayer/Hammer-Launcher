@@ -42,12 +42,24 @@
  *                                – every change is saved and the card on #🗺️ plany is edited right away:
  *                                → { items, updatedAt, discord { ok, url, reposted, error } }
  *   POST   roadmap/publish       puts the card on Discord again (edits it, or posts it when it was deleted) → { url, reposted }
+ *   GET    partners              → „Partnerstwa” (Hammer Launcher's site): { partners (newest first), info }
+ *   PUT    partners/logo         the request body is the logo (PNG / JPG / WebP / GIF, ≤ 2 MB – checked by its bytes and
+ *                                its size in pixels) → { upload (a token for the form), type, width, height, size }
+ *   POST   partners              { name, kind, description, icon?, invite?, address?, mc?, loader?, pack?, tags?, logo?,
+ *                                announce? } → { partner, warning, announced } – the channel, the card, the featured
+ *                                server (src/features/partners.js); announce: a card on #📢 ogłoszenia, no ping
+ *   PUT    partners/<id>         the same fields (logo: a new token, null to take it off, left out to keep it)
+ *   DELETE partners/<id>[?announce=1]  ends it: the channel, the featured server, the logo; announce – a goodbye card
  *   GET    messages              → „Wiadomości”: { messages (the contact form's, newest first), unread, topics,
  *                                  mail { ready, to, from, host, port, address, last }, canDelete, canTest }
  *   GET    messages/count        → { unread, total } – the number on the tab
  *   PUT    messages/<id>         { read: true | false } → { item, unread }      POST messages/read-all → { unread: 0 }
  *   DELETE messages/<id>         (owner) → { ok, unread }
  *   POST   messages/test         (owner) a test e-mail to the contact address → { ok, to, reason } – the real result
+ *   POST   messages/<id>/reply   { subject?, text } – „Odpowiedz”: the answer goes out by e-mail at once (from the site's
+ *                                mail account to the sender, Reply-To the contact address, their message quoted under
+ *                                it) → { ok: true, item, to } | 502 / 503 { error (the real reason), item } – every
+ *                                attempt is kept on the message (replies), a sent one marks it read
  *
  * Every change must come from the panel itself (the Origin header is required and must be this site), and each one is
  * written to the bot's log channel with who did it (a message marked as read keeps that on itself: readBy, readAt).
@@ -199,6 +211,10 @@ const roadmapRow = (item) => ({ id: item.id, section: item.section, title: item.
 
 // ── „Wiadomości”: what came through the website's contact form (src/web/contact.js) ──
 const PENDING_MS = 5 * 60_000; // an e-mail still "on its way" after this long never left (the bot was restarted meanwhile)
+const REPLY = { text: 4000, subject: 200, kept: 20 }; // an answer's length, its subject (as mail.js sends it), the attempts kept on a message
+const userRef = (id) => (id ? { id, name: store._state().users[id]?.name ?? null } : null);
+/** The subject an answer starts with: „Re: Pomoc z launcherem – Hammer Launcher”. */
+const replySubject = (m) => `Re: ${contact().topicLabel(m.topic)} – ${config.brand.name}`;
 
 /** A message as the panel lists it. */
 function messageRow(m, now = Date.now()) {
@@ -208,6 +224,8 @@ function messageRow(m, now = Date.now()) {
     user: m.user ? { id: m.user.id, name: m.user.name ?? null, username: m.user.username ?? null } : null,
     read: Boolean(m.read), readAt: m.readAt ?? null, readBy: m.readBy ? { id: m.readBy, name: store._state().users[m.readBy]?.name ?? null } : null,
     mail: stale ? 'failed' : m.mail ?? 'off', mailError: stale ? 'Bot został uruchomiony ponownie, zanim e-mail wyszedł.' : m.mailError ?? null,
+    replies: (m.replies ?? []).map((r) => ({ text: r.text, subject: r.subject, at: r.at, by: userRef(r.by), ok: Boolean(r.ok), error: r.error ?? null })),
+    answered: (m.replies ?? []).some((r) => r.ok), replySubject: replySubject(m),
   };
 }
 
@@ -278,14 +296,63 @@ function mailRow(m, now = Date.now()) {
   return { state: m.state, to: m.to ?? null, reason: m.reason ?? null, at: m.at ?? null };
 }
 
+// ── „Partnerstwa”: a logo is uploaded on its own (the request body is the picture) and waits here, under a token the
+// form sends with the partner – so a partner is saved, its card posted and its announcement sent in one go ──
+const LOGO_TTL_MS = 60 * 60_000;
+const LOGO_WAITING = 12;
+const logoUploads = new Map(); // token → { buffer, type, at }
+
+function stageLogo(buffer, type) {
+  const now = Date.now();
+  for (const [token, item] of logoUploads) if (now - item.at > LOGO_TTL_MS) logoUploads.delete(token);
+  while (logoUploads.size >= LOGO_WAITING) logoUploads.delete(logoUploads.keys().next().value);
+  const token = require('node:crypto').randomBytes(12).toString('hex');
+  logoUploads.set(token, { buffer, type, at: now });
+  return token;
+}
+
+/** The form's logo field → undefined (keep it), null (take it off) or { buffer, type } (a new picture). */
+function logoOf(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const item = typeof value === 'string' ? logoUploads.get(value) : null;
+  if (!item) throw problem(400, 'Wybierz plik z logo jeszcze raz – od jego wgrania minęło za dużo czasu (albo bot był w międzyczasie uruchamiany ponownie).');
+  return { buffer: item.buffer, type: item.type };
+}
+
+/** The request body as bytes – at most `limit` (413 with a Polish sentence when it is more). */
+function readBytes(req, limit, tooBig) {
+  return new Promise((resolve, reject) => {
+    if (Number(req.headers['content-length']) > limit) {
+      req.resume();
+      return reject(problem(413, tooBig));
+    }
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(problem(413, tooBig));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+/** A partner as the panel lists it: who added it, by name. */
+const partnerRow = (p) => (p ? { ...p, addedBy: userRef(p.addedBy) } : p);
+
 /** name → when the console last said how far that upload is (one line every few seconds, not one per piece). */
 const uploadSaid = new Map();
 
 /**
  * /api/admin/… – h: the website's helpers { send, fail, jsonBody, userOf, limited, originOk } and the bot's side
  * { level, announce, log, plus { grant, recent, inspect, active }, featured { list, add, remove },
- *   announcements { info, bannerFile, post, remove }, roadmap { info, publish }, currency, publicUrl, authReady,
- *   paymentsReady, webhookReady, statsReset, startOver({ closedChannels }) }.
+ *   announcements { info, bannerFile, post, remove }, roadmap { info, publish }, partners { info, list, add, update, row,
+ *   announce, remove, dropLogo }, currency, publicUrl, authReady,
+ *   paymentsReady, webhookReady, statsReset, startOver({ closedChannels }), invite (the Discord invite | null) }.
  */
 async function api(req, res, url, h) {
   const route = url.pathname.slice(PREFIX.length).replace(/\/+$/, '');
@@ -333,6 +400,7 @@ async function api(req, res, url, h) {
     if (route === 'announcements') return h.send(res, 200, { ...h.announcements.info(), history: store.announcementList().map(announcementRow), canEveryone: owner, limits: ANN_LIMITS });
     if (route === 'messages') return h.send(res, 200, { messages: store.messageList().map((m) => messageRow(m)), unread: store.unreadMessages(), topics: contact().TOPICS, mail: mailInfo(), max: store.MAX_MESSAGES, canDelete: owner, canTest: owner });
     if (route === 'messages/count') return h.send(res, 200, { unread: store.unreadMessages(), total: store.messageList().length });
+    if (route === 'partners' && profile.launcher) return h.send(res, 200, { partners: h.partners.list().map(partnerRow), info: h.partners.info() });
     if (route === 'roadmap') {
       const r = store.roadmap();
       const by = r.by ? { id: r.by, name: store._state().users[r.by]?.name ?? null } : null;
@@ -390,6 +458,17 @@ async function api(req, res, url, h) {
       return h.send(res, 200, { ok: true });
     }
     return h.fail(res, 405, 'Niedozwolona metoda');
+  }
+
+  // A partner's logo: the body is the picture – checked by what it really is before it waits for the form.
+  if (route === 'partners/logo') {
+    if (!profile.launcher) return h.fail(res, 404, 'Nie znaleziono');
+    if (method !== 'PUT') return h.fail(res, 405, 'Niedozwolona metoda');
+    if (h.limited(req, 'partner-logo', 12)) return h.fail(res, 429, 'Za dużo plików naraz – odczekaj minutę.');
+    const logos = require('../lib/partnerLogo');
+    const buffer = await readBytes(req, logos.MAX_BYTES, 'Ten plik ma więcej niż 2 MB – logo może mieć najwyżej 2 MB. Zmniejsz je (np. na squoosh.app) i spróbuj ponownie.');
+    const found = logos.check(buffer); // a UserError → 400 with its sentence
+    return h.send(res, 200, { upload: stageLogo(buffer, found.type), type: found.type, width: found.width, height: found.height, size: found.size });
   }
 
   const body = method === 'DELETE' ? {} : await h.jsonBody(req);
@@ -615,6 +694,35 @@ async function api(req, res, url, h) {
       await log(sent.ok ? '✉️ Testowy e-mail wysłany z panelu' : '✉️ Testowy e-mail z panelu nie wyszedł – przyczynę widać w panelu (Wiadomości)');
       return h.send(res, 200, { ok: sent.ok, to: mailInfo().to, reason: sent.ok ? null : sent.reason });
     }
+    // „Odpowiedz”: sent right away and only once (no second try in the background) – the owner sees the real result,
+    // and the text stays in the panel's form whatever happens.
+    const replyTo = /^([^/]+)\/reply$/.exec(String(arg ?? ''));
+    if (method === 'POST' && replyTo) {
+      const item = store.getMessage(replyTo[1]);
+      if (!item) return h.fail(res, 404, 'Nie ma takiej wiadomości – może ktoś ją właśnie usunął. Odśwież stronę.');
+      const text = block(Object(body).text, 20_000);
+      if (!text) return h.fail(res, 400, 'Wpisz treść odpowiedzi.');
+      if (text.length > REPLY.text) return h.fail(res, 400, `Odpowiedź może mieć najwyżej ${REPLY.text} znaków (teraz ${text.length}).`);
+      const subject = line(Object(body).subject, 1000) || replySubject(item);
+      if (subject.length > REPLY.subject) return h.fail(res, 400, `Temat może mieć najwyżej ${REPLY.subject} znaków (teraz ${subject.length}).`);
+      if (h.limited(req, 'mail-reply', 10) || h.limited(req, 'mail-reply-hour', 60, 3_600_000)) return h.fail(res, 429, 'Za dużo odpowiedzi w krótkim czasie – odczekaj chwilę i wyślij ponownie.');
+      if (!mail.ready()) return h.send(res, 503, { error: `Odpowiedź nie wyszła. ${mail.whyOff()} Potem uruchom bota ponownie i kliknij „Wyślij” jeszcze raz.`, item: messageRow(item) });
+      const letter = require('../lib/receiptMail').contactReply({
+        brand: config.brand.name, subject, text,
+        original: { at: item.at, topic: contact().topicLabel(item.topic), text: item.text },
+        help: { discord: h.invite?.() ?? null },
+      });
+      const sent = await mail.send({ ...letter, to: item.email, replyTo: config.contact?.email || null, retry: false });
+      const reply = { text, subject, at: Date.now(), by: user.id, ok: sent.ok, ...(!sent.ok && { error: sent.reason }) };
+      store.updateMessage(item.id, {
+        replies: [...(item.replies ?? []), reply].slice(-REPLY.kept),
+        ...(sent.ok && !item.read && { read: true, readAt: Date.now(), readBy: user.id }),
+      });
+      const who_ = `**${plainName(item.name)}** (${contact().topicLabel(item.topic)})`;
+      await log(sent.ok ? `✉️ Wysłano odpowiedź na wiadomość ze strony od ${who_}` : `✉️ Odpowiedź na wiadomość od ${who_} nie wyszła – przyczynę widać w panelu (Wiadomości)`);
+      if (!sent.ok) return h.send(res, 502, { error: `Odpowiedź nie wyszła. ${sent.reason}`, item: messageRow(store.getMessage(item.id)) });
+      return h.send(res, 200, { ok: true, to: item.email, item: messageRow(store.getMessage(item.id)), unread: store.unreadMessages() });
+    }
     if (method === 'POST' && arg === 'read-all') {
       for (const m of store.messageList()) if (!m.read) store.updateMessage(m.id, { read: true, readAt: Date.now(), readBy: user.id });
       return h.send(res, 200, { unread: 0 });
@@ -630,6 +738,52 @@ async function api(req, res, url, h) {
       if (!item) return h.fail(res, 404, 'Nie ma takiej wiadomości.');
       await log(`🗑️ Usunięto wiadomość ze strony od **${plainName(item.name)}** (${contact().topicLabel(item.topic)})`);
       return h.send(res, 200, { ok: true, unread: store.unreadMessages() });
+    }
+  }
+
+  // ── „Partnerstwa” (Hammer Launcher's site): a Discord channel, a featured server in the launcher, or both ──
+  if (head === 'partners') {
+    if (!profile.launcher) return h.fail(res, 404, 'Nie znaleziono');
+    if (h.limited(req, 'partners', 20)) return h.fail(res, 429, 'Za dużo zmian naraz – odczekaj minutę.');
+    const fields = (b) => ({
+      name: line(b.name, 200), kind: b.kind, description: line(b.description, 1000), icon: line(b.icon, 1000) || null, invite: line(b.invite, 1000) || null,
+      address: line(b.address, 200) || null, mc: line(b.mc, 40) || null, loader: line(b.loader, 40) || null, pack: line(b.pack, 300) || null, tags: line(b.tags, 300) || null,
+    });
+    /** A card on #📢 ogłoszenia (kept in the „Ogłoszenia” tab's history) → { ok, url } | { ok: false, error } – never fails the change itself. */
+    const announced = async (partner, what) => {
+      try {
+        const posted = await h.partners.announce(partner, what, user.id);
+        store.addAnnouncement({ title: posted.title, kind: 'ogloszenie', ping: 'none', by: user.id, url: posted.url, channelId: posted.channelId, messageId: posted.messageId, crossposted: Boolean(posted.crossposted) });
+        return { ok: true, url: posted.url };
+      } catch (err) {
+        return { ok: false, error: err.message };
+      }
+    };
+    if (method === 'POST' && !arg) {
+      const b = Object(body); // (a JSON null is an empty form, not a crash)
+      const { partner, warning } = await h.partners.add(fields(b), user.id, logoOf(b.logo) ?? undefined);
+      const news = b.announce === true ? await announced(partner, 'start') : null;
+      const row = partnerRow(h.partners.row(partner));
+      await log(`🤝 Nowe partnerstwo: **${plainName(row.name)}** (${row.kindLabel})${news?.ok ? ' – ogłoszone na Discordzie' : ''}`);
+      return h.send(res, 200, { partner: row, warning, announced: news });
+    }
+    if (!arg || arg.includes('/')) return h.fail(res, 404, 'Nie znaleziono');
+    if (method === 'PUT') {
+      const b = Object(body);
+      const { partner, warning } = await h.partners.update(arg, fields(b), user.id, logoOf(b.logo));
+      const row = partnerRow(h.partners.row(partner));
+      await log(`🤝 Zmieniono partnerstwo: **${plainName(row.name)}** (${row.kindLabel})`);
+      return h.send(res, 200, { partner: row, warning });
+    }
+    if (method === 'DELETE') {
+      // Ended first (a channel Discord will not delete stops it here, before any goodbye), the logo file kept until
+      // the goodbye has shown it.
+      const partner = await h.partners.remove(arg, { keepLogo: true });
+      if (!partner) return h.fail(res, 404, 'Nie ma takiego partnera – może ktoś go właśnie usunął. Odśwież stronę.');
+      const news = url.searchParams.get('announce') === '1' ? await announced(partner, 'end') : null;
+      h.partners.dropLogo(partner.logo);
+      await log(`🤝 Zakończono partnerstwo z **${plainName(partner.name)}**${news?.ok ? ' – ogłoszone na Discordzie' : ''}`);
+      return h.send(res, 200, { ok: true, announced: news });
     }
   }
 

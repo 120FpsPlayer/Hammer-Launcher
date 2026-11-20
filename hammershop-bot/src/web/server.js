@@ -38,7 +38,8 @@
  * /updates/* – the launcher's own updater – never asks for anything. „Zaproś znajomego” (/r/<code>, GET referrals,
  * POST referrals/claim) is in src/web/referrals.js.
  *
- * The admin panel is /admin (web/public/admin.html) with its API under /api/admin/ – see src/web/admin.js.
+ * The admin panel is /admin (web/public/admin.html) with its API under /api/admin/ – see src/web/admin.js. The partners'
+ * logos it uploads (Hammer Launcher's site) are served from /partnerzy/logo/<name> (src/lib/partnerLogo.js).
  */
 
 const http = require('node:http');
@@ -60,6 +61,7 @@ const plusLib = require('../lib/plus');
 const profile = require('../lib/profile');
 const config = require('../lib/config');
 const mail = require('../lib/mail');
+const partnerLogo = require('../lib/partnerLogo');
 
 const PUBLIC = path.join(__dirname, '..', '..', 'web', 'public');
 const { stampAssets, unstamp, ASSET_REF } = require('./stamp');
@@ -94,6 +96,8 @@ let hooks = {
   announcements: { info: () => ({ channel: null, role: null, members: null, brand: null, bot: null, kinds: [] }), bannerFile: () => null, post: notConnected, remove: notConnected },
   // The panel's „Plany” tab: the card on #🗺️ plany (src/features/website.js panelRoadmap → src/features/roadmap.js).
   roadmap: { info: () => ({ channel: null, url: null }), publish: notConnected },
+  // The panel's „Partnerstwa” tab and the „Partnerzy” page (src/features/website.js panelPartners → src/features/partners.js).
+  partners: { info: () => null, list: () => [], publicList: () => [], add: notConnected, update: notConnected, row: (p) => p, announce: notConnected, remove: notConnected, dropLogo: () => null },
 };
 const products = () => hooks.catalog();
 const publicProduct = (p) => ({ id: p.id, name: p.name, category: p.category, description: p.description, price: p.price, art: p.art, image: p.image ?? null, eta: p.eta ?? null, instant: Boolean(p.instant), published: true });
@@ -573,6 +577,15 @@ function sendPage(req, res, status, html, extra = {}) {
   res.writeHead(status, { ...HEADERS, 'content-type': TYPES['.html'], 'cache-control': 'no-cache', 'content-security-policy': PAGE_CSP, ...extra });
   return res.end(req.method === 'HEAD' ? undefined : html);
 }
+/** The „Partnerzy” page's cards – the bot's list; none (the friendly empty card) when the bot cannot say. */
+function partnersOnPage() {
+  try {
+    return hooks.partners.publicList() ?? [];
+  } catch (err) {
+    console.warn('[web] lista partnerów:', err.message);
+    return [];
+  }
+}
 /** The site's whole address for robots.txt and the sitemap: PUBLIC_URL, or – without one – the host this server was asked as. */
 function siteOrigin(req) {
   if (web().publicUrl) return web().publicUrl;
@@ -596,7 +609,7 @@ function serveStatic(req, res, pathname) {
   if (hit && !hit.page.missing) {
     // Back from Stripe to an address made before Hammer+ had its own page (a payment page stays open for an hour).
     if (hit.page.id === 'start' && /[?&]payment=/.test(query)) return redirect(res, pages.pathOf('hammer-plus') + query);
-    return sendPage(req, res, 200, pages.render(hit.page, web().publicUrl));
+    return sendPage(req, res, 200, pages.render(hit.page, web().publicUrl, { partners: hit.page.id === 'partnerzy' ? partnersOnPage() : [] }));
   }
   const file = pathname === '/' || pathname === '/index.html' ? INDEX : path.join(PUBLIC, path.normalize(pathname).replace(/^([/\\])+/, ''));
   // (a page is never served as a plain file: the panel and the launcher's pages are answered above)
@@ -639,9 +652,9 @@ async function handle(req, res) {
     return admin.api(req, res, url, {
       send, fail, jsonBody, userOf, limited, originOk,
       level: (id) => hooks.level(id), announce: (a) => hooks.announce(a), log: (t) => hooks.log(t),
-      plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements, roadmap: hooks.roadmap,
+      plus: hooks.plus, featured: hooks.featuredAdmin, currency: () => hooks.currency(), announcements: hooks.announcements, roadmap: hooks.roadmap, partners: hooks.partners,
       publicUrl: () => web().publicUrl, authReady, paymentsReady, webhookReady, playing: () => launcher.onlineNow(), invitesPaused: () => Boolean(hooks.invitesPaused?.()), ownInviteFailing: () => Boolean(hooks.ownInviteFailing?.()),
-      statsReset: () => hooks.statsReset?.(), startOver: (what) => hooks.startOver?.(what),
+      statsReset: () => hooks.statsReset?.(), startOver: (what) => hooks.startOver?.(what), invite: () => hooks.info().invite || null,
     });
   }
   if (!p.startsWith('/api/shop/')) {
@@ -654,6 +667,14 @@ async function handle(req, res) {
     if (ref) {
       if (limited(req, 'referral-link', 60)) return fail(res, 429, 'Zwolnij trochę i spróbuj ponownie.');
       return referrals.visit(res, ref[1], { redirect, cookie });
+    }
+    // A partner's logo from the admin panel (src/lib/partnerLogo.js): its name has its content's hash, so it is kept for good.
+    if (profile.launcher && p.startsWith(partnerLogo.PREFIX)) {
+      const file = partnerLogo.file(p.slice(partnerLogo.PREFIX.length));
+      if (!file) return fail(res, 404, 'Nie znaleziono');
+      res.writeHead(200, { ...HEADERS, 'content-type': partnerLogo.contentType(file), 'cache-control': 'public, max-age=31536000, immutable', 'content-length': fs.statSync(file).size, 'content-security-policy': "default-src 'none'" });
+      if (req.method === 'HEAD') return res.end();
+      return fs.createReadStream(file).pipe(res);
     }
     if (p.startsWith('/updates/')) {
       if (limited(req, 'updates', 600)) return fail(res, 429, 'Zwolnij trochę i spróbuj ponownie.');

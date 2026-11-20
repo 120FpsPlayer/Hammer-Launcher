@@ -52,7 +52,7 @@ test('#hammershop: the co-creator\'s channel with its banner, what it sells and 
   assert.equal(ch.parentId, partner.id);
   assert.match(partner.name, /🛒/);
   assert.deepEqual(guild.channels.cache.filter((c) => c.parentId === partner.id).map((c) => c.id), [ch.id], 'nothing else in it');
-  assert.deepEqual(categoryOrder(guild).slice(1, 5), ['catWelcome', 'catLauncher', 'catPartner', 'catSupport']);
+  assert.deepEqual(categoryOrder(guild).slice(1, 6), ['catWelcome', 'catLauncher', 'catPartner', 'catPartnerships', 'catSupport']);
   assert.equal(ch.messageList.length, 2, 'a banner and the card');
   assert.match(ch.messageList[0].body.files[0].name, /hammershop\.png$/);
   const card = text(guild, 'hammershop');
@@ -107,9 +107,9 @@ const update = async (guild) => {
   return textOf(lastResponse(i));
 };
 
-test('/build only:update on a server built before #hammershop existed: the category appears between LAUNCHER and POMOC, with the channel in it', async () => {
+test('/build only:update on a server built before #hammershop existed: the category appears between LAUNCHER and PARTNERSTWA, with the channel in it', async () => {
   const guild = await builtBeforeTheCategory({ inLauncher: false });
-  assert.deepEqual(categoryOrder(guild).slice(1, 4), ['catWelcome', 'catLauncher', 'catSupport']);
+  assert.deepEqual(categoryOrder(guild).slice(1, 5), ['catWelcome', 'catLauncher', 'catPartnerships', 'catSupport']);
   const res = await addMissing(guild);
   assert.deepEqual(res.errors, []);
   assert.equal(res.categories.length, 1);
@@ -117,7 +117,7 @@ test('/build only:update on a server built before #hammershop existed: the categ
   assert.equal(res.channels.length, 1);
   assert.match(res.channels[0], /^🤝/);
   // Discord creates a category at the bottom of the server – the bot puts it where the layout has it.
-  assert.deepEqual(categoryOrder(guild), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
+  assert.deepEqual(categoryOrder(guild), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catPartnerships', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
   assert.equal(channel(guild, 'hammershop').parentId, db.build(guild.id).categories.catPartner);
   assert.match(text(guild, 'hammershop'), /współtwórca/);
 });
@@ -135,7 +135,7 @@ test('/build only:update on a server that already has #hammershop in LAUNCHER: t
   assert.equal(ch.parentId, b.categories.catPartner, 'moved – not created a second time');
   assert.equal(guild.channels.cache.filter((c) => /^🤝/.test(c.name)).size, 1);
   assert.deepEqual(ch.messageList.map((m) => m.id), messages, 'the banner and the card are the same messages');
-  assert.deepEqual(categoryOrder(guild), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed', own.name]);
+  assert.deepEqual(categoryOrder(guild), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catPartnerships', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed', own.name]);
   // The channel guide in #informacje lists it under its own heading now.
   assert.match(text(guild, 'information'), new RegExp(`HammerShop\\n> <#${ch.id}> – HammerShop, nasz współtwórca`));
   // Running it again changes nothing.

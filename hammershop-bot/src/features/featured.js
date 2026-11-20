@@ -5,7 +5,8 @@
  * with /featured (src/commands/featured.js); the launcher reads it from the website: GET /api/launcher/featured
  * (src/web/launcher.js, handed over by src/features/website.js).
  *
- *   db.guild(id).featuredServers = [{ id, name, address, description, tags, icon, mc, loader, pack, addedBy, addedAt }]
+ *   db.guild(id).featuredServers = [{ id, name, address, description, tags, icon, mc, loader, pack, addedBy, addedAt, updatedAt? }]
+ *     (a partner's Minecraft server – src/features/partners.js – is one of them, with the tag „partner”)
  *     id – from the name ("hammer-smp") · address – host or host:port, lowercase · tags – up to 6 short words
  *     icon – an https picture or null · mc – "1.21.4" or null · loader – one of LOADERS or null · pack – a Modrinth slug / id or null
  */
@@ -98,8 +99,11 @@ function newId(guildId, name) {
   return id;
 }
 
-/** Adds a server to the list (checked first – a UserError says what is wrong). → the new entry. */
-function add(guildId, { name, address, description, tags = null, icon = null, mc = null, loader = null, pack = null, addedBy = null }) {
+/**
+ * The fields, checked and tidied → the entry as it is stored (without its id and who added it) – a UserError says what
+ * is wrong. except: the id of the entry being changed (its own address is no clash, and it needs no free place).
+ */
+function check(guildId, { name, address, description, tags = null, icon = null, mc = null, loader = null, pack = null }, { except = null } = {}) {
   const servers = list(guildId);
   const entry = {
     name: clean(name),
@@ -116,11 +120,26 @@ function add(guildId, { name, address, description, tags = null, icon = null, mc
   if (entry.mc && !MC_VERSION.test(entry.mc)) throw new UserError('Wersję Minecrafta podaj jako same liczby, np. `1.21.4` albo `1.20`.');
   if (entry.loader && !LOADERS.includes(entry.loader)) throw new UserError(`Nieznany loader. Do wyboru: ${LOADERS.join(', ')}.`);
   if (entry.pack && entry.pack.length > LIMITS.pack) throw new UserError(`Paczka może mieć najwyżej ${LIMITS.pack} znaków.`);
-  const same = servers.find((s) => s.address === entry.address);
+  const same = servers.find((s) => s.address === entry.address && s.id !== except);
   if (same) throw new UserError(`Serwer **${entry.address}** jest już na liście polecanych jako **${same.name}** – usuń go najpierw, jeśli chcesz dodać go od nowa.`);
-  if (servers.length >= MAX_SERVERS) throw new UserError(`Na liście polecanych może być najwyżej ${MAX_SERVERS} serwerów – usuń któryś, żeby dodać nowy.`);
-  const server = { id: newId(guildId, entry.name), ...entry, addedBy, addedAt: Date.now() };
-  servers.push(server);
+  if (!servers.some((s) => s.id === except) && servers.length >= MAX_SERVERS) throw new UserError(`Na liście polecanych może być najwyżej ${MAX_SERVERS} serwerów – usuń któryś, żeby dodać nowy.`);
+  return entry;
+}
+
+/** Adds a server to the list (checked first – a UserError says what is wrong). → the new entry. */
+function add(guildId, fields) {
+  const entry = check(guildId, fields);
+  const server = { id: newId(guildId, entry.name), ...entry, addedBy: fields.addedBy ?? null, addedAt: Date.now() };
+  list(guildId).push(server);
+  db.save();
+  return server;
+}
+
+/** Changes a server in place – the same checks, the same id and place on the list. → the entry, or null when there is none. */
+function update(guildId, id, fields) {
+  const server = find(guildId, id);
+  if (!server) return null;
+  Object.assign(server, check(guildId, fields, { except: id }), { updatedAt: Date.now() });
   db.save();
   return server;
 }
@@ -149,4 +168,4 @@ const publicList = (guildId) =>
     pack: s.pack ?? null,
   }));
 
-module.exports = { LOADERS, MAX_SERVERS, list, find, add, remove, publicList, parseAddress, parseIcon, parseTags, parsePack };
+module.exports = { LOADERS, MAX_SERVERS, MAX_TAGS, LIMITS, list, find, check, add, update, remove, publicList, parseAddress, parseIcon, parseTags, parsePack };

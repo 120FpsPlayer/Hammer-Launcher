@@ -11,6 +11,7 @@ const path = require('node:path');
  *
  *   plusReceipt({ brand, orderId, amount, paidAt, plan, nick, until, code, problem, pageUrl, help }) → { subject, text, html }
  *   shopReceipt({ brand, orderId, amount, paidAt, items, delivery, ticketUrl, help })              → { subject, text, html }
+ *   contactReply({ brand, subject, text, original, help })     the team's answer to a contact form message (below)
  *
  * help = { ticket: the ticket type's name, discord: an invite link | null, email: the contact address | null }.
  * Everything that goes into the HTML is escaped here; links are only http(s) and mailto: to a plain address.
@@ -200,4 +201,62 @@ function shopReceipt({ brand, orderId, amount, paidAt, items = [], delivery = nu
   return { subject, text, html, inline: image ? [image] : [] };
 }
 
-module.exports = { plusReceipt, shopReceipt, esc, plDateTime };
+/** Plain text typed in the panel → paragraphs (an empty line between them) with their line breaks – all escaped. */
+const paragraphs = (value, opts) =>
+  String(value ?? '')
+    .split(/\n{2,}/)
+    .filter((part) => part.trim())
+    .map((part) => p(esc(part).replace(/\n/g, '<br>'), opts))
+    .join('');
+
+/**
+ * The team's answer to a message from the website's contact form (the admin panel: „Wiadomości” → „Odpowiedz”): what
+ * the team wrote, signed, and under it the person's own message – when, the topic and the text – so they know what
+ * the answer is about. "Reply" in their mail app goes to the contact address (Reply-To, set by the panel).
+ *
+ *   contactReply({ brand, subject, text, original: { at, topic, text }, help }) → { subject, text, html, inline }
+ *
+ * help = { discord: an invite link | null }. Everything typed by people is escaped.
+ */
+function contactReply({ brand, subject, text: reply, original, help = {} }) {
+  const discord = webUrl(help.discord);
+  const when = plDateTime(original.at);
+  const text = [
+    reply,
+    '',
+    `Zespół ${brand}`,
+    '',
+    'Masz jeszcze pytanie? Po prostu odpisz na tego e-maila.',
+    '',
+    '----------------------------------------',
+    `Twoja wiadomość z ${when} (temat: ${original.topic}):`,
+    '',
+    ...String(original.text).split('\n').map((l) => `> ${l}`),
+  ].join('\n');
+  const quote = [
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;"><tr><td bgcolor="${C.inset}" style="background:${C.inset};border-left:3px solid ${C.line};border-radius:8px;padding:12px 14px;">`,
+    p(`Twoja wiadomość · ${esc(when)} · temat: ${esc(original.topic)}`, { size: 12, color: C.muted, margin: '0 0 8px', weight: 600 }),
+    paragraphs(original.text, { size: 13, color: C.muted, margin: '0 0 8px' }),
+    '</td></tr></table>',
+  ].join('');
+  const card = [
+    p('Odpowiedź na Twoją wiadomość', { size: 12, color: C.accent, margin: '0 0 12px', weight: 700 }),
+    paragraphs(reply),
+    p(`Zespół ${esc(brand)}`, { color: C.text, margin: '4px 0 22px', weight: 700 }),
+    quote,
+  ].join('\n');
+  const helpHtml = p(`Masz jeszcze pytanie? Po prostu odpisz na tego e-maila${discord ? ` albo napisz do nas na ${link(discord, 'naszym Discordzie')}` : ''}.`, { size: 13, color: C.muted, margin: '0' });
+  const image = logoImage();
+  const html = page({
+    title: subject,
+    preheader: String(reply).replace(/\s+/g, ' ').trim().slice(0, 140),
+    brand,
+    card,
+    help: helpHtml,
+    footer: `Dostajesz tę wiadomość, bo napisałeś(-aś) do nas przez formularz kontaktowy na stronie ${esc(brand)}.`,
+    withImage: Boolean(image),
+  });
+  return { subject, text, html, inline: image ? [image] : [] };
+}
+
+module.exports = { plusReceipt, shopReceipt, contactReply, esc, plDateTime };

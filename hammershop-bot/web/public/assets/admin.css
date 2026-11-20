@@ -6,6 +6,9 @@ main.wrap { padding: 28px 0 10px; }
 .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--soft); font: inherit; font-weight: 600; font-size: 14px; padding: 10px 14px; cursor: pointer; margin-bottom: -1px; }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+/* Hammer Launcher's panel has 11 tabs – a little less room around each keeps them on one line at 1366 px */
+.tabs:has(> button:nth-child(11)) { gap: 2px; }
+.tabs:has(> button:nth-child(11)) button { padding-inline: 9px; }
 /* minmax(0, …): a long file name or a wide table scrolls inside its card instead of widening the page (a phone would zoom out) */
 .tab { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
@@ -128,8 +131,27 @@ legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 8
 .msg-from { color: var(--soft); font-size: 13px; overflow-wrap: anywhere; }
 .msg-from a { color: var(--accent); }
 .msg-item .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; padding: 10px 12px; border-radius: 8px; background: #0f0b08; border: 1px solid var(--line); }
+.msg-email { color: var(--text); font-weight: 600; }
+.msg-mailto { color: var(--muted); }
+.msg-mailto:hover { color: var(--accent); }
+/* The answers on a message's card: what went out (green edge) and what did not (red, with why) */
+.msg-replies { display: grid; gap: 8px; }
+.msg-reply { display: grid; gap: 4px; padding: 9px 12px; border-radius: 8px; border: 1px solid #5fd08a44; background: #5fd08a0b; box-shadow: inset 3px 0 0 var(--ok); }
+.msg-reply.failed { border-color: #ff6b5e44; background: #ff6b5e0b; box-shadow: inset 3px 0 0 var(--bad); }
+.msg-reply-head { color: var(--muted); overflow-wrap: anywhere; }
+.msg-reply-head b { color: var(--ok); }
+.msg-reply.failed .msg-reply-head b, .msg-reply-error { color: var(--bad); }
+.msg-reply-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.5; color: var(--soft); }
+.msg-reply-error { overflow-wrap: anywhere; }
+.msg-reply details summary { color: var(--muted); cursor: pointer; width: fit-content; }
+.msg-reply details[open] summary { margin-bottom: 4px; }
+.msg-reply-form { gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--accent); background: #ffa94d0a; }
+.msg-reply-form h3 { font-size: 14px; }
+.msg-reply-form textarea { min-height: 150px; }
+.msg-reply-form p { margin: 0; }
 @media (max-width: 560px) {
   .msg-item .btn { flex: 1 1 auto; }
+  .msg-reply-form { padding: 10px; }
 }
 
 /* „Plany”: the list by sections (the preview reuses the Discord look above) */
@@ -146,6 +168,31 @@ legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 8
 @media (max-width: 560px) {
   .plan-item { grid-template-columns: auto minmax(0, 1fr); }
   .plan-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+/* „Partnerstwa”: the kind chips (colored like the badges), the logo picker with its square preview, the list */
+.kind-discord { --c: #7c86ff; }
+.kind-minecraft { --c: #5fd08a; }
+.kind-both { --c: #ff9f43; }
+.pill.partner-kind { border-color: color-mix(in srgb, var(--c) 55%, transparent); color: var(--c); background: color-mix(in srgb, var(--c) 10%, transparent); }
+.partner-logo-field { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: start; }
+.partner-logo-preview { position: relative; display: grid; place-items: center; width: 96px; height: 96px; border-radius: 18px; border: 1px dashed var(--line-2); background: #0f0b08; overflow: hidden; color: var(--muted); font-size: 12px; }
+.partner-logo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.partner-logo-pick { display: grid; gap: 6px; min-width: 0; }
+.partner-logo-pick input[type="file"] { max-width: 100%; }
+.partner-block { display: grid; gap: 12px; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 10px; background: #0f0b0855; }
+.partner-block legend { padding: 0 6px; margin-bottom: 0; font-weight: 600; color: var(--text); }
+.partner-item { gap: 8px; }
+.partner-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.partner-thumb { flex: none; width: 48px; height: 48px; border-radius: 12px; object-fit: cover; background: #0f0b08; border: 1px solid var(--line); }
+.partner-thumb.none { display: grid; place-items: center; font-weight: 800; font-size: 20px; color: var(--accent); }
+.partner-links { gap: 8px; }
+.partner-links a.small { overflow-wrap: anywhere; }
+code.partner-ip { font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #ffffff0d; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; color: var(--gold); overflow-wrap: anywhere; }
+#partner-delete .fields { gap: 12px; }
+@media (max-width: 560px) {
+  .partner-logo-field { grid-template-columns: 72px minmax(0, 1fr); }
+  .partner-logo-preview { width: 72px; height: 72px; border-radius: 14px; }
+  .partner-item .btn { flex: 1 1 auto; }
 }
 /* Zamówienia: how the order's e-mails went (to the buyer, to the owner) */
 .order-status { min-width: 190px; }

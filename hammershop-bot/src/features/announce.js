@@ -7,7 +7,7 @@ const config = require('../lib/config');
 const db = require('../lib/db');
 const { ASSETS, COLORS, banner, hasBanner } = require('../lib/theme');
 const { UserError, embed } = require('../lib/utils');
-const { container, text, divider, gallery, v2, linkBtn, row } = require('../lib/v2');
+const { container, text, divider, gallery, header, v2, linkBtn, row } = require('../lib/v2');
 
 /**
  * Is this one of the server's own banners? On Hammer Launcher a shared banner (assets/banners/) carries the shop's
@@ -67,8 +67,9 @@ function openModal(interaction, { channelId, ping = 'none', bannerKey = 'none' }
 /**
  * The announcement card. The admin panel's „Ogłoszenia” tab adds its own touches (all optional): color (the kind's
  * accent), image (a picture under the text), label (the button's text), tag + icon (the kind in the footer).
+ * thumbnail: a small picture next to the title (a partner's logo) – { url } (https) or { file: { attachment, name } }.
  */
-function buildAnnouncement(guild, author, { title, message, ping, bannerKey, url, color = COLORS.brand, image = null, label = 'Otwórz link', tag = null, icon = '📢' }) {
+function buildAnnouncement(guild, author, { title, message, ping, bannerKey, url, color = COLORS.brand, image = null, label = 'Otwórz link', tag = null, icon = '📢', thumbnail = null }) {
   const c = container(color);
   const files = [];
   if (bannerKey && bannerKey !== 'none' && hasBanner(bannerKey)) {
@@ -76,7 +77,8 @@ function buildAnnouncement(guild, author, { title, message, ping, bannerKey, url
     files.push(file);
     c.addMediaGalleryComponents(gallery(`attachment://${file.name}`));
   }
-  c.addTextDisplayComponents(text(`# ${title}\n${message}`));
+  if (thumbnail?.file) files.push(thumbnail.file);
+  header(c, `# ${title}\n${message}`, thumbnail?.file ? `attachment://${thumbnail.file.name}` : thumbnail?.url ?? null);
   if (image) c.addMediaGalleryComponents(gallery(image));
   c.addSeparatorComponents(divider());
   let mentions = { parse: [] };
@@ -121,10 +123,10 @@ function kindBanner(kind, launcher = require('../lib/profile').launcher) {
 const panelKinds = () => Object.entries(PANEL_KINDS).map(([id, k]) => ({ id, label: k.label, emoji: k.emoji, color: `#${k.color.toString(16).padStart(6, '0')}`, banner: Boolean(kindBanner(id)) }));
 
 /** ping: 'none' | 'role' (📢 Ogłoszenia) | 'everyone'; author: '<@id>' of whoever sent it from the panel. */
-function buildPanelAnnouncement(guild, author, { title, text: message, kind, image, button, ping, banner: withBanner = true }) {
+function buildPanelAnnouncement(guild, author, { title, text: message, kind, image, button, ping, banner: withBanner = true, thumbnail = null }) {
   const k = panelKind(kind) ?? PANEL_KINDS.ogloszenie;
   return buildAnnouncement(guild, author, {
-    title, message, image, color: k.color, tag: k.label, icon: k.emoji,
+    title, message, image, thumbnail, color: k.color, tag: k.label, icon: k.emoji,
     ping: { role: 'pingAnnouncements', everyone: 'everyone' }[ping] ?? 'none',
     bannerKey: withBanner ? kindBanner(kind) : null,
     url: button?.url ?? null, label: button?.label ?? 'Otwórz link',

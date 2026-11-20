@@ -107,6 +107,7 @@ function guild(guildId) {
   g.abandoned ??= {}; // abandoned-order codes sent: { [ticketChannelId]: { userId, sentAt, code } } – src/features/abandoned.js
   g.plusCodes ??= []; // Hammer+ codes issued with /hammerplus: [{ id, mc, nick, exp, by, at }] – never the code itself – src/features/hammerplus.js
   g.featuredServers ??= []; // servers featured in Hammer Launcher: [{ id, name, address, description, tags, icon, mc, loader, pack, addedBy, addedAt }] – src/features/featured.js
+  g.partners ??= []; // partnerships (Hammer Launcher server): [{ id, name, kind, description, icon, logo, discord, minecraft, addedBy, addedAt, updatedBy, updatedAt }] – src/features/partners.js
   g.knowledge ??= { seq: 0, entries: [] }; // the AI assistant's questions and answers added with /wiedza: { seq, entries: [{ id, questions, answer, by, at, editedBy, editedAt, uses, usedAt }] } – src/features/ai/knowledge.js
   return g;
 }

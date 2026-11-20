@@ -706,6 +706,19 @@ class FakeGuild {
         cache: users,
       },
       guilds: { cache: new Collection() },
+      /**
+       * Like discord.js: a link or a code → the invite (with_counts) – one of this server's own (addInvite) or of
+       * another server (addRemoteInvite); anything else is Discord's 404 „Unknown Invite” (10006).
+       */
+      async fetchInvite(invite) {
+        const code = /(?:discord(?:(?:app)?\.com\/invite|\.gg(?:\/invite)?)\/)?([\w-]{2,255})\/?$/i.exec(String(invite).trim())?.[1];
+        const own = code && guild.inviteList?.get(code);
+        if (own) return { code, guild, memberCount: guild.memberCount ?? guild.members.cache.size, expiresTimestamp: null };
+        const remote = code && remoteInvites.get(code);
+        if (!remote) throw Object.assign(apiError(10006, 'Unknown Invite'), { status: 404 });
+        if (remote.fail) throw remote.fail;
+        return { code, guild: remote.guild, memberCount: remote.memberCount, expiresTimestamp: remote.expiresTimestamp };
+      },
     };
     this.client.guilds.cache.set(this.id, this);
 
@@ -1057,6 +1070,18 @@ FakeGuild.prototype.disableInvites = async function disableInvites(disabled = tr
 };
 
 /** A server invite (guild.invites.fetch() returns copies of these). */
+/** Invites to other servers (a partner's) – client.fetchInvite finds them by code. */
+const remoteInvites = new Map();
+/**
+ * An invite to another server, as Discord answers GET /invites/<code>?with_counts=true. icon: the server's icon address
+ * (null – none); expiresAt: ms (null – never); fail: an error fetchInvite throws instead (Discord down).
+ */
+function addRemoteInvite({ code = `p${nextId().slice(-8)}`, name = 'Serwer partnera', guildId = nextId(), icon = null, members = 1234, expiresAt = null, fail = null } = {}) {
+  const invite = { code, guild: { id: guildId, name, iconURL: () => icon }, memberCount: members, expiresTimestamp: expiresAt, fail };
+  remoteInvites.set(code, invite);
+  return { ...invite, url: `https://discord.gg/${code}` };
+}
+
 FakeGuild.prototype.addInvite = function addInvite({ code = `inv${nextId().slice(-8)}`, inviterId = null, uses = 0, maxUses = 0 } = {}) {
   const inviter = inviterId ? this.members.cache.get(inviterId)?.user ?? { id: inviterId, bot: false } : null;
   const invite = { code, uses, maxUses, inviterId, inviter, guild: this };
@@ -1147,4 +1172,4 @@ FakeMember.prototype.snapshot = function snapshot() {
   return Object.assign(Object.create(FakeMember.prototype), this, { user: { ...this.user } });
 };
 
-module.exports = { FakeGuild, FakeMember, FakeChannel, FakeRole, FakeMessage, validateMessage, validateV2, validateModal, apiError, nextId };
+module.exports = { FakeGuild, FakeMember, FakeChannel, FakeRole, FakeMessage, validateMessage, validateV2, validateModal, apiError, nextId, addRemoteInvite };

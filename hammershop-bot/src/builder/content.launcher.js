@@ -63,6 +63,7 @@ function information(x, build) {
         (x.url('roadmap') ? `> ${x.ch('roadmap')} – nad czym pracujemy i co będzie dalej\n` : '') +
         `> ${x.ch('plus')} – Hammer+: co daje i jak go zdobyć\n> ${x.ch('faq')} – szybkie odpowiedzi\n` +
         `### ${x.E('cart')} HammerShop\n> ${x.ch('hammershop')} – HammerShop, nasz współtwórca\n` +
+        (x.url('partnerships') ? `### ${x.E('group')} Partnerstwa\n> ${x.ch('partnerships')} – nasi partnerzy i jak zostać jednym z nich\n` : '') +
         `### ${x.E('ticket')} Pomoc\n` +
         `> ${x.ch('tickets')} – otwórz ticket\n> ${x.ch('bugs')} – jak zgłosić błąd\n> ${x.ch('suggestions')} – Twoje pomysły na nowe funkcje\n` +
         `### ${x.E('chat')} Społeczność\n` +
@@ -300,6 +301,37 @@ function hammershop(x) {
   return card(c);
 }
 
+/**
+ * #współpraca – the start of the 🤝 PARTNERSTWA category: what a partnership is and how to ask for one. The partners'
+ * own channels follow it (src/features/partners.js makes them from the admin panel's „Partnerstwa” tab).
+ */
+function partnerships(x) {
+  const c = container(COLORS.brand);
+  header(
+    c,
+    `# 🤝 Partnerstwa\nWspółpracujemy z serwerami, które lubimy – na Discordzie i w Minecrafcie. ` +
+      'Każdy partner z serwerem Discord ma w tej kategorii swój kanał z przyciskiem „Dołącz do serwera”, a serwery Minecraft naszych partnerów znajdziesz też w launcherze, w **Polecanych serwerach**.',
+    x.icon,
+  );
+  c.addSeparatorComponents(divider());
+  c.addTextDisplayComponents(
+    text(
+      `### ${x.E('pencil')} Jak zostać partnerem?\n` +
+        `> **1.** Napisz do nas – ${site() && config.contact?.email ? 'przez formularz kontaktowy na stronie (temat **Współpraca**) albo ' : ''}ticketem na ${x.ch('tickets')}\n` +
+        '> **2.** Opowiedz o swoim serwerze: link do Discorda albo adres serwera Minecraft i ilu macie graczy\n' +
+        '> **3.** Odpiszemy – a gdy się dogadamy, Twój serwer pojawi się tutaj i w launcherze\n' +
+        `-# Nowe partnerstwa ogłaszamy na ${x.ch('announcements')}.`,
+    ),
+  );
+  const links = [
+    site() && config.contact?.email ? linkBtn(`${site()}/kontakt`, 'Napisz do nas', ce(x.guild, 'mail')) : null,
+    site() ? linkBtn(`${site()}/partnerzy`, 'Wszyscy partnerzy', ce(x.guild, 'group')) : null,
+    x.link('tickets', 'Tickety', 'ticket'),
+  ].filter(Boolean);
+  if (links.length) c.addActionRowComponents(row(...links));
+  return card(c);
+}
+
 function staff(x) {
   const c = container(COLORS.brand);
   c.addTextDisplayComponents(
@@ -320,6 +352,7 @@ function staff(x) {
         '> Kod kupiony na stronie przychodzi graczowi sam (strona + DM). Zły nick albo kod nie działa → sprawdź kod, w razie potrzeby wystaw nowy\n' +
         `### ${x.E('rocket')} Launcher i strona\n> Panel admina na stronie${site() ? ` (${site()}/admin)` : ''}: **aktualności** i **komunikat** widoczne w launcherze, **wersje launchera**, cennik Hammer+, polecane serwery, **plany** na ${x.ch('roadmap', '#plany')}\n` +
         `> Nowe wersje i aktualności z panelu pojawiają się same na ${x.ch('updates')} i ${x.ch('news')} · \`${slash('launcher')}\` pokazuje aktualną wersję · \`${slash('featured add')}\` – polecane serwery\n` +
+        `> **Partnerstwa** – zakładka w panelu: wpisujesz Discord i/lub serwer Minecraft partnera, bot robi mu kanał w 🤝 PARTNERSTWA i dodaje serwer do polecanych w launcherze\n` +
         `### ${x.E('gift')} Społeczność i bezpieczeństwo\n> \`${slash('giveaway start')}\` · \`${slash('giveaway end')}\` · \`${slash('giveaway reroll')}\` · \`${slash('announce')}\` – ładne ogłoszenie z opcjonalnym banerem i pingiem · \`${slash('lockdown')}\` / \`${slash('unlock')}\` – blokada serwera przy raidzie\n` +
         `### ${x.E('refresh')} Zmiana tekstów\n> Edytuj \`config.launcher.json\` albo \`regulamin-launcher.md\`, uruchom bota ponownie i użyj \`${slash('build')} tylko:panels\` – każda karta zaktualizuje się na miejscu\n` +
         `### ${x.E('warning')} Złote zasady (wszyscy)\n> Nigdy nie proś o hasła ani dane karty · nie wysyłaj plików na DM · zachowuj kulturę · w razie wątpliwości zapytaj ${x.role('founder', 'CEO')} albo ${x.role('coowner', 'Co-CEO')}`,
@@ -365,6 +398,8 @@ function postsFor(key, x, build) {
       return [{ banner: 'boosters' }, boosters(x)];
     case 'hammershop':
       return [{ banner: 'hammershop' }, hammershop(x)];
+    case 'partnerships':
+      return [partnerships(x)];
     case 'staff':
       return [{ banner: 'staff' }, staff(x)];
     default:

@@ -96,18 +96,18 @@ test('the profile: its own name, logo, rules and ticket types laid over the shop
 test('/build makes the Hammer Launcher server: its name, its mark as the icon, its own channels and roles – no shop', () => {
   assert.equal(guild.name, 'Hammer Launcher');
   assert.equal(path.basename(guild.iconSet), 'logo-launcher.png');
-  for (const key of ['verify', 'rules', 'welcome', 'information', 'announcements', 'roles', 'launcher', 'updates', 'news', 'roadmap', 'plus', 'faq', 'hammershop', 'tickets', 'bugs', 'suggestions', 'chat', 'servers', 'giveaways', 'leaderboard', 'boosters', 'statMembers', 'statVersion', 'statDownloads', 'statPlaying', 'ticketLogs', 'backups']) {
+  for (const key of ['verify', 'rules', 'welcome', 'information', 'announcements', 'roles', 'launcher', 'updates', 'news', 'roadmap', 'plus', 'faq', 'hammershop', 'partnerships', 'tickets', 'bugs', 'suggestions', 'chat', 'servers', 'giveaways', 'leaderboard', 'boosters', 'statMembers', 'statVersion', 'statDownloads', 'statPlaying', 'ticketLogs', 'backups']) {
     assert.ok(channel(key), `#${key}`);
   }
   for (const key of ['shop', 'howToBuy', 'payments', 'restocks', 'vouches', 'proofs', 'sales', 'statShop', 'statVouches']) assert.equal(db.channelId(guild.id, key), null, `no #${key}`);
-  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 35); // + 🕹️ Gra teraz, 🗺️ plany
+  assert.equal(CATEGORIES.reduce((n, c) => n + c.channels.length, 0), 36); // + 🕹️ Gra teraz, 🗺️ plany, 📋 współpraca
   // No #zrzuty-ekranu; the download channel has the 📥 tray; #czat and #serwery are for talking – no bot cards there.
   assert.equal(db.channelId(guild.id, 'screenshots'), null, 'no #zrzuty-ekranu');
   assert.match(channel('launcher').name, /📥/);
   assert.match(channel('statDownloads').name, /^📥/);
   assert.equal(channel('chat').messageList.length, 0, 'no cards in #czat');
   assert.equal(channel('servers').messageList.length, 0, 'no cards in #serwery');
-  assert.deepEqual(CATEGORIES.map((c) => c.key), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
+  assert.deepEqual(CATEGORIES.map((c) => c.key), ['catStats', 'catWelcome', 'catLauncher', 'catPartner', 'catPartnerships', 'catSupport', 'catCommunity', 'catStaff', 'catLogs', 'catTickets', 'catClosed']);
 
   const names = guild.roles.cache.map((r) => r.name);
   for (const name of ['🔨 Hammer Launcher', '👑 CEO', '💻 Developer', '🧪 Tester', '✅ Członek', '🚀 Aktualizacje']) assert.ok(names.includes(name), name);
