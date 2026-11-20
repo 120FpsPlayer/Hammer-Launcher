@@ -297,7 +297,7 @@ test('a Minecraft partnership: on the launcher\'s featured list with the tag „
   assert.equal(p.discord, null);
   assert.equal(guild.channels.cache.size, channels, 'no Discord channel');
   const server = featured.find(guild.id, p.minecraft.featuredId);
-  assert.deepEqual([server.name, server.address, server.tags, server.mc, server.loader, server.icon], ['Blokowo', 'play.blokowo.pl', ['partner', 'skyblock', 'ekonomia'], '1.21.4', 'fabric', 'https://cdn.example.com/blokowo.png']);
+  assert.deepEqual([server.name, server.address, server.tags, server.mc, server.loader, server.icon], ['Blokowo', 'play.blokowo.pl', ['partner', 'skyblock', 'ekonomia'], '1.21.4', 'fabric', null], 'no partner picture in the launcher (the owner wants logos only on the website and Discord)');
   const launcher = await call('GET', '/api/launcher/featured', { who: null });
   assert.ok(JSON.stringify(launcher.body).includes('"address":"play.blokowo.pl"'), 'the launcher reads it straight away');
   assert.equal(res.body.partner.minecraft.featured, true);

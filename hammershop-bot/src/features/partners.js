@@ -14,7 +14,7 @@
  *
  * The website lists them on its „Partnerzy” page (src/web/pages.js – publicList). A logo uploaded in the panel
  * (src/lib/partnerLogo.js) shows there, in the panel, on the Discord card and in the announcements – not in the
- * launcher: its featured server keeps the icon address (or the Discord server's icon). The category is made here
+ * launcher: the owner wants no partner pictures there, so its featured server has no icon. The category is made here
  * too when /build has not made it yet; the partners' channels are not in the layout, so /build only:update leaves them.
  *
  *   db.guild(id).partners = [{ id, name, kind ('discord' | 'minecraft' | 'both'), description, icon (https | null),
@@ -116,10 +116,10 @@ function fieldsOf(body) {
   return { name, kind: body.kind, description, icon, invite, minecraft };
 }
 
-/** The partner's entry on the launcher's featured list – its icon: the icon address, else the Discord server's icon. */
+/** The partner's entry on the launcher's featured list – no picture: partner logos stay on the website and Discord. */
 const featuredFields = (f, invite, by) => ({
   name: f.name, address: f.minecraft.address, description: f.description, tags: [PARTNER_TAG, ...f.minecraft.tags].join(','),
-  icon: f.icon || invite?.guildIcon || null, mc: f.minecraft.mc, loader: f.minecraft.loader, pack: f.minecraft.pack, addedBy: by,
+  icon: null, mc: f.minecraft.mc, loader: f.minecraft.loader, pack: f.minecraft.pack, addedBy: by,
 });
 
 /** "Kraina Craftu ⚒" → "kraina-craftu" (and "kraina-craftu-2" when taken) – also the logo's file name. */
