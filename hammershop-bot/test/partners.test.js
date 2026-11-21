@@ -554,9 +554,9 @@ test('the „Partnerzy” page: a friendly word before the first partner; then a
   assert.ok(html.includes('Adres serwera · 1.21.4 · Fabric'));
   assert.match(html, /<span class="partner-logo none" aria-hidden="true">T<\/span>/, 'no picture: the first letter');
   assert.match(html, /<img class="partner-logo" src="https:\/\/cdn\.discordapp\.com\/icons\/9\/kraina\.png"/);
-  // Linked modestly: the footer and the menu on a phone, and from the /hammershop page – and in the sitemap.
+  // Linked in the main navigation (the owner looked for it there), the footer, from the /hammershop page – and in the sitemap.
   const start = (await call('GET', '/', { who: null })).body;
-  assert.match(start, /<a class="menu-only" href="\/partnerzy">Partnerzy<\/a>/);
+  assert.match(start, /<nav class="nav"[^>]*>[\s\S]*?<a href="\/polecaj">Polecaj<\/a>\s*<a href="\/partnerzy">Partnerzy<\/a>/, 'in the main navigation, visible on a laptop too');
   assert.match(start, /<nav class="foot-links"[^>]*>[\s\S]*<a href="\/partnerzy">Partnerzy<\/a>/);
   assert.match((await call('GET', '/hammershop', { who: null })).body, /<a href="\/partnerzy">zobacz naszych partnerów<\/a>/);
   assert.ok((await call('GET', '/sitemap.xml', { who: null })).body.includes(`<loc>${base}/partnerzy</loc>`));

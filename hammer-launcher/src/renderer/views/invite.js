@@ -298,7 +298,7 @@
 
     function draw() {
       if (!servers.length) return clear(el);
-      return clear(el, h('section.card.featured', h('div.card-head', icon('star'), h('h2.grow', 'Polecane serwery'), h('span.dim', { style: { fontSize: '12px' } }, `wybiera ${state.info?.config?.brand ?? 'HammerShop'}`)), h('div.feat-grid', servers.map(tile))));
+      return clear(el, h('section.card.featured', h('div.card-head', icon('star'), h('h2.grow', 'Polecane serwery'), h('span.dim', { style: { fontSize: '12px' } }, `wybiera ${state.info?.config?.name ?? 'Hammer Launcher'}`)), h('div.feat-grid', servers.map(tile))));
     }
 
     featuredList().then((list) => {

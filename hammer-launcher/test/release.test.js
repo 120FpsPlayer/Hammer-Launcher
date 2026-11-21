@@ -76,3 +76,10 @@ test('the launcher sends players to „the Hammer Launcher website” – the si
   const dir = path.join(ROOT, 'src', 'renderer', 'views');
   for (const file of fs.readdirSync(dir)) assert.doesNotMatch(fs.readFileSync(path.join(dir, file), 'utf8'), /(stron[aęy]|stronie) HammerShop/, file);
 });
+
+test('„Polecane serwery” are picked by Hammer Launcher – the card names the launcher (config.name), not the HammerShop brand', () => {
+  const view = read(path.join(ROOT, 'src', 'renderer', 'views', 'invite.js'));
+  assert.match(view, /`wybiera \$\{state\.info\?\.config\?\.name \?\? 'Hammer Launcher'\}`/);
+  assert.doesNotMatch(view, /wybiera \$\{state\.info\?\.config\?\.brand/);
+  assert.equal(config.name, 'Hammer Launcher');
+});

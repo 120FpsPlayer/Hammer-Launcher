@@ -244,7 +244,7 @@ test('Funkcje is one page with three parts: the switcher and the parts are in th
   assert.match(css, /html\[data-part\] \.part \{ display: none;/);
   for (const part of ['launcher', 'hammer-client', 'wyglad']) assert.ok(css.includes(`html[data-part="${part}"] #${part}`), part);
   // The menu: one item for all three parts; the footer and the start page lead straight to a part.
-  assert.match(html, /<nav class="nav"[^>]*>[\s\S]*?<a href="\/funkcje" aria-current="page">Funkcje<\/a>\s*<a href="\/hammer-plus">Hammer\+<\/a>\s*<a href="\/polecaj">Polecaj<\/a>\s*<a href="\/aktualnosci">Aktualności<\/a>\s*<a href="\/pomoc">Pomoc<\/a>\s*<a href="\/kontakt">Kontakt<\/a>/);
+  assert.match(html, /<nav class="nav"[^>]*>[\s\S]*?<a href="\/funkcje" aria-current="page">Funkcje<\/a>\s*<a href="\/hammer-plus">Hammer\+<\/a>\s*<a href="\/polecaj">Polecaj<\/a>\s*<a href="\/partnerzy">Partnerzy<\/a>\s*<a href="\/aktualnosci">Aktualności<\/a>\s*<a href="\/pomoc">Pomoc<\/a>\s*<a href="\/kontakt">Kontakt<\/a>/);
   assert.doesNotMatch(html, /href="\/(hammer-client|wyglad)"/);
   assert.match(html, /<a href="\/funkcje#hammer-client">Hammer Client<\/a>\s*<a href="\/funkcje#wyglad">Wygląd<\/a>/);
   const start = (await call('GET', '/')).body;
